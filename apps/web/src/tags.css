@@ -1,0 +1,81 @@
+.wst-tags {
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.wst-tag {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.wst-tag span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.wst-tag:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--wash);
+}
+
+.wst-card > .wst-tags {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 3px;
+  margin-top: 0.3em;
+  overflow: hidden;
+}
+
+.wst-card > .wst-tags .wst-tag {
+  padding-inline: 4px;
+  font-size: 0.78em;
+}
+
+.wst-card > .wst-tags .wst-tag:last-child {
+  flex-shrink: 0;
+  max-width: 75%;
+}
+
+.wst-md-task-title:not(:empty) + .wst-tags {
+  margin-inline-start: 5px;
+}
+
+.wst-tag-editor {
+  display: grid;
+  gap: 6px;
+}
+
+.wst-tag-error {
+  margin: 0;
+  color: #a43025;
+  font-size: 12px;
+}
+
+.wst-task-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.wst-task-tags,
+.wst-task-list .wst-tag-editor {
+  margin: 0 0 6px 24px;
+}

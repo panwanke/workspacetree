@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+ara/
+.workbuddy/
+pnpm-lock.yaml
+packages/schema/generated/
+# 由 pnpm spike:storage 生成的实测产物，不参与格式校验
+docs/storage-spike-report.md
+docs/storage-spike-results.json
+docs/phase1-smoke-report.md
+docs/phase1-smoke-results.json
+*.tsbuildinfo

@@ -1,0 +1,1602 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase 0 data contracts (prototype, no production data)",
+  "$defs": {
+    "Project": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "rootNodeId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "rootNodeId"
+      ]
+    },
+    "Node": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "startAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[\\p{L}\\p{N}\\p{M}_-]+(?![\\s\\S])"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "parentId",
+        "blockIds",
+        "archived"
+      ]
+    },
+    "Edge": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "hierarchy",
+            "dependency",
+            "reference",
+            "custom"
+          ]
+        },
+        "fromNodeId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toNodeId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string",
+          "pattern": "^[^\\r\\n]*(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "fromNodeId",
+        "toNodeId"
+      ]
+    },
+    "Task": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodeId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[\\p{L}\\p{N}\\p{M}_-]+(?![\\s\\S])"
+          }
+        },
+        "scheduledAt": {
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "discarded"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "nodeId",
+        "title",
+        "done"
+      ]
+    },
+    "Spine": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "nodeIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "nodeIds"
+      ]
+    },
+    "DomainState": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": {
+              "type": "string"
+            },
+            "rootNodeId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "rootNodeId"
+          ]
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": "string"
+              },
+              "parentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "blockIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "startAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[\\p{L}\\p{N}\\p{M}_-]+(?![\\s\\S])"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "parentId",
+              "blockIds",
+              "archived"
+            ]
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "hierarchy",
+                  "dependency",
+                  "reference",
+                  "custom"
+                ]
+              },
+              "fromNodeId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "toNodeId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "note": {
+                "type": "string",
+                "pattern": "^[^\\r\\n]*(?![\\s\\S])"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "fromNodeId",
+              "toNodeId"
+            ]
+          }
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "nodeId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "done": {
+                "type": "boolean"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[\\p{L}\\p{N}\\p{M}_-]+(?![\\s\\S])"
+                }
+              },
+              "scheduledAt": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "discarded"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "nodeId",
+              "title",
+              "done"
+            ]
+          }
+        },
+        "spines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": "string"
+              },
+              "nodeIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "nodeIds"
+            ]
+          }
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "checklist",
+                  "table",
+                  "image",
+                  "code",
+                  "attachment",
+                  "tag"
+                ]
+              },
+              "payload": {}
+            },
+            "required": [
+              "id",
+              "kind",
+              "payload"
+            ]
+          }
+        },
+        "projectRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "link",
+                  "preview",
+                  "inline"
+                ]
+              },
+              "hostNodeId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "projectId",
+              "mode",
+              "hostNodeId"
+            ]
+          }
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "archiveMeta": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                },
+                "replacementBranchId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "reason",
+                "at",
+                "replacementBranchId"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "project",
+        "nodes",
+        "edges",
+        "tasks",
+        "spines",
+        "blocks",
+        "projectRefs",
+        "archived",
+        "archiveMeta"
+      ]
+    },
+    "SavedPresentation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "nodePositions": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ]
+          }
+        },
+        "verticalNodePositions": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "branchScales": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 2
+          }
+        },
+        "branchScaleCompensation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "nodeScales": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0.35,
+                "maximum": 2
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nodeSizes": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "width",
+                  "height"
+                ]
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "collapsedByDefault": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "savedSpineDisplay": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layoutDirection": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "horizontal",
+                "vertical"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "nodePositions",
+        "branchScales",
+        "collapsedByDefault",
+        "savedSpineDisplay"
+      ]
+    },
+    "SessionView": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pan": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ]
+        },
+        "zoom": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "selection": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "highlightSpineId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "pan",
+        "zoom",
+        "selection",
+        "highlightSpineId"
+      ]
+    },
+    "Command": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "^(project|node|task|edge|spine|branch|presentation|history|workspace|import)\\.[a-z][A-Za-z0-9]*$"
+        },
+        "payload": {}
+      },
+      "required": [
+        "type",
+        "payload"
+      ]
+    },
+    "Operation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "stateClass": {
+          "type": "string",
+          "enum": [
+            "domain",
+            "presentation"
+          ]
+        },
+        "payload": {},
+        "actor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "agent",
+                "external-import"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        "audit": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "baseFileHash": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "at"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "operationId",
+        "type",
+        "stateClass",
+        "payload",
+        "actor",
+        "audit"
+      ]
+    },
+    "Commit": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "operationIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "semanticRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "semanticHash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "parentId",
+        "operationIds",
+        "semanticRevision",
+        "semanticHash"
+      ]
+    },
+    "CommandEnvelope": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stateClass": {
+          "type": "string",
+          "enum": [
+            "domain",
+            "presentation"
+          ]
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "agent",
+                "external-import"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        "command": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "pattern": "^(project|node|task|edge|spine|branch|presentation|history|workspace|import)\\.[a-z][A-Za-z0-9]*$"
+            },
+            "payload": {}
+          },
+          "required": [
+            "type",
+            "payload"
+          ]
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "audit": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "baseFileHash": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "at"
+          ]
+        }
+      },
+      "required": [
+        "operationId",
+        "projectId",
+        "stateClass",
+        "expectedRevision",
+        "actor",
+        "command"
+      ]
+    },
+    "ChangeSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stateClass": {
+          "type": "string",
+          "enum": [
+            "domain",
+            "presentation"
+          ]
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "agent",
+                "external-import"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ]
+        },
+        "commands": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "pattern": "^(project|node|task|edge|spine|branch|presentation|history|workspace|import)\\.[a-z][A-Za-z0-9]*$"
+              },
+              "payload": {}
+            },
+            "required": [
+              "type",
+              "payload"
+            ]
+          }
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "audit": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "baseFileHash": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "at"
+          ]
+        }
+      },
+      "required": [
+        "operationId",
+        "projectId",
+        "stateClass",
+        "expectedRevision",
+        "actor",
+        "commands"
+      ]
+    },
+    "Audit": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseFileHash": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at"
+      ]
+    },
+    "BranchFile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "activeBranch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "domain": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "rootNodeId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "rootNodeId"
+              ]
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "parentId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "blockIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "archived": {
+                    "type": "boolean"
+                  },
+                  "startAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[\\p{L}\\p{N}\\p{M}_-]+(?![\\s\\S])"
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "parentId",
+                  "blockIds",
+                  "archived"
+                ]
+              }
+            },
+            "edges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "hierarchy",
+                      "dependency",
+                      "reference",
+                      "custom"
+                    ]
+                  },
+                  "fromNodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "toNodeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "note": {
+                    "type": "string",
+                    "pattern": "^[^\\r\\n]*(?![\\s\\S])"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "fromNodeId",
+                  "toNodeId"
+                ]
+              }
+            },
+            "tasks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "nodeId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "done": {
+                    "type": "boolean"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[\\p{L}\\p{N}\\p{M}_-]+(?![\\s\\S])"
+                    }
+                  },
+                  "scheduledAt": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "discarded"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "nodeId",
+                  "title",
+                  "done"
+                ]
+              }
+            },
+            "spines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "nodeIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "nodeIds"
+                ]
+              }
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "checklist",
+                      "table",
+                      "image",
+                      "code",
+                      "attachment",
+                      "tag"
+                    ]
+                  },
+                  "payload": {}
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "payload"
+                ]
+              }
+            },
+            "projectRefs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "link",
+                      "preview",
+                      "inline"
+                    ]
+                  },
+                  "hostNodeId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "mode",
+                  "hostNodeId"
+                ]
+              }
+            },
+            "archived": {
+              "type": "boolean"
+            },
+            "archiveMeta": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "reason": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "replacementBranchId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "reason",
+                    "at",
+                    "replacementBranchId"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "project",
+            "nodes",
+            "edges",
+            "tasks",
+            "spines",
+            "blocks",
+            "projectRefs",
+            "archived",
+            "archiveMeta"
+          ]
+        },
+        "presentation": {
+          "type": "object",
+          "properties": {
+            "nodePositions": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
+              }
+            },
+            "verticalNodePositions": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "branchScales": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0.1,
+                "maximum": 2
+              }
+            },
+            "branchScaleCompensation": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "nodeScales": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0.35,
+                    "maximum": 2
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "nodeSizes": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "width": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "width",
+                      "height"
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collapsedByDefault": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "savedSpineDisplay": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "layoutDirection": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "horizontal",
+                    "vertical"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "nodePositions",
+            "branchScales",
+            "collapsedByDefault",
+            "savedSpineDisplay"
+          ]
+        },
+        "revisions": {
+          "type": "object",
+          "properties": {
+            "semanticRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "semanticHash": {
+              "type": "string"
+            },
+            "presentationRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "presentationHash": {
+              "type": "string"
+            },
+            "fileHash": {
+              "type": "string"
+            },
+            "fileWriteVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "semanticRevision",
+            "semanticHash",
+            "presentationRevision",
+            "presentationHash",
+            "fileHash",
+            "fileWriteVersion"
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "projectId",
+        "activeBranch",
+        "domain",
+        "presentation",
+        "revisions"
+      ]
+    }
+  },
+  "$ref": "#/$defs/BranchFile"
+}

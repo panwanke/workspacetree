@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_fixture_0001",
+  "activeBranch": "main",
+  "domain": {
+    "project": {
+      "id": "prj_fixture_0001",
+      "title": "Minimal fixture",
+      "rootNodeId": "n_root"
+    },
+    "nodes": [
+      {
+        "id": "n_root",
+        "title": "Root",
+        "parentId": null,
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_child",
+        "title": "Child",
+        "parentId": "n_root",
+        "blockIds": [],
+        "archived": false
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_hierarchy_1",
+        "type": "hierarchy",
+        "fromNodeId": "n_root",
+        "toNodeId": "n_child"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "tsk_1",
+        "nodeId": "n_child",
+        "title": "Sample task",
+        "done": false
+      }
+    ],
+    "spines": [
+      {
+        "id": "spn_main",
+        "title": "Main",
+        "nodeIds": ["n_root", "n_child"]
+      }
+    ],
+    "blocks": [],
+    "projectRefs": [],
+    "archived": false,
+    "archiveMeta": null
+  },
+  "presentation": {
+    "nodePositions": {},
+    "branchScales": {},
+    "collapsedByDefault": [],
+    "savedSpineDisplay": null
+  },
+  "revisions": {
+    "semanticRevision": 0,
+    "semanticHash": "98e1e0a187c9d0b5192398b9829496a489299007e414bf15951855bfaff29fe6",
+    "presentationRevision": 0,
+    "presentationHash": "2cff99c61dbf47279f0f431cb91885a8e1a65439ff9144af9909a27e5a6fd69a",
+    "fileHash": "6dd9c4e4543bbbcb9604f3eb050ef46f29511a9703416569b60a05857f890592",
+    "fileWriteVersion": 0
+  }
+}

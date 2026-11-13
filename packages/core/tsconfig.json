@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": [],
+    "noEmit": true,
+    "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "@workspacetree/schema": ["../schema/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

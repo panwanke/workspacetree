@@ -1,0 +1,193 @@
+/**
+ * SVG 导出（06 §二 Phase 1 验收 6：与画布结构一致，且可选择包含哪些边类型）。
+ * 与画布共用 @workspacetree/layout 的同一组几何/坐标函数，端点不会漂移。
+ * 纯 TS：不依赖 React 组件、DOM、Node / Electron API；输入是数据，输出是字符串。
+ */
+import {
+  DEFAULT_VISIBLE_EDGE_TYPES,
+  layoutBounds,
+  pathForNodes,
+  taskStats,
+  visualEdgeAnchors,
+  visualEdgePath,
+  type LayoutOptions,
+  type Point,
+  type VisibleEdgeTypes,
+  type VisualGraph,
+} from '@workspacetree/layout';
+import type { Edge, Node, Task } from '@workspacetree/schema';
+
+export interface SvgExportInput {
+  nodes: readonly Node[];
+  edges: readonly Edge[];
+  /** nodeId -> 左上角坐标，来自 resolvePositions / SavedPresentation。 */
+  positions: Record<string, Point>;
+  tasks?: readonly Task[];
+  /** 默认只含 hierarchy；调用方可显式选择 dependency / reference / custom。 */
+  visibleEdgeTypes?: VisibleEdgeTypes;
+  highlightNodeIds?: readonly string[];
+  title?: string;
+  options?: LayoutOptions;
+  /** Phase 2：传入后直接复用画布的折叠、缩放、方向与连线汇聚结果。 */
+  graph?: VisualGraph;
+}
+
+export interface SvgExportMeta {
+  width: number;
+  height: number;
+  nodeCount: number;
+  edgeCount: number;
+  edgeTypes: string[];
+}
+
+export interface SvgExportResult {
+  svg: string;
+  meta: SvgExportMeta;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+export function exportSvg(input: SvgExportInput): SvgExportResult {
+  const cfg = input.options ?? {};
+  const visibleTypes = input.visibleEdgeTypes ?? DEFAULT_VISIBLE_EDGE_TYPES;
+  const visible = new Set<string>(visibleTypes);
+  const positions = input.graph?.positions ?? input.positions;
+  const bounds = input.graph?.bounds ?? layoutBounds(positions, cfg, 48);
+  const width = Math.max(1, Math.ceil(bounds.maxX - bounds.minX + 48));
+  const height = Math.max(1, Math.ceil(bounds.maxY - bounds.minY + 48));
+  const nodeWidth = cfg.nodeWidth ?? 220;
+  const nodeHeight = cfg.nodeHeight ?? 76;
+  const highlight = new Set(input.highlightNodeIds ?? []);
+  const tasks = input.tasks ?? [];
+
+  const lines: string[] = [];
+  lines.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX - 24} ${bounds.minY - 24} ${width} ${height}">`,
+  );
+  lines.push('  <defs>');
+  lines.push(
+    '    <marker id="wst-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker>',
+  );
+  lines.push('  </defs>');
+  lines.push(
+    `  <rect x="${bounds.minX - 24}" y="${bounds.minY - 24}" width="${width}" height="${height}" fill="#ffffff" />`,
+  );
+  if (input.title) {
+    lines.push(
+      `  <text x="${bounds.minX - 12}" y="${bounds.minY - 6}" font-family="system-ui, sans-serif" font-size="13" fill="#475569">${escapeXml(input.title)}</text>`,
+    );
+  }
+
+  lines.push('  <g id="edges" fill="none" stroke-width="1.6">');
+  const drawnEdges: string[] = [];
+  const sourceEdges = new Map(input.edges.map((edge) => [edge.id, edge]));
+  const exportEdges = input.graph
+    ? input.graph.edges.map((edge) => ({
+        id: edge.id,
+        type: edge.type,
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
+        originalIds: edge.originalEdgeIds,
+      }))
+    : input.edges.map((edge) => ({
+        id: edge.id,
+        type: edge.type,
+        sourceId: edge.fromNodeId,
+        targetId: edge.toNodeId,
+        originalIds: [edge.id],
+      }));
+  for (const edge of exportEdges) {
+    if (!visible.has(edge.type)) continue;
+    const from = positions[edge.sourceId];
+    const to = positions[edge.targetId];
+    if (!from || !to) continue;
+    const sourceVisual = input.graph?.nodeById[edge.sourceId];
+    const targetVisual = input.graph?.nodeById[edge.targetId];
+    const path =
+      sourceVisual && targetVisual && input.graph
+        ? visualEdgePath(sourceVisual, targetVisual, input.graph.direction)
+        : pathForNodes(from, to, cfg).path;
+    const stroke = edge.type === 'hierarchy' ? '#64748b' : '#c026d3';
+    const dash = edge.type === 'hierarchy' ? '' : ' stroke-dasharray="6 4"';
+    lines.push(
+      `    <path id="${escapeXml(edge.id)}" data-edge-type="${edge.type}" d="${path}" stroke="${stroke}"${dash} marker-end="url(#wst-arrow)" />`,
+    );
+    const original =
+      edge.originalIds.length === 1 ? sourceEdges.get(edge.originalIds[0]) : undefined;
+    if (
+      original?.note &&
+      original.fromNodeId === edge.sourceId &&
+      original.toNodeId === edge.targetId
+    ) {
+      const anchors =
+        sourceVisual && targetVisual && input.graph
+          ? visualEdgeAnchors(sourceVisual, targetVisual, input.graph.direction)
+          : pathForNodes(from, to, cfg).anchors;
+      const labelX = (anchors.source.x + anchors.target.x) / 2;
+      const labelY = (anchors.source.y + anchors.target.y) / 2;
+      lines.push(
+        `    <text data-edge-note="${escapeXml(original.id)}" x="${labelX}" y="${labelY}" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="12">${escapeXml(original.note)}</text>`,
+      );
+    }
+    drawnEdges.push(edge.type);
+  }
+  lines.push('  </g>');
+
+  lines.push('  <g id="nodes">');
+  for (const node of input.nodes) {
+    const position = positions[node.id];
+    if (!position) continue;
+    const active = highlight.has(node.id);
+    const visual = input.graph?.nodeById[node.id];
+    const stats = visual
+      ? { done: visual.taskDone, total: visual.taskTotal }
+      : taskStats(tasks, node.id);
+    const width = visual?.size.width ?? nodeWidth;
+    const height = visual?.size.height ?? nodeHeight;
+    const fill = visual?.collapsed
+      ? '#eff6ff'
+      : node.archived
+        ? '#f1f5f9'
+        : active
+          ? '#fff7ed'
+          : '#ffffff';
+    const stroke = active ? '#ea580c' : visual?.collapsed ? '#3b82f6' : '#cbd5e1';
+    const summary = visual?.collapsed
+      ? `${visual.collapsedCount} nodes · tasks ${stats.done}/${stats.total} · ${visual.externalConnectionCount} links`
+      : visual?.lod === 'summary'
+        ? `LOD summary · tasks ${stats.done}/${stats.total}`
+        : `tasks ${stats.done}/${stats.total}${node.archived ? ' · archived' : ''}`;
+    const textScale = visual?.lod === 'summary' ? 1 : (visual?.scale ?? 1);
+    lines.push(
+      `    <g id="${escapeXml(node.id)}" data-node-id="${escapeXml(node.id)}">`,
+      `      <rect x="${position.x}" y="${position.y}" width="${width}" height="${height}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="${active ? 2.5 : 1.4}" />`,
+      `      <text x="${position.x + 12}" y="${position.y + 27 * textScale}" font-family="system-ui, sans-serif" font-size="${14 * textScale}" font-weight="600" fill="#0f172a">${escapeXml(truncate(node.title, 24))}</text>`,
+      `      <text x="${position.x + 12}" y="${position.y + 50 * textScale}" font-family="system-ui, sans-serif" font-size="${11 * textScale}" fill="#64748b">${escapeXml(summary)}</text>`,
+      '    </g>',
+    );
+  }
+  lines.push('  </g>');
+  lines.push('</svg>');
+
+  return {
+    svg: lines.join('\n'),
+    meta: {
+      width,
+      height,
+      nodeCount: input.nodes.filter((node) => Boolean(positions[node.id])).length,
+      edgeCount: drawnEdges.length,
+      edgeTypes: [...new Set(drawnEdges)].sort(),
+    },
+  };
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}

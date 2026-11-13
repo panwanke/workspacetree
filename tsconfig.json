@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "paths": {
+      "@workspacetree/schema": ["packages/schema/src/index.ts"],
+      "@workspacetree/core": ["packages/core/src/index.ts"],
+      "@workspacetree/layout": ["packages/layout/src/index.ts"],
+      "@workspacetree/storage": ["packages/storage/src/index.ts"],
+      "@workspacetree/export": ["packages/export/src/index.ts"],
+      "@workspacetree/cli": ["packages/cli/src/index.ts"]
+    }
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

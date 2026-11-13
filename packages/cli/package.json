@@ -1,0 +1,21 @@
+{
+  "name": "@workspacetree/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@workspacetree/core": "workspace:*",
+    "@workspacetree/schema": "workspace:*",
+    "@workspacetree/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}

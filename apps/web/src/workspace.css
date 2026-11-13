@@ -1,0 +1,1040 @@
+.wst-app {
+  --ink: #192b28;
+  --muted: #586d68;
+  --line: #e0e8e5;
+  --surface: #fff;
+  --wash: #f3f7f5;
+  --accent: #0e604f;
+  --accent-soft: #e4f2eb;
+  --focus: #168b73;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.wst-app [hidden] {
+  display: none !important;
+}
+
+.wst-app :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.wst-header {
+  position: relative;
+  z-index: 20;
+  flex: none;
+  background: var(--surface);
+  border-bottom: 1px solid #d4e0da;
+}
+
+.wst-project-bar,
+.wst-toolbar {
+  display: flex;
+  align-items: center;
+  padding-inline: 20px;
+}
+
+.wst-project-bar {
+  min-height: 60px;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wst-project-identity,
+.wst-project-meta,
+.wst-header-stats,
+.wst-toolbar-group,
+.wst-history-tools {
+  display: flex;
+  align-items: center;
+}
+
+.wst-project-identity {
+  min-width: 0;
+  gap: 11px;
+}
+
+.wst-brand-mark {
+  display: grid;
+  flex: 0 0 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: #15463c;
+  color: #e7fff3;
+}
+
+.wst-project-titles {
+  min-width: 0;
+}
+
+.wst-brand-name {
+  margin-bottom: 2px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+}
+
+.wst-project-titles h1 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-project-meta {
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.wst-prototype {
+  padding: 4px 8px;
+  border: 1px solid #eee4cd;
+  border-radius: 5px;
+  background: #fbf7ed;
+  color: #785927;
+  font-size: 11px;
+}
+
+.wst-header-stats {
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wst-header-stats span + span {
+  border-inline-start: 1px solid var(--line);
+  padding-inline-start: 10px;
+}
+
+.wst-toolbar {
+  min-height: 49px;
+  gap: 12px;
+  background: #fbfcfb;
+}
+
+.wst-toolbar-group {
+  min-width: 0;
+  gap: 5px;
+}
+
+.wst-view-tools {
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--line);
+}
+
+.wst-history-tools {
+  gap: 1px;
+  margin-inline-start: 3px;
+}
+
+.wst-app .wst-tool {
+  display: inline-flex;
+  min-height: 32px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.wst-app .wst-tool:hover:not(:disabled),
+.wst-app .wst-tool.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wst-app .wst-tool.is-icon {
+  width: 32px;
+  padding: 0;
+}
+
+.wst-app .wst-tool.is-primary {
+  padding-inline: 11px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.wst-app .wst-tool.is-primary:hover {
+  background: #0a4f40;
+  color: #fff;
+}
+
+.wst-app .wst-tool.is-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wst-app .wst-tool.is-accent:hover:not(:disabled) {
+  background: #d5ece0;
+}
+
+.wst-app .wst-tool.is-danger:hover:not(:disabled),
+.wst-app .wst-menu-action.is-danger:hover:not(:disabled) {
+  background: #fcefed;
+  color: #a72f2a;
+}
+
+.wst-app .wst-tool.is-subtle {
+  min-height: 26px;
+  padding: 3px 6px;
+  color: var(--accent);
+}
+
+.wst-app .wst-project-menu > .wst-tool,
+.wst-app .wst-inspector-toggle {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.wst-app .wst-inspector-toggle {
+  margin-inline-start: auto;
+}
+
+.wst-app .wst-inspector-toggle.is-active {
+  border-color: #cde4d9;
+  background: var(--accent-soft);
+}
+
+.wst-view-select {
+  position: relative;
+}
+
+.wst-view-select select {
+  height: 32px;
+  appearance: none;
+  padding: 0 24px 0 9px;
+  border-color: var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wst-view-select svg {
+  position: absolute;
+  top: 10px;
+  right: 7px;
+  pointer-events: none;
+}
+
+.wst-popover {
+  position: relative;
+}
+
+.wst-popover-content {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 8px);
+  width: min(270px, calc(100vw - 24px));
+  max-height: min(440px, calc(100dvh - 125px));
+  padding: 7px;
+  overflow: auto;
+  border: 1px solid #d9e5df;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow:
+    0 12px 28px rgb(28 57 47 / 13%),
+    0 2px 4px rgb(28 57 47 / 5%);
+}
+
+.wst-popover-content.is-start {
+  inset-inline-start: 0;
+}
+
+.wst-popover-content.is-end {
+  inset-inline-end: 0;
+}
+
+.wst-popover-heading {
+  padding: 7px 8px;
+  font-weight: 700;
+}
+
+.wst-popover-content hr {
+  margin: 6px 3px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.wst-menu-action {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: start;
+}
+
+.wst-menu-action svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.wst-menu-action:hover:not(:disabled) {
+  background: var(--wash);
+}
+
+.wst-popover-content .wst-field {
+  margin-inline: 8px;
+}
+
+.wst-diagnostics {
+  padding: 7px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.wst-diagnostics summary {
+  cursor: pointer;
+}
+
+.wst-spine-list {
+  max-height: 200px;
+  overflow: auto;
+}
+
+.wst-spine-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.wst-spine-option:hover,
+.wst-spine-option:has(:checked) {
+  background: var(--wash);
+}
+
+.wst-app input[type='checkbox'],
+.wst-app input[type='range'] {
+  accent-color: var(--accent);
+}
+
+.wst-spine-option input,
+.wst-task-list input {
+  flex: none;
+  margin: 0;
+}
+
+.wst-spine-summary {
+  margin: 7px 8px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.wst-menu-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 7px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+}
+
+.wst-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.wst-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: #f5f8f6;
+}
+
+.wst-date-directory {
+  display: flex;
+  flex: 0 0 144px;
+  flex-direction: column;
+  min-height: 0;
+  padding: 6px;
+  border-inline-end: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.wst-date-directory[data-open='false'] {
+  flex-basis: auto;
+  align-self: flex-start;
+}
+
+.wst-date-directory-list {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+  font-size: 12px;
+}
+
+.wst-date-directory-list summary {
+  cursor: pointer;
+  padding: 7px 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.wst-date-directory-entry {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.wst-date-directory-entry time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wst-date-directory-entry span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-date-directory-entry:hover,
+.wst-date-directory-entry[aria-current='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (max-width: 760px) {
+  .wst-date-directory {
+    position: absolute;
+    z-index: 7;
+    top: 8px;
+    left: 8px;
+    max-height: calc(100% - 80px);
+    width: 144px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .wst-date-directory[data-open='false'] {
+    width: auto;
+  }
+}
+
+.wst-canvas .react-flow__background {
+  color: #c3d3cc;
+}
+
+.wst-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid #d9e5df;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(28 57 47 / 9%);
+}
+
+.wst-canvas .react-flow__controls-button {
+  border-bottom-color: var(--line);
+}
+
+.wst-canvas .wst-flow-vertical .react-flow__controls {
+  margin-left: 84px;
+}
+
+.wst-canvas:has(.wst-flow-vertical) .wst-view-help {
+  left: 123px;
+}
+
+.wst-canvas .react-flow__minimap {
+  width: 150px;
+  height: 108px;
+  overflow: hidden;
+  border: 1px solid #d9e5df;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgb(28 57 47 / 8%);
+}
+
+.wst-canvas .react-flow__minimap svg {
+  width: 100%;
+  height: 100%;
+}
+
+.wst-view-help {
+  position: absolute;
+  z-index: 6;
+  bottom: 15px;
+  left: 54px;
+}
+
+.wst-view-help > .wst-tool {
+  min-height: 28px;
+  border: 1px solid #d9e5df;
+  background: var(--surface);
+}
+
+.wst-view-help > .wst-tool .wst-tool-label,
+.wst-view-help > .wst-tool svg:last-child {
+  display: none;
+}
+
+.wst-view-help .wst-popover-content {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.wst-help-list {
+  margin: 0;
+  padding: 0 8px 5px;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.wst-help-list kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--wash);
+  color: var(--ink);
+}
+
+.wst-inspector {
+  position: relative;
+  z-index: 8;
+  display: flex;
+  width: clamp(294px, 23vw, 360px);
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  border-inline-start: 1px solid #d6e1dc;
+  background: var(--surface);
+}
+
+.wst-inspector-bar,
+.wst-node-heading,
+.wst-section-heading,
+.wst-inspector-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wst-inspector-bar {
+  min-height: 43px;
+  padding: 5px 13px 5px 17px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfb;
+}
+
+.wst-inspector-bar h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wst-inspector-identity {
+  padding: 15px 17px 10px;
+}
+
+.wst-node-parent {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-node-parent span {
+  margin-inline-start: 3px;
+  color: #849a93;
+}
+
+.wst-node-heading h3 {
+  margin: 3px 0;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-muted,
+.wst-count {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.wst-tabs {
+  display: flex;
+  gap: 3px;
+  margin: 0 16px 10px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--wash);
+}
+
+.wst-tabs button {
+  min-width: 0;
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wst-tabs button[aria-selected='true'] {
+  border-color: #dbe9e1;
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgb(28 57 47 / 7%);
+}
+
+.wst-inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.wst-inspector-section {
+  padding: 13px 17px;
+}
+
+.wst-inspector-section + .wst-inspector-section {
+  border-top: 1px solid var(--line);
+}
+
+.wst-inspector-delete {
+  display: none;
+}
+
+.wst-section-heading {
+  min-height: 26px;
+  margin-bottom: 7px;
+}
+
+.wst-section-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wst-section-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.wst-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 11px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.wst-field:last-child {
+  margin-bottom: 0;
+}
+
+.wst-inspector-section > form + .wst-field {
+  margin-top: 11px;
+}
+
+.wst-field > select,
+.wst-field > input:not([type='range']),
+.wst-input-action input,
+.wst-note-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid #d9e4df;
+  border-radius: 7px;
+  background: #fcfdfc;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.wst-input-action {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.wst-note-textarea {
+  display: block;
+  min-height: 122px;
+  resize: vertical;
+  font-family: 'IBM Plex Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.wst-inspector-note,
+.wst-empty-line {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--wash);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.wst-empty-line {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.wst-inspector-note code {
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: #e6eee9;
+}
+
+.wst-task-progress {
+  display: block;
+  width: 100%;
+  height: 5px;
+  margin: 1px 0 8px;
+  overflow: hidden;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wst-task-progress::-webkit-progress-bar {
+  background: var(--accent-soft);
+}
+.wst-task-progress::-webkit-progress-value {
+  background: var(--accent);
+}
+.wst-task-progress::-moz-progress-bar {
+  background: var(--accent);
+}
+
+.wst-task-list,
+.wst-relation-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wst-task-list {
+  margin-bottom: 9px;
+}
+
+.wst-task-list label {
+  display: flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.wst-task-list .is-done span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.wst-scale-field > span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.wst-scale-field input {
+  width: 100%;
+  margin: 3px 0 6px;
+}
+
+.wst-scale-field output {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.wst-relation-list li {
+  display: flex;
+  min-height: 47px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+}
+
+.wst-relation-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.wst-relation-peer {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+
+.wst-relation-kind {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.wst-text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  text-align: start;
+}
+
+.wst-text-button:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.wst-inspector-footer {
+  min-height: 30px;
+  padding: 6px 17px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfb;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.wst-inspector-footer code {
+  overflow: hidden;
+  font-family: 'IBM Plex Mono', Consolas, monospace;
+  text-overflow: ellipsis;
+}
+
+.wst-inspector-empty {
+  padding: clamp(32px, 9vh, 85px) 24px 24px;
+  text-align: center;
+}
+
+.wst-empty-icon {
+  display: inline-grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid #dceae3;
+  border-radius: 13px;
+  background: var(--wash);
+  color: var(--accent);
+}
+
+.wst-inspector-empty h3 {
+  margin: 13px 0 6px;
+  font-size: 15px;
+}
+
+.wst-inspector-empty p {
+  max-width: 205px;
+  margin: 0 auto 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.wst-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 6px 20px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfb;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.wst-last-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
+.wst-last-action::before {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: #258b70;
+  content: '';
+}
+
+@media (max-width: 900px) {
+  .wst-header-stats {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .wst-project-bar,
+  .wst-toolbar,
+  .wst-status {
+    padding-inline: 10px;
+  }
+
+  .wst-toolbar {
+    gap: 6px;
+  }
+
+  .wst-toolbar-group {
+    gap: 3px;
+  }
+
+  .wst-view-tools {
+    padding-inline-start: 6px;
+  }
+
+  .wst-view-tools .wst-tool-label,
+  .wst-view-tools .wst-popover > .wst-tool svg:last-child,
+  .wst-inspector-toggle .wst-tool-label {
+    display: none;
+  }
+
+  .wst-view-tools .wst-popover {
+    position: static;
+  }
+
+  .wst-view-tools .wst-popover-content {
+    top: calc(100% + 5px);
+    inset-inline-end: 10px;
+  }
+
+  .wst-inspector {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: min(350px, calc(100% - 36px));
+    box-shadow: -8px 0 24px rgb(28 57 47 / 11%);
+  }
+
+  .wst-canvas .wst-timeline-axis.is-vertical {
+    width: 57px;
+  }
+
+  .wst-canvas .wst-flow-vertical .react-flow__controls {
+    margin-left: 64px;
+  }
+
+  .wst-canvas:has(.wst-flow-vertical) .wst-view-help {
+    left: 103px;
+  }
+
+  .wst-view-help .wst-popover-content {
+    width: min(270px, calc(100vw - 115px));
+  }
+
+  .wst-canvas .react-flow__minimap,
+  .wst-status [data-testid='semantic-commits'],
+  .wst-status [data-testid='presentation-batches'],
+  .wst-status [data-testid='svg-meta'] {
+    display: none;
+  }
+}
+
+@media (max-width: 460px) {
+  .wst-project-bar {
+    min-height: 54px;
+    gap: 6px;
+  }
+
+  .wst-project-meta {
+    gap: 4px;
+  }
+
+  .wst-brand-mark {
+    flex-basis: 30px;
+    height: 30px;
+  }
+
+  .wst-project-identity {
+    gap: 7px;
+  }
+
+  .wst-project-titles h1 {
+    font-size: 13px;
+  }
+
+  .wst-project-menu > .wst-tool > svg:first-child,
+  .wst-app .wst-toolbar-delete {
+    display: none;
+  }
+
+  .wst-inspector-delete {
+    display: block;
+  }
+
+  .wst-app .wst-toolbar .wst-tool {
+    padding-inline: 6px;
+  }
+
+  .wst-app .wst-toolbar .wst-tool.is-icon {
+    width: 29px;
+    padding: 0;
+  }
+
+  .wst-history-tools {
+    margin-inline-start: 0;
+  }
+}
+
+@media (max-width: 350px) {
+  .wst-app .wst-toolbar .wst-tool.is-primary span {
+    display: none;
+  }
+}

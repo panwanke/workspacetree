@@ -1,0 +1,19 @@
+{
+  "name": "@workspacetree/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser/index.ts"
+  },
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@workspacetree/core": "workspace:*",
+    "@workspacetree/schema": "workspace:*",
+    "sql.js": "1.16.0"
+  },
+  "devDependencies": {
+    "@types/sql.js": "1.4.11"
+  }
+}

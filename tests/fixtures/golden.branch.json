@@ -1,0 +1,440 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_golden_thesis",
+  "activeBranch": "main",
+  "domain": {
+    "project": {
+      "id": "prj_golden_thesis",
+      "title": "合成论文总项目",
+      "rootNodeId": "n_thesis"
+    },
+    "nodes": [
+      {
+        "id": "n_thesis",
+        "title": "论文总项目（合成）",
+        "parentId": null,
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_theory",
+        "title": "研究框架",
+        "parentId": "n_thesis",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_sameness",
+        "title": "相同性判断",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_conflict",
+        "title": "冲突决策",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_legacy_theory",
+        "title": "旧理论分支（已归档）",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": true
+      },
+      {
+        "id": "n_wpt",
+        "title": "WPT 子项目",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_wpt_design",
+        "title": "WPT 实验设计",
+        "parentId": "n_wpt",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_wpt_pilot",
+        "title": "WPT 预实验",
+        "parentId": "n_wpt",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_wpt_analysis",
+        "title": "WPT 数据分析",
+        "parentId": "n_wpt",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_pdd",
+        "title": "PDD 子项目",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_pdd_design",
+        "title": "PDD 实验设计",
+        "parentId": "n_pdd",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_pdd_model",
+        "title": "PDD 计算建模",
+        "parentId": "n_pdd",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_methods",
+        "title": "方法",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_eeg",
+        "title": "EEG / ERP",
+        "parentId": "n_methods",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_cog_rnn",
+        "title": "认知建模 RNN",
+        "parentId": "n_methods",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_writing",
+        "title": "论文写作",
+        "parentId": "n_theory",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_ch1",
+        "title": "第一章 文献综述",
+        "parentId": "n_writing",
+        "blockIds": [],
+        "archived": false
+      },
+      {
+        "id": "n_ch2",
+        "title": "第二章 研究一",
+        "parentId": "n_writing",
+        "blockIds": [],
+        "archived": false
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_h_001",
+        "type": "hierarchy",
+        "fromNodeId": "n_thesis",
+        "toNodeId": "n_theory"
+      },
+      {
+        "id": "e_h_002",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_sameness"
+      },
+      {
+        "id": "e_h_003",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_conflict"
+      },
+      {
+        "id": "e_h_004",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_legacy_theory"
+      },
+      {
+        "id": "e_h_005",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_wpt"
+      },
+      {
+        "id": "e_h_006",
+        "type": "hierarchy",
+        "fromNodeId": "n_wpt",
+        "toNodeId": "n_wpt_design"
+      },
+      {
+        "id": "e_h_007",
+        "type": "hierarchy",
+        "fromNodeId": "n_wpt",
+        "toNodeId": "n_wpt_pilot"
+      },
+      {
+        "id": "e_h_008",
+        "type": "hierarchy",
+        "fromNodeId": "n_wpt",
+        "toNodeId": "n_wpt_analysis"
+      },
+      {
+        "id": "e_h_009",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_pdd"
+      },
+      {
+        "id": "e_h_010",
+        "type": "hierarchy",
+        "fromNodeId": "n_pdd",
+        "toNodeId": "n_pdd_design"
+      },
+      {
+        "id": "e_h_011",
+        "type": "hierarchy",
+        "fromNodeId": "n_pdd",
+        "toNodeId": "n_pdd_model"
+      },
+      {
+        "id": "e_h_012",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_methods"
+      },
+      {
+        "id": "e_h_013",
+        "type": "hierarchy",
+        "fromNodeId": "n_methods",
+        "toNodeId": "n_eeg"
+      },
+      {
+        "id": "e_h_014",
+        "type": "hierarchy",
+        "fromNodeId": "n_methods",
+        "toNodeId": "n_cog_rnn"
+      },
+      {
+        "id": "e_h_015",
+        "type": "hierarchy",
+        "fromNodeId": "n_theory",
+        "toNodeId": "n_writing"
+      },
+      {
+        "id": "e_h_016",
+        "type": "hierarchy",
+        "fromNodeId": "n_writing",
+        "toNodeId": "n_ch1"
+      },
+      {
+        "id": "e_h_017",
+        "type": "hierarchy",
+        "fromNodeId": "n_writing",
+        "toNodeId": "n_ch2"
+      },
+      {
+        "id": "e_dep_pilot_eeg",
+        "type": "dependency",
+        "fromNodeId": "n_wpt_pilot",
+        "toNodeId": "n_eeg"
+      },
+      {
+        "id": "e_dep_analysis_rnn",
+        "type": "dependency",
+        "fromNodeId": "n_wpt_analysis",
+        "toNodeId": "n_cog_rnn"
+      },
+      {
+        "id": "e_ref_pdd_sameness",
+        "type": "reference",
+        "fromNodeId": "n_pdd_model",
+        "toNodeId": "n_sameness"
+      },
+      {
+        "id": "e_ref_wpt_conflict",
+        "type": "reference",
+        "fromNodeId": "n_wpt_design",
+        "toNodeId": "n_conflict"
+      },
+      {
+        "id": "e_custom_ch1_legacy",
+        "type": "custom",
+        "fromNodeId": "n_ch1",
+        "toNodeId": "n_legacy_theory"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "tsk_wpt_1",
+        "nodeId": "n_wpt_design",
+        "title": "确定刺激材料",
+        "done": false
+      },
+      {
+        "id": "tsk_wpt_2",
+        "nodeId": "n_wpt_design",
+        "title": "预注册分析方案",
+        "done": false
+      },
+      {
+        "id": "tsk_wpt_3",
+        "nodeId": "n_wpt_pilot",
+        "title": "完成 12 人预实验",
+        "done": false
+      },
+      {
+        "id": "tsk_wpt_4",
+        "nodeId": "n_wpt_analysis",
+        "title": "清洗预实验数据",
+        "done": false
+      },
+      {
+        "id": "tsk_pdd_1",
+        "nodeId": "n_pdd_model",
+        "title": "拟合基线模型",
+        "done": false
+      },
+      {
+        "id": "tsk_eeg_1",
+        "nodeId": "n_eeg",
+        "title": "检查 N270 / P300 时间窗",
+        "done": false
+      },
+      {
+        "id": "tsk_write_1",
+        "nodeId": "n_ch1",
+        "title": "补完相同性定义一节",
+        "done": false
+      }
+    ],
+    "spines": [
+      {
+        "id": "spn_main",
+        "title": "主干：理论",
+        "nodeIds": ["n_thesis", "n_theory", "n_sameness"]
+      },
+      {
+        "id": "spn_wpt",
+        "title": "主干：WPT",
+        "nodeIds": ["n_thesis", "n_theory", "n_wpt", "n_wpt_design"]
+      },
+      {
+        "id": "spn_methods",
+        "title": "主干：方法",
+        "nodeIds": ["n_thesis", "n_theory", "n_methods", "n_cog_rnn"]
+      }
+    ],
+    "blocks": [],
+    "projectRefs": [
+      {
+        "projectId": "prj_wpt_sub",
+        "mode": "link",
+        "hostNodeId": "n_wpt"
+      },
+      {
+        "projectId": "prj_pdd_sub",
+        "mode": "preview",
+        "hostNodeId": "n_pdd"
+      }
+    ],
+    "archived": false,
+    "archiveMeta": null
+  },
+  "presentation": {
+    "nodePositions": {
+      "n_thesis": {
+        "x": 23,
+        "y": 28
+      },
+      "n_theory": {
+        "x": 247,
+        "y": 20
+      },
+      "n_sameness": {
+        "x": 442,
+        "y": 11
+      },
+      "n_conflict": {
+        "x": 669,
+        "y": 17
+      },
+      "n_legacy_theory": {
+        "x": 907,
+        "y": 26
+      },
+      "n_wpt": {
+        "x": 34,
+        "y": 162
+      },
+      "n_wpt_design": {
+        "x": 229,
+        "y": 162
+      },
+      "n_wpt_pilot": {
+        "x": 443,
+        "y": 157
+      },
+      "n_wpt_analysis": {
+        "x": 688,
+        "y": 179
+      },
+      "n_pdd": {
+        "x": 911,
+        "y": 178
+      },
+      "n_pdd_design": {
+        "x": 18,
+        "y": 309
+      },
+      "n_pdd_model": {
+        "x": 247,
+        "y": 323
+      },
+      "n_methods": {
+        "x": 477,
+        "y": 323
+      },
+      "n_eeg": {
+        "x": 680,
+        "y": 311
+      },
+      "n_cog_rnn": {
+        "x": 911,
+        "y": 301
+      },
+      "n_writing": {
+        "x": 19,
+        "y": 479
+      },
+      "n_ch1": {
+        "x": 236,
+        "y": 471
+      },
+      "n_ch2": {
+        "x": 477,
+        "y": 469
+      }
+    },
+    "branchScales": {
+      "n_wpt": 0.45,
+      "n_legacy_theory": 0.8
+    },
+    "collapsedByDefault": ["n_writing"],
+    "savedSpineDisplay": "spn_main"
+  },
+  "revisions": {
+    "semanticRevision": 0,
+    "semanticHash": "9224b406fa0453759b1cc32497d54f3a4ae95c9f0f48a75119385b3947a320a7",
+    "presentationRevision": 0,
+    "presentationHash": "ea8f6739011a05cbc6d991b5067ec668d627a9f03e0695250105a14370142760",
+    "fileHash": "547c816df681b412e95f0abacf914a4cf544b140a23f2179e4d340dac00aeb51",
+    "fileWriteVersion": 0
+  }
+}
