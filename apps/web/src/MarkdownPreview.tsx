@@ -1,10 +1,21 @@
 import type { ReactNode } from 'react';
-import Markdown from 'react-markdown';
+import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parseCalloutHeader, parseImageMeta, remarkImageDimensionsPlugin } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownImage } from './images/MarkdownImage.js';
 import './markdown/markdown.css';
+
+export function safeUrlTransform(url: string): string {
+  if (
+    url.startsWith('asset:') ||
+    url.startsWith('data:image/') ||
+    url.startsWith('blob:')
+  ) {
+    return url;
+  }
+  return defaultUrlTransform(url);
+}
 
 export function renderInlineMarkdown(text: string): ReactNode[] {
   const parts: ReactNode[] = [];
@@ -103,6 +114,7 @@ export function MarkdownPreview({
   return (
     <div className={`wst-markdown-preview ${className}`}>
       <Markdown
+        urlTransform={safeUrlTransform}
         remarkPlugins={[remarkGfm, remarkImageDimensionsPlugin]}
         components={{
           blockquote({ children }) {
@@ -135,10 +147,18 @@ export function MarkdownPreview({
           },
           img({ node, src, alt }) {
             if (!src) return null;
-            const nodeData = (node?.data as any) || {};
-            const meta = nodeData.url
-              ? nodeData
-              : parseImageMeta(alt || '', src);
+            const props = (node?.properties as any) || {};
+            const widthAttr = props['data-width-percent'] ?? props.dataWidthPercent;
+            const parsedWidth =
+              typeof widthAttr === 'number'
+                ? widthAttr
+                : typeof widthAttr === 'string'
+                  ? parseInt(widthAttr, 10)
+                  : undefined;
+            const meta = parseImageMeta(alt || '', src);
+            if (parsedWidth != null && !Number.isNaN(parsedWidth)) {
+              meta.widthPercent = parsedWidth;
+            }
             return <MarkdownImage meta={meta} assets={assets} interactive={false} />;
           },
           input({ type, checked }) {

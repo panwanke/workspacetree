@@ -19,7 +19,8 @@ import {
   generatePlaceholderToken,
   handlePastedContent,
 } from '../../apps/web/src/images/image-input.js';
-import { formatImageTag, parseImageMeta } from '@workspacetree/markdown';
+import { safeUrlTransform } from '../../apps/web/src/MarkdownPreview.js';
+import { formatImageTag, parseImageMeta, remarkImageAttributes } from '@workspacetree/markdown';
 
 describe('阶段 3: 图片插入、压缩、URL 与资产处理 (tests/web/image-insertion.test.ts)', () => {
   it('Base64 与 Uint8Array 互转及 SHA-256 资产 ID 往返正确', () => {
@@ -166,6 +167,51 @@ describe('阶段 3: 图片插入、压缩、URL 与资产处理 (tests/web/image
       const obsidianMeta = parseImageMeta('观察记录|75%', 'https://example.com/demo.jpg');
       expect(obsidianMeta.alt).toBe('观察记录');
       expect(obsidianMeta.widthPercent).toBe(75);
+    });
+
+    it('safeUrlTransform 放行 asset: / data:image/ / blob: 协议并过滤危险协议', () => {
+      expect(safeUrlTransform('asset:sha256_abcd1234')).toBe('asset:sha256_abcd1234');
+      expect(safeUrlTransform('data:image/png;base64,iVBORw0KGgo=')).toBe(
+        'data:image/png;base64,iVBORw0KGgo=',
+      );
+      expect(safeUrlTransform('blob:http://localhost:5173/12345')).toBe(
+        'blob:http://localhost:5173/12345',
+      );
+      expect(safeUrlTransform('https://example.com/image.png')).toBe(
+        'https://example.com/image.png',
+      );
+      expect(safeUrlTransform('javascript:alert(1)')).toBe('');
+    });
+
+    it('remarkImageAttributes 将 {width=X%} 转入 hProperties 供 react-markdown 渲染', () => {
+      const transformer = remarkImageAttributes();
+      const tree: any = {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            children: [
+              {
+                type: 'image',
+                url: 'asset:sha256_5678',
+                alt: '测试图',
+              },
+              {
+                type: 'text',
+                value: '{width=65%}',
+              },
+            ],
+          },
+        ],
+      };
+
+      transformer(tree);
+
+      const imgNode = tree.children[0].children[0];
+      expect(imgNode.data?.hProperties?.['data-width-percent']).toBe(65);
+      expect(imgNode.data?.widthPercent).toBe(65);
+      // 后续文本节点中的 {width=65%} 应当已被消费移除
+      expect(tree.children[0].children.length).toBe(1);
     });
   });
 });

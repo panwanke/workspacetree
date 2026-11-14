@@ -166,6 +166,10 @@ export function remarkImageAttributes() {
           const meta = parseImageMeta(child.alt || '', child.url, widthSuffix);
           (child as any).data = {
             ...(child as any).data,
+            hProperties: {
+              ...(child as any).data?.hProperties,
+              'data-width-percent': meta.widthPercent,
+            },
             ...meta,
           };
         }

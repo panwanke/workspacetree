@@ -553,6 +553,11 @@ input[type='date'] {
   justify-content: flex-start;
 }
 
+.wst-card:has(.wst-card-markdown) .wst-card-meta {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
 .wst-card-markdown {
   margin-top: 4px;
   padding: 4px 6px;
@@ -565,6 +570,8 @@ input[type='date'] {
   overflow-y: auto;
   overflow-x: hidden;
   max-height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .wst-md-heading {
