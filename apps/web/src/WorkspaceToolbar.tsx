@@ -122,6 +122,7 @@ interface ToolbarProps {
   onExportSvg: () => void;
   onResetDemo: () => void;
   onOpenSettings?: () => void;
+  onOpenProjects?: () => void;
 }
 
 export default function WorkspaceToolbar(props: ToolbarProps) {
@@ -173,6 +174,19 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
           >
             {(close) => (
               <>
+                {props.onOpenProjects && (
+                  <button
+                    type="button"
+                    className="wst-menu-action"
+                    data-testid="open-projects"
+                    onClick={() => {
+                      close();
+                      props.onOpenProjects?.();
+                    }}
+                  >
+                    <WorkspaceIcon name="folder" /> 全部项目...
+                  </button>
+                )}
                 <button
                   type="button"
                   className="wst-menu-action"
@@ -192,7 +206,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                     props.onExportJson();
                   }}
                 >
-                  <WorkspaceIcon name="download" /> 导出 .branch.json
+                  <WorkspaceIcon name="download" /> 保存 / 另存为...
                 </button>
                 <button
                   type="button"

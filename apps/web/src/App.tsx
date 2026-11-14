@@ -72,6 +72,10 @@ import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from '.
 import { reconnectEdgeEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
 import SettingsModal from './SettingsModal';
+import ProjectsModal from './ProjectsModal';
+import SaveProjectModal from './SaveProjectModal';
+import { WorkspaceIcon } from './WorkspaceIcon';
+import { loadWorkspaceSession, saveWorkspaceSession } from './workspace-session';
 import {
   addEdgeEntry,
   clearPositionEntry,
@@ -243,12 +247,28 @@ export default function App() {
     loadKeybindings(),
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const booted = useRef(false);
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => {
+    if (!booted.current || tabs.length === 0) return;
+    saveWorkspaceSession({
+      tabs: tabs.map((t) => ({
+        id: t.id,
+        projectId: t.projectId,
+        title: t.title,
+        branchName: t.branchName,
+        readOnly: t.controller.isReadOnly,
+      })),
+      activeTabId,
+    });
+  }, [tabs, activeTabId]);
 
   useEffect(() => {
     if (selectedNodeIds.length > 0) {
@@ -275,18 +295,55 @@ export default function App() {
       try {
         const storage = await createBrowserStorageAdapter();
         storageRef.current = storage;
-        const editor = await EditorController.bootstrap(storage, createDemoBranchFile);
-        const demoTab: WorkspaceTab = {
-          id: makeId('tab_'),
-          title: editor.getSnapshot().file.domain.project.title || '演示项目',
-          projectId: editor.getSnapshot().file.projectId,
-          branchName: editor.getSnapshot().file.activeBranch,
-          controller: editor,
-        };
-        setTabs([demoTab]);
-        setActiveTabId(demoTab.id);
-        setController(editor);
-        setSnapshot(editor.getSnapshot());
+
+        const session = loadWorkspaceSession();
+        let loadedTabs: WorkspaceTab[] = [];
+
+        if (session && session.tabs.length > 0) {
+          for (const st of session.tabs) {
+            try {
+              const file = await storage.load(st.projectId);
+              if (file) {
+                const controller = st.readOnly
+                  ? EditorController.preview(file)
+                  : new EditorController(storage, file);
+                loadedTabs.push({
+                  id: st.id,
+                  title: file.domain.project.title || st.title,
+                  projectId: file.projectId,
+                  branchName: file.activeBranch,
+                  controller,
+                });
+              }
+            } catch (err) {
+              console.warn(`Failed to restore tab for project ${st.projectId}:`, err);
+            }
+          }
+        }
+
+        if (loadedTabs.length === 0) {
+          const editor = await EditorController.bootstrap(storage, createDemoBranchFile);
+          const demoTab: WorkspaceTab = {
+            id: makeId('tab_'),
+            title: editor.getSnapshot().file.domain.project.title || '演示项目',
+            projectId: editor.getSnapshot().file.projectId,
+            branchName: editor.getSnapshot().file.activeBranch,
+            controller: editor,
+          };
+          loadedTabs = [demoTab];
+        }
+
+        const activeId =
+          session?.activeTabId && loadedTabs.some((t) => t.id === session.activeTabId)
+            ? session.activeTabId
+            : loadedTabs[0].id;
+
+        tabsRef.current = loadedTabs;
+        setTabs(loadedTabs);
+        setActiveTabId(activeId);
+        const activeTabItem = loadedTabs.find((t) => t.id === activeId) ?? loadedTabs[0];
+        setController(activeTabItem.controller);
+        setSnapshot(activeTabItem.controller.getSnapshot());
       } catch (cause) {
         setBootError(cause instanceof Error ? cause.message : String(cause));
       }
@@ -837,6 +894,7 @@ export default function App() {
       branchName: newFile.activeBranch,
       controller: newEditor,
     };
+    tabsRef.current = [...tabsRef.current, newTab];
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(newTab.id);
   }, [tabs.length]);
@@ -853,12 +911,70 @@ export default function App() {
       setTabs((prev) => {
         if (prev.length <= 1) return prev;
         const nextTabs = prev.filter((t) => t.id !== tabId);
+        tabsRef.current = nextTabs;
         if (activeTabId === tabId) {
           const nextActive = nextTabs[nextTabs.length - 1];
           setActiveTabId(nextActive.id);
         }
         return nextTabs;
       });
+    },
+    [activeTabId],
+  );
+
+  const handleOpenProjectById = useCallback(async (projectId: string) => {
+    const storage = storageRef.current;
+    if (!storage) return;
+    const existing = tabsRef.current.find((t) => t.projectId === projectId);
+    if (existing) {
+      setActiveTabId(existing.id);
+      return;
+    }
+    const file = await storage.load(projectId);
+    if (!file) {
+      setUiError(`无法加载项目 ${projectId}`);
+      return;
+    }
+    const newTab: WorkspaceTab = {
+      id: makeId('tab_'),
+      title: file.domain.project.title || '未命名项目',
+      projectId: file.projectId,
+      branchName: file.activeBranch,
+      controller: new EditorController(storage, file),
+    };
+    tabsRef.current = [...tabsRef.current, newTab];
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+  }, []);
+
+  const handleDeleteProject = useCallback(
+    async (projectId: string) => {
+      const storage = storageRef.current;
+      if (!storage) return;
+      await storage.clear(projectId);
+      const openTabsForProject = tabsRef.current.filter((t) => t.projectId === projectId);
+      if (openTabsForProject.length > 0) {
+        const remainingTabs = tabsRef.current.filter((t) => t.projectId !== projectId);
+        if (remainingTabs.length === 0) {
+          const demo = await EditorController.bootstrap(storage, createDemoBranchFile);
+          const demoTab: WorkspaceTab = {
+            id: makeId('tab_'),
+            title: demo.getSnapshot().file.domain.project.title || '演示项目',
+            projectId: demo.getSnapshot().file.projectId,
+            branchName: demo.getSnapshot().file.activeBranch,
+            controller: demo,
+          };
+          tabsRef.current = [demoTab];
+          setTabs([demoTab]);
+          setActiveTabId(demoTab.id);
+        } else {
+          tabsRef.current = remainingTabs;
+          setTabs(remainingTabs);
+          if (openTabsForProject.some((t) => t.id === activeTabId)) {
+            setActiveTabId(remainingTabs[remainingTabs.length - 1].id);
+          }
+        }
+      }
     },
     [activeTabId],
   );
@@ -905,13 +1021,8 @@ export default function App() {
   }
 
   function exportJson(): void {
-    const current = controller?.getSnapshot().file;
-    if (!current) return;
-    download(
-      `${current.projectId}${FILE_SUFFIX.project}`,
-      `${JSON.stringify(current, null, 2)}\n`,
-      'application/json',
-    );
+    if (!file) return;
+    setSaveModalOpen(true);
   }
 
   function openFiles(files: readonly File[]): void {
@@ -1412,6 +1523,15 @@ export default function App() {
         >
           +
         </button>
+        <button
+          type="button"
+          className="wst-tab-projects-btn"
+          title="管理本地项目"
+          aria-label="管理本地项目"
+          onClick={() => setProjectsOpen(true)}
+        >
+          <WorkspaceIcon name="folder" size={14} />
+        </button>
       </div>
       <WorkspaceToolbar
         file={file}
@@ -1485,6 +1605,7 @@ export default function App() {
         onExportSvg={exportSvgFile}
         onResetDemo={resetDemo}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenProjects={() => setProjectsOpen(true)}
       />
       <input ref={importRef} type="file" accept=".json" multiple hidden onChange={importJson} />
 
@@ -2121,6 +2242,25 @@ export default function App() {
         keybindings={keybindings}
         onClose={() => setSettingsOpen(false)}
         onChangeKeybindings={setKeybindings}
+      />
+
+      <ProjectsModal
+        open={projectsOpen}
+        onClose={() => setProjectsOpen(false)}
+        storage={storageRef.current}
+        openProjectIds={tabs.map((t) => t.projectId)}
+        onOpenProject={handleOpenProjectById}
+        onCreateProject={handleNewTab}
+        onDeleteProject={handleDeleteProject}
+      />
+
+      <SaveProjectModal
+        open={saveModalOpen}
+        onClose={() => setSaveModalOpen(false)}
+        file={file}
+        onSaved={(_name) => {
+          setUiError(null);
+        }}
       />
     </div>
   );

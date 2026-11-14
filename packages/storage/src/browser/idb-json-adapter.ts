@@ -37,6 +37,7 @@ export interface KeyValueStore {
     value: string;
     created: boolean;
   }>;
+  listKeys?(prefix?: string): Promise<string[]>;
 }
 
 export function createMemoryKeyValueStore(): KeyValueStore {
@@ -68,6 +69,9 @@ export function createMemoryKeyValueStore(): KeyValueStore {
       entries.set(key, value);
       return { value, created: true };
     },
+    async listKeys(prefix = '') {
+      return Array.from(entries.keys()).filter((k) => k.startsWith(prefix));
+    },
   };
 }
 
@@ -84,6 +88,8 @@ interface IdbObjectStoreLike {
   get(key: string): IdbRequestLike<unknown>;
   put(value: unknown, key?: string): void;
   delete(key: string): void;
+  getAllKeys?(query?: unknown): IdbRequestLike<unknown[]>;
+  openCursor?(): IdbRequestLike<{ result?: { key: unknown; continue(): void } }>;
 }
 
 interface IdbTransactionLike {
@@ -223,6 +229,40 @@ export async function createIndexedDbKeyValueStore(
         };
         tx.onerror = () => reject(tx.error ?? new Error('IndexedDB creation failed'));
         tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+      });
+    },
+    listKeys(prefix = '') {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(PROJECT_STORE, 'readonly');
+        const store = tx.objectStore(PROJECT_STORE) as any;
+        if (typeof store.getAllKeys === 'function') {
+          const request = store.getAllKeys();
+          request.onsuccess = () => {
+            const raw = (request.result as unknown[]) || [];
+            const filtered = raw.map(String).filter((k: string) => k.startsWith(prefix));
+            resolve(filtered);
+          };
+          request.onerror = () => reject(request.error ?? new Error('IndexedDB listKeys failed'));
+        } else if (
+          typeof store.openCursor === 'function' ||
+          typeof store.openKeyCursor === 'function'
+        ) {
+          const keys: string[] = [];
+          const request = store.openKeyCursor ? store.openKeyCursor() : store.openCursor();
+          request.onsuccess = () => {
+            const cursor = request.result;
+            if (cursor) {
+              const k = String(cursor.key);
+              if (k.startsWith(prefix)) keys.push(k);
+              cursor.continue();
+            } else {
+              resolve(keys);
+            }
+          };
+          request.onerror = () => reject(request.error ?? new Error('IndexedDB listKeys failed'));
+        } else {
+          resolve([]);
+        }
       });
     },
   };
@@ -552,6 +592,45 @@ export class IdbJsonStorageAdapter implements SpikeAdapter, StorageAdapter {
     const file = BranchFileSchema.parse(migrateToCurrent(parsed.file));
     await this.save(file);
   }
+
+  async listProjects(): Promise<StoredProjectSummary[]> {
+    this.assertOpen();
+    if (!this.store.listKeys) return [];
+    const keys = await this.store.listKeys(PROJECT_PREFIX);
+    const summaries: StoredProjectSummary[] = [];
+    for (const key of keys) {
+      const raw = await this.store.get(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw) as {
+          projectId?: string;
+          activeBranch?: string;
+          createdAt?: string;
+          domain?: { project?: { title?: string }; nodes?: unknown[] };
+          revisions?: { updatedAt?: string; fileHash?: string };
+        };
+        const projectId = parsed.projectId ?? key.slice(PROJECT_PREFIX.length);
+        summaries.push({
+          projectId,
+          title: parsed.domain?.project?.title || projectId,
+          activeBranch: parsed.activeBranch || 'main',
+          nodeCount: Array.isArray(parsed.domain?.nodes) ? parsed.domain.nodes.length : 0,
+          updatedAt: parsed.revisions?.updatedAt ?? parsed.createdAt ?? '',
+        });
+      } catch {
+        // Skip corrupted or unparseable entries
+      }
+    }
+    return summaries;
+  }
+}
+
+export interface StoredProjectSummary {
+  projectId: string;
+  title: string;
+  activeBranch: string;
+  nodeCount: number;
+  updatedAt?: string;
 }
 
 export async function createBrowserStorageAdapter(
