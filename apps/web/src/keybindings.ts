@@ -1,6 +1,7 @@
 export type KeybindingAction =
   | 'deleteNode'
   | 'addChildNode'
+  | 'addBranchNode'
   | 'addRandomBranch'
   | 'fitView'
   | 'undo'
@@ -33,12 +34,17 @@ export const DEFAULT_KEYBINDINGS: Record<KeybindingAction, KeybindingMeta> = {
     defaultKey: 'Ctrl+V',
   },
   addChildNode: {
-    label: '新增子节点',
-    description: '在选中的节点下新增子节点并进入编辑',
+    label: '新建节点',
+    description: '在选中的节点下新建延续或叶子节点并进入编辑',
     defaultKey: 'Tab',
   },
+  addBranchNode: {
+    label: '新建分支',
+    description: '在选中的节点下新建侧枝并进入编辑',
+    defaultKey: 'b',
+  },
   addRandomBranch: {
-    label: '随机开启新分支',
+    label: '新建独立分支',
     description: '在画布视口中心随机位置创建独立新分支节点',
     defaultKey: 'r',
   },
@@ -65,6 +71,7 @@ export function loadKeybindings(): Record<KeybindingAction, string> {
   const result: Record<KeybindingAction, string> = {
     deleteNode: DEFAULT_KEYBINDINGS.deleteNode.defaultKey,
     addChildNode: DEFAULT_KEYBINDINGS.addChildNode.defaultKey,
+    addBranchNode: DEFAULT_KEYBINDINGS.addBranchNode.defaultKey,
     addRandomBranch: DEFAULT_KEYBINDINGS.addRandomBranch.defaultKey,
     fitView: DEFAULT_KEYBINDINGS.fitView.defaultKey,
     undo: DEFAULT_KEYBINDINGS.undo.defaultKey,

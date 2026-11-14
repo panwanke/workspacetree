@@ -9,3 +9,4 @@ export * from './tree.js';
 export * from './geometry.js';
 export * from './edges.js';
 export * from './visual.js';
+export * from './roles.js';

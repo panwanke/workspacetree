@@ -104,9 +104,14 @@ describe('T-33 Undo / Redo 反向命令栈', () => {
     const created = editor.getSnapshot();
     expect(created.undoDepth).toBe(1);
     expect(created.file.presentation.nodeScales?.[id]).toBe(presentation.nodeScales?.n_root);
+    const parentSize = presentation.nodeSizes?.n_root ?? { width: 220, height: 76 };
+    const expectedChildSize = {
+      width: Math.max(140, Math.round(parentSize.width * 0.85)),
+      height: Math.max(44, Math.round(parentSize.height * 0.85)),
+    };
     expect(created.file.presentation.nodeSizes).toEqual({
       ...presentation.nodeSizes,
-      [id]: presentation.nodeSizes?.n_root,
+      [id]: expectedChildSize,
     });
     await editor.undo();
     expect(editor.getSnapshot().file.presentation.nodeSizes).toEqual(presentation.nodeSizes);

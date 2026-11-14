@@ -33,7 +33,12 @@ import {
   type VisualEdge,
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
-import { FILE_SUFFIX, type BranchFile, type Edge } from '@workspacetree/schema';
+import {
+  FILE_SUFFIX,
+  type BranchFile,
+  type Edge,
+  type HierarchyEdgeRole,
+} from '@workspacetree/schema';
 import { createBrowserStorageAdapter, type IdbJsonStorageAdapter } from '@workspacetree/storage';
 import {
   lazy,
@@ -106,34 +111,6 @@ function download(filename: string, content: string, mime: string): void {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-const BRANCH_PALETTE = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#0891b2'];
-
-function resolveBranchAccentColor(
-  nodeId: string,
-  nodeMap: ReadonlyMap<string, { id: string; parentId: string | null }>,
-): string {
-  let cursor: string | null = nodeId;
-  const seen = new Set<string>();
-  let depthOneAncestor: string | null = null;
-  while (cursor && !seen.has(cursor)) {
-    seen.add(cursor);
-    if (cursor.startsWith('n_analysis')) return '#dc2626';
-    if (cursor.startsWith('n_exp')) return '#2563eb';
-    if (cursor.startsWith('n_writing')) return '#16a34a';
-    const current = nodeMap.get(cursor);
-    if (!current) break;
-    if (current.parentId !== null) depthOneAncestor = cursor;
-    cursor = current.parentId;
-  }
-  if (nodeId === 'n_root' || nodeId === 'n_init') return '#1e293b';
-  if (!depthOneAncestor) return '#1e293b';
-  let hash = 0;
-  for (let i = 0; i < depthOneAncestor.length; i += 1) {
-    hash = (hash * 31 + depthOneAncestor.charCodeAt(i)) >>> 0;
-  }
-  return BRANCH_PALETTE[hash % BRANCH_PALETTE.length];
 }
 
 interface FlowViewportAPI {
@@ -547,10 +524,6 @@ export default function App() {
 
     const selectedSet = new Set(selectedNodeIds);
     const locked = new Set(graph.locked);
-    const accentById = new Map<string, string>();
-    for (const visual of graph.nodes) {
-      accentById.set(visual.id, resolveBranchAccentColor(visual.id, nodeMap));
-    }
 
     const childHierarchyMap = buildHierarchy(file.domain.nodes, file.domain.edges).children;
 
@@ -582,7 +555,7 @@ export default function App() {
           collapsedCount: visual.collapsedCount,
           externalConnectionCount: visual.externalConnectionCount,
           lod: visual.lod,
-          accentColor: accentById.get(node.id) ?? '#475569',
+          accentColor: visual.branchColor ?? '#475569',
           isEditing: editingNodeId === node.id,
           readOnly,
           isCut: cutBranchId === node.id,
@@ -616,8 +589,7 @@ export default function App() {
       .filter((edge) => visible.has(edge.type))
       .map((edge) => {
         const isHighlighted = edge.originalEdgeIds.some((id) => highlightedEdges.has(id));
-        const edgeColor =
-          edge.type === 'hierarchy' ? (accentById.get(edge.targetId) ?? '#94a3b8') : '#dc2626';
+        const edgeColor = edge.color ?? (edge.type === 'hierarchy' ? '#64748b' : '#dc2626');
         const selected = selectedEdgeId === edge.id;
         const original =
           edge.originalEdgeIds.length === 1
@@ -750,12 +722,22 @@ export default function App() {
   }
 
   const addChildWithInheritedStyle = useCallback(
-    (parentId: string, startEditing = false): void => {
+    (parentId: string, startEditing = false, role?: HierarchyEdgeRole): void => {
       if (!file || !controller) return;
       const id = newNodeId();
+      const existingHierarchyEdges = file.domain.edges.filter(
+        (edge) => edge.type === 'hierarchy' && edge.fromNodeId === parentId,
+      );
+      const effectiveRole: HierarchyEdgeRole =
+        role ??
+        (existingHierarchyEdges.some((edge) => edge.role === 'continuation')
+          ? 'leaf'
+          : 'continuation');
+      const count = file.domain.nodes.length + 1;
+      const title = effectiveRole === 'branch' ? `新分支 ${count}` : `新节点 ${count}`;
       guard(async () => {
         await controller.run(
-          createNodeEntry(id, `新节点 ${file.domain.nodes.length + 1}`, parentId, makeId('e_')),
+          createNodeEntry(id, title, parentId, makeId('e_'), effectiveRole, file.presentation),
         );
         if (controller.getSnapshot().error) return;
         setSelectedNodeIds([id]);
@@ -771,6 +753,12 @@ export default function App() {
     if (!file) return;
     const parentId = selectedNodeId ?? file.domain.project.rootNodeId;
     addChildWithInheritedStyle(parentId, false);
+  }
+
+  function addBranch(): void {
+    if (!file) return;
+    const parentId = selectedNodeId ?? file.domain.project.rootNodeId;
+    addChildWithInheritedStyle(parentId, false, 'branch');
   }
 
   const addRandomBranchNode = useCallback(
@@ -1221,6 +1209,18 @@ export default function App() {
         return;
       }
 
+      // 2.5 新建分支（默认 b，可自定义）
+      if (
+        viewMode === '2d' &&
+        isEventMatchingKeybinding(event, keybindings.addBranchNode) &&
+        file
+      ) {
+        event.preventDefault();
+        const parentId = selectedNodeId ?? file.domain.project.rootNodeId;
+        addChildWithInheritedStyle(parentId, true, 'branch');
+        return;
+      }
+
       // 3. 随机位置开启新分支（默认 r，可自定义）
       if (
         viewMode === '2d' &&
@@ -1379,6 +1379,7 @@ export default function App() {
         inspectorToggleRef={inspectorToggleRef}
         canDeleteNode={Boolean(selectedNode && selectedNode.id !== file.domain.project.rootNodeId)}
         onAddNode={addNode}
+        onAddBranch={addBranch}
         onAddRandomBranch={() => addRandomBranchNode()}
         onDeleteNode={deleteNode}
         onUndo={() => guard(() => controller.undo())}
@@ -1740,7 +1741,17 @@ export default function App() {
                       setContextMenu(null);
                     }}
                   >
-                    ➕ 添加子节点 (Tab)
+                    ➕ 新建节点 (Tab)
+                  </button>
+                  <button
+                    type="button"
+                    className="wst-context-item"
+                    onClick={() => {
+                      addChildWithInheritedStyle(contextMenu.targetId!, true, 'branch');
+                      setContextMenu(null);
+                    }}
+                  >
+                    🌿 新建分支 ({keybindings.addBranchNode})
                   </button>
                   <button
                     type="button"

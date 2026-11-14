@@ -72,6 +72,7 @@ export function validateDomain(domain: DomainState): void {
   }
 
   const hierarchyParents = new Map<string, string>();
+  const continuations = new Set<string>();
   for (const edge of domain.edges) {
     if (!nodeSet.has(edge.fromNodeId) || !nodeSet.has(edge.toNodeId)) {
       throw new InvalidGraphError('edge references a missing node', {
@@ -88,6 +89,21 @@ export function validateDomain(domain: DomainState): void {
         });
       }
       hierarchyParents.set(edge.toNodeId, edge.fromNodeId);
+      if (edge.role === 'continuation') {
+        if (continuations.has(edge.fromNodeId)) {
+          throw new InvalidGraphError('parent node has multiple continuation children', {
+            edgeId: edge.id,
+            parentNodeId: edge.fromNodeId,
+            childNodeId: edge.toNodeId,
+          });
+        }
+        continuations.add(edge.fromNodeId);
+      }
+    } else if (edge.role !== undefined) {
+      throw new InvalidGraphError('non-hierarchy edge cannot have a hierarchy role', {
+        edgeId: edge.id,
+        type: edge.type,
+      });
     }
   }
 

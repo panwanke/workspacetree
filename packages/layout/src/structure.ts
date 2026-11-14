@@ -1,4 +1,5 @@
-import type { Node, Spine } from '@workspacetree/schema';
+import type { Edge, Node, Spine } from '@workspacetree/schema';
+import { resolveChildrenHierarchyRoles, type ChildrenHierarchyRoles } from './roles.js';
 import type { buildHierarchy } from './tree.js';
 import {
   DEFAULT_LAYOUT_OPTIONS,
@@ -59,6 +60,7 @@ export function placeStructure(
   spines: readonly Spine[],
   mode: 'structure' | 'date-constrained' | 'date-priority',
   allNodes: readonly Node[] = nodes,
+  edges: readonly Edge[] = [],
 ): { positions: Record<string, Point>; order: string[]; dateAnchors: DateAnchor[] } {
   const constrainDates = mode === 'date-constrained';
   const horizontal = direction === 'horizontal';
@@ -118,15 +120,26 @@ export function placeStructure(
       if (first) earliest.set(id, first);
     }
   }
+  const rolesByParent = new Map<string, ChildrenHierarchyRoles>();
   for (let index = order.length - 1; index >= 0; index--) {
     const id = order[index];
-    const group = childrenOf(id).sort(
-      (a, b) =>
-        (spineRank.get(b) ?? 0) - (spineRank.get(a) ?? 0) ||
-        depth.get(b)! - depth.get(a)! ||
-        (dates.get(a) ?? '9999').localeCompare(dates.get(b) ?? '9999') ||
-        a.localeCompare(b),
-    );
+    const kids = childrenOf(id);
+    const roles = resolveChildrenHierarchyRoles(id, kids, edges, spines);
+    rolesByParent.set(id, roles);
+
+    const sortGroup = (ids: string[]) =>
+      [...ids].sort(
+        (a, b) =>
+          (spineRank.get(b) ?? 0) - (spineRank.get(a) ?? 0) ||
+          depth.get(b)! - depth.get(a)! ||
+          (dates.get(a) ?? '9999').localeCompare(dates.get(b) ?? '9999') ||
+          a.localeCompare(b),
+      );
+
+    const group = roles.continuation
+      ? [roles.continuation, ...sortGroup(roles.leaves), ...sortGroup(roles.branches)]
+      : [...sortGroup(roles.leaves), ...sortGroup(roles.branches)];
+
     orderedChildren.set(id, group);
     depth.set(id, 1 + (group.length ? Math.max(...group.map((child) => depth.get(child)!)) : 0));
   }
@@ -135,7 +148,12 @@ export function placeStructure(
   while (orderedChildren.get(firstFork)?.length === 1)
     firstFork = orderedChildren.get(firstFork)![0];
   const forkChildren = orderedChildren.get(firstFork) ?? [];
-  const split = forkChildren.filter((id) => depth.get(id)! >= 3).length >= 2 ? firstFork : null;
+  const forkRoles = rolesByParent.get(firstFork);
+  const split =
+    forkChildren.filter((id) => depth.get(id)! >= 3).length >= 2 &&
+    (!forkRoles?.continuation || forkRoles.branches.length >= 1)
+      ? firstFork
+      : null;
 
   const axis = new Map<string, number>();
   const dateAnchors: DateAnchor[] = [];
@@ -162,14 +180,23 @@ export function placeStructure(
   }
   for (const id of order) {
     const parentDay = lastDate.get(id);
+    const parentRoles = rolesByParent.get(id);
     for (const [index, child] of orderedChildren.get(id)!.entries()) {
       const date = dates.get(child);
       const days =
         date && parentDay ? Math.max(0, (Date.parse(date) - Date.parse(parentDay)) / DAY_MS) : 0;
       const timeGap = Math.min(110, 20 * Math.log1p(days / 4));
-      const stagger = index > 0 ? 12 + 9 * Math.log2(index) : 0;
+      const isContinuation = child === parentRoles?.continuation;
+      const leafIdx = parentRoles?.leaves.indexOf(child) ?? -1;
+      const stagger = isContinuation
+        ? 0
+        : leafIdx >= 0
+          ? 16 + 18 * leafIdx
+          : index > 0
+            ? 12 + 9 * Math.log2(index)
+            : 0;
       const afterParent = axis.get(id)! + mainSize(id) + mainGap + timeGap;
-      const desired = Math.max(afterParent, date ? datePosition(date) : 0) + stagger;
+      const desired = Math.max(afterParent, date ? datePosition(date) : 0) + (date ? 0 : stagger);
       const first = earliest.get(child);
       const undatedAnchor =
         !date && first ? datePosition(first) - beforeDescendant.get(child)! : null;
@@ -227,23 +254,67 @@ export function placeStructure(
   );
   for (let index = order.length - 1; index >= 0; index--) {
     const id = order[index];
-    const [main, ...sides] = orderedChildren.get(id)!;
+    const group = orderedChildren.get(id)!;
+    if (group.length === 0) {
+      const half = crossSize(id) / 2;
+      const start = axis.get(id)!;
+      const firstBand = bandIndices.get(Math.floor(start / bandHeight))!;
+      const afterLastBand = bandIndices.get(Math.floor((start + mainSize(id)) / bandHeight) + 1)!;
+      const card: Profile = { left: -half, right: half, bands: new Map() };
+      for (let band = firstBand; band < afterLastBand; band++) {
+        card.bands.set(band, card);
+      }
+      profiles.set(id, card);
+      continue;
+    }
+
+    const roles = rolesByParent.get(id)!;
+    const hasContinuation = roles.continuation !== null;
+    const main = hasContinuation ? roles.continuation! : null;
+    const sides = hasContinuation ? group.slice(1) : group;
+
     // Reuse the primary profile instead of copying it at each level of a long chain.
     const profile = (main && profiles.get(main)) || { left: 0, right: 0, bands: new Map() };
-    if (main) profiles.delete(main);
-    for (const [sideIndex, child] of sides.entries()) {
+    if (main) {
+      profiles.delete(main);
+      offsets.set(main, 0);
+    }
+
+    if (!hasContinuation && sides.length === 1 && roles.branches.includes(sides[0])) {
+      const child = sides[0];
       const branch = profiles.get(child)!;
-      const gap = id === split || depth.get(child)! >= 4 ? branchGap : sideGap;
-      const minimum = Math.max(50, (crossSize(main) + crossSize(child)) / 2 + gap);
-      const required = clearance(branch, profile, gap);
-      const right = Math.max(minimum, required.right);
-      const left = Math.max(minimum, required.left);
-      const growRight = Math.max(0, branch.right + right - profile.right);
-      const growLeft = Math.max(0, profile.left - branch.left + left);
-      const offset = (id === split && sideIndex === 0) || growRight <= growLeft ? right : -left;
+      const gap = branchGap;
+      const minimum = Math.max(72, (crossSize(id) + crossSize(child)) / 2 + gap);
+      const offset = minimum;
       offsets.set(child, offset);
       mergeProfile(profile, branch, offset);
       profiles.delete(child);
+    } else {
+      for (const [sideIndex, child] of sides.entries()) {
+        const branch = profiles.get(child)!;
+        const isBranch = roles.branches.includes(child);
+        const gap = isBranch || id === split || depth.get(child)! >= 4 ? branchGap : sideGap;
+        const refCross = main ? crossSize(main) : crossSize(id);
+        const minimum = Math.max(isBranch ? 72 : 50, (refCross + crossSize(child)) / 2 + gap);
+        const required = clearance(branch, profile, gap);
+        const right = Math.max(minimum, required.right);
+        const left = Math.max(minimum, required.left);
+        const growRight = Math.max(0, branch.right + right - profile.right);
+        const growLeft = Math.max(0, profile.left - branch.left + left);
+        let offset: number;
+        if (id === split && sideIndex === 0) {
+          offset = right;
+        } else if (!isBranch && sideIndex === 0) {
+          offset = -left;
+        } else if (!isBranch && sideIndex === 1) {
+          offset = right;
+        } else {
+          offset = growRight <= growLeft ? right : -left;
+        }
+        offsets.set(child, offset);
+        mergeProfile(profile, branch, offset);
+        profiles.delete(child);
+      }
     }
     if (id === split && main && sides.length) {
       const shift = (offsets.get(sides[0]) ?? 0) / 2;

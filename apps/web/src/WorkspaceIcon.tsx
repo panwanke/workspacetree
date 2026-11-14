@@ -19,6 +19,8 @@ const paths = {
   pencil: 'm14 5 5 5M4 20l5-1L21 7l-4-4L5 15l-1 5Z',
   help: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM9 9a3 3 0 1 1 4 2.8c-1 .5-1 1.2-1 2.2m0 3h.01',
   tag: 'M3 4h8l10 10-7 7L4 11V4zm4 4h.01',
+  branch:
+    'M6 3v12a3 3 0 0 0 3 3h3m6-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 0v3a3 3 0 0 1-3 3h-3m-6 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z',
 } as const;
 
 export type WorkspaceIconName = keyof typeof paths;

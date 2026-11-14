@@ -59,6 +59,39 @@ describe('T-06 图合法性与引用完整性', () => {
     }
   });
 
+  it('同一父节点存在多个显式延续子节点时被拒', () => {
+    const domain = freshDomain();
+    domain.nodes.push({
+      id: 'n_child_2',
+      title: 'Second child',
+      parentId: 'n_root',
+      blockIds: [],
+      archived: false,
+      startAt: null,
+    });
+    domain.edges.find((e) => e.toNodeId === 'n_child')!.role = 'continuation';
+    domain.edges.push({
+      id: 'e_cont_2',
+      type: 'hierarchy',
+      fromNodeId: 'n_root',
+      toNodeId: 'n_child_2',
+      role: 'continuation',
+    });
+    expect(() => validateDomain(domain)).toThrow(/multiple continuation/);
+  });
+
+  it('非 hierarchy 边携带层级角色时被拒', () => {
+    const domain = freshDomain();
+    domain.edges.push({
+      id: 'e_dep_bad',
+      type: 'dependency',
+      fromNodeId: 'n_child',
+      toNodeId: 'n_root',
+      role: 'branch',
+    });
+    expect(() => validateDomain(domain)).toThrow(/non-hierarchy edge cannot have a hierarchy role/);
+  });
+
   it('合法 scale = 0.45 通过', () => {
     const presentation = createMinimalBranchFile().presentation;
     presentation.branchScales['n_child'] = 0.45;

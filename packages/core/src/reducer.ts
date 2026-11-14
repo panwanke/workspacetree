@@ -446,6 +446,29 @@ export function applyCommand(
         fromNodeId: str(payload, 'fromNodeId'),
         toNodeId: str(payload, 'toNodeId'),
       };
+      if ('role' in payload && payload.role !== undefined && payload.role !== null) {
+        if (edge.type !== 'hierarchy') {
+          throw new ValidationError('Only hierarchy edges can have a role');
+        }
+        const role = str(payload, 'role');
+        if (!['continuation', 'leaf', 'branch'].includes(role)) {
+          throw new ValidationError(`unknown edge role: ${role}`);
+        }
+        if (role === 'continuation') {
+          const hasContinuation = nextDomain.edges.some(
+            (item) =>
+              item.type === 'hierarchy' &&
+              item.fromNodeId === edge.fromNodeId &&
+              item.role === 'continuation',
+          );
+          if (hasContinuation) {
+            throw new ValidationError(
+              `parent node ${edge.fromNodeId} already has a continuation child`,
+            );
+          }
+        }
+        edge.role = role as DomainState['edges'][number]['role'];
+      }
       const note = nullableStr(payload, 'note');
       if (note !== null) {
         if (/[\r\n]/.test(note)) throw new ValidationError('Edge note must be a single line');

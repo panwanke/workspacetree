@@ -23,6 +23,8 @@ export const TAG_NAME_PATTERN = '[\\p{L}\\p{N}\\p{M}_-]+';
 export const TagSchema = z.string().regex(new RegExp('^' + TAG_NAME_PATTERN + '(?![\\s\\S])', 'u'));
 export const TagsSchema = z.array(TagSchema);
 
+export const HierarchyEdgeRoleSchema = z.enum(['continuation', 'leaf', 'branch']);
+
 export const NodeSchema = z.object({
   id: z.string().min(1),
   title: z.string(),
@@ -38,6 +40,7 @@ export const EdgeSchema = z.object({
   type: EdgeTypeSchema,
   fromNodeId: z.string().min(1),
   toNodeId: z.string().min(1),
+  role: HierarchyEdgeRoleSchema.optional(),
   note: z
     .string()
     .regex(/^[^\r\n]*(?![\s\S])/)
@@ -71,6 +74,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export type Block = z.infer<typeof BlockSchema>;
 export type Node = z.infer<typeof NodeSchema>;
 export type Edge = z.infer<typeof EdgeSchema>;
+export type HierarchyEdgeRole = z.infer<typeof HierarchyEdgeRoleSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type Spine = z.infer<typeof SpineSchema>;
 export type ProjectRef = z.infer<typeof ProjectRefSchema>;

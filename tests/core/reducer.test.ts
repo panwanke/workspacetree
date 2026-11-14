@@ -45,6 +45,55 @@ describe('T-07 纯函数 reducer', () => {
     expect(result.presentation.branchScales['n_child']).toBe(0.45);
   });
 
+  it('edge.add 支持可选角色，重复延续子节点被拒', () => {
+    const file = createMinimalBranchFile();
+    const addCont1 = envelope({
+      command: {
+        type: 'edge.add',
+        payload: {
+          id: 'e_c1',
+          type: 'hierarchy',
+          fromNodeId: 'n_root',
+          toNodeId: 'n_child',
+          role: 'continuation',
+        },
+      },
+    });
+    // Minimal file already has e_root_child without role, but let's test adding e_c1
+    const res1 = applyCommand(file.domain, file.presentation, addCont1);
+    expect(res1.domain.edges.find((e) => e.id === 'e_c1')?.role).toBe('continuation');
+
+    // Trying to add another continuation under n_root is rejected
+    const addCont2 = envelope({
+      command: {
+        type: 'edge.add',
+        payload: {
+          id: 'e_c2',
+          type: 'hierarchy',
+          fromNodeId: 'n_root',
+          toNodeId: 'n_other',
+          role: 'continuation',
+        },
+      },
+    });
+    expect(() => applyCommand(res1.domain, res1.presentation, addCont2)).toThrow(ValidationError);
+
+    // Non-hierarchy edge with role is rejected
+    const badDep = envelope({
+      command: {
+        type: 'edge.add',
+        payload: {
+          id: 'e_dep',
+          type: 'dependency',
+          fromNodeId: 'n_root',
+          toNodeId: 'n_child',
+          role: 'branch',
+        },
+      },
+    });
+    expect(() => applyCommand(file.domain, file.presentation, badDep)).toThrow(ValidationError);
+  });
+
   it('stateClass 与命令类型不匹配时拒绝', () => {
     const file = createMinimalBranchFile();
     expect(() =>

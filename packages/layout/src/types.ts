@@ -67,6 +67,7 @@ export interface VisualNode {
   taskTotal: number;
   externalConnectionCount: number;
   lod: VisualLod;
+  branchColor?: string;
 }
 
 export interface VisualEdge {
@@ -76,6 +77,7 @@ export interface VisualEdge {
   targetId: string;
   originalEdgeIds: string[];
   aggregatedCount: number;
+  color?: string;
 }
 
 export type AnchorSide = 'left' | 'right' | 'top' | 'bottom';

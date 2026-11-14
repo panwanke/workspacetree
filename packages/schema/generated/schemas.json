@@ -109,6 +109,14 @@
           "type": "string",
           "minLength": 1
         },
+        "role": {
+          "type": "string",
+          "enum": [
+            "continuation",
+            "leaf",
+            "branch"
+          ]
+        },
         "note": {
           "type": "string",
           "pattern": "^[^\\r\\n]*(?![\\s\\S])"
@@ -310,6 +318,14 @@
               "toNodeId": {
                 "type": "string",
                 "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "continuation",
+                  "leaf",
+                  "branch"
+                ]
               },
               "note": {
                 "type": "string",
@@ -1189,6 +1205,14 @@
                   "toNodeId": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "continuation",
+                      "leaf",
+                      "branch"
+                    ]
                   },
                   "note": {
                     "type": "string",

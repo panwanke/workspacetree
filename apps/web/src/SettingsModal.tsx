@@ -53,17 +53,12 @@ export default function SettingsModal({
   const actions = Object.keys(DEFAULT_KEYBINDINGS) as KeybindingAction[];
 
   function handleResetAll() {
-    const next: Record<KeybindingAction, string> = {
-      deleteNode: DEFAULT_KEYBINDINGS.deleteNode.defaultKey,
-      addChildNode: DEFAULT_KEYBINDINGS.addChildNode.defaultKey,
-      addRandomBranch: DEFAULT_KEYBINDINGS.addRandomBranch.defaultKey,
-      fitView: DEFAULT_KEYBINDINGS.fitView.defaultKey,
-      undo: DEFAULT_KEYBINDINGS.undo.defaultKey,
-      redo: DEFAULT_KEYBINDINGS.redo.defaultKey,
-      cutBranch: DEFAULT_KEYBINDINGS.cutBranch.defaultKey,
-      pasteBranch: DEFAULT_KEYBINDINGS.pasteBranch.defaultKey,
-      saveBranch: DEFAULT_KEYBINDINGS.saveBranch.defaultKey,
-    };
+    const next: Record<KeybindingAction, string> = Object.fromEntries(
+      (Object.keys(DEFAULT_KEYBINDINGS) as KeybindingAction[]).map((action) => [
+        action,
+        DEFAULT_KEYBINDINGS[action].defaultKey,
+      ]),
+    ) as Record<KeybindingAction, string>;
     onChangeKeybindings(next);
     saveKeybindings(next);
   }

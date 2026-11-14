@@ -182,9 +182,7 @@ export default function ThreeCanvas({
       const material = new THREE.LineBasicMaterial({
         color: edge.originalEdgeIds.some((id) => highlightedEdges.has(id))
           ? '#ea580c'
-          : edge.type === 'hierarchy'
-            ? '#64748b'
-            : '#c026d3',
+          : (edge.color ?? (edge.type === 'hierarchy' ? '#64748b' : '#c026d3')),
         transparent: true,
         opacity: 0.86,
       });

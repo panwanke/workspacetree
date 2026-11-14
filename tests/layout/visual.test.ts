@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { DomainState } from '@workspacetree/schema';
 import { resolveVisualGraph, visualEdgeAnchors, visualEdgePath } from '@workspacetree/layout';
 import { createDemoDomain } from '../../apps/web/src/demo';
 
@@ -332,5 +333,303 @@ describe('Phase 2 统一视觉几何', () => {
       expect(graph.sizes[node.id]).toEqual(node.size);
       expect(Number.isFinite(node.scale)).toBe(true);
     }
+  });
+
+  describe('四大树形布局场景（延续居中、普通叶子错开、单孩子显式侧枝、不同日期与同日过密）', () => {
+    it('场景 1：延续居中（纵向与横向）', () => {
+      const domain: DomainState = {
+        project: { id: 'prj_t', title: 'Test', rootNodeId: 'n_root' },
+        nodes: [
+          {
+            id: 'n_root',
+            title: 'Root',
+            parentId: null,
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+          {
+            id: 'n_cont',
+            title: 'Continuation',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+        ],
+        edges: [
+          {
+            id: 'e_cont',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_cont',
+            role: 'continuation',
+          },
+        ],
+        tasks: [],
+        blocks: [],
+        spines: [],
+        projectRefs: [],
+        archived: false,
+        archiveMeta: null,
+      };
+      // Vertical: continuation child centers under parent (centerX equals)
+      const vert = resolveVisualGraph(domain, presentation({ layoutDirection: 'vertical' }), {
+        strategy: 'structure',
+      });
+      const vertCenter = (id: string) => vert.positions[id].x + vert.sizes[id].width / 2;
+      expect(vertCenter('n_cont')).toBeCloseTo(vertCenter('n_root'), 1);
+      expect(vert.positions.n_cont.y).toBeGreaterThan(vert.positions.n_root.y);
+
+      // Horizontal: continuation child centers to right of parent (centerY equals)
+      const horiz = resolveVisualGraph(domain, presentation({ layoutDirection: 'horizontal' }), {
+        strategy: 'structure',
+      });
+      const horizCenter = (id: string) => horiz.positions[id].y + horiz.sizes[id].height / 2;
+      expect(horizCenter('n_cont')).toBeCloseTo(horizCenter('n_root'), 1);
+      expect(horiz.positions.n_cont.x).toBeGreaterThan(horiz.positions.n_root.x);
+    });
+
+    it('场景 2：普通叶子错开（左右错开、留出高差，纵向与横向）', () => {
+      const domain: DomainState = {
+        project: { id: 'prj_t', title: 'Test', rootNodeId: 'n_root' },
+        nodes: [
+          {
+            id: 'n_root',
+            title: 'Root',
+            parentId: null,
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+          {
+            id: 'n_cont',
+            title: 'A 延续',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+          {
+            id: 'n_leaf_b',
+            title: 'B 叶子',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+          {
+            id: 'n_leaf_c',
+            title: 'C 叶子',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+        ],
+        edges: [
+          {
+            id: 'e_cont',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_cont',
+            role: 'continuation',
+          },
+          {
+            id: 'e_leaf_b',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_leaf_b',
+            role: 'leaf',
+          },
+          {
+            id: 'e_leaf_c',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_leaf_c',
+            role: 'leaf',
+          },
+        ],
+        tasks: [],
+        blocks: [],
+        spines: [],
+        projectRefs: [],
+        archived: false,
+        archiveMeta: null,
+      };
+      // Vertical
+      const vert = resolveVisualGraph(domain, presentation({ layoutDirection: 'vertical' }), {
+        strategy: 'structure',
+      });
+      const vertCenterX = (id: string) => vert.positions[id].x + vert.sizes[id].width / 2;
+      expect(vertCenterX('n_cont')).toBeCloseTo(vertCenterX('n_root'), 1);
+      expect(vertCenterX('n_leaf_b')).toBeLessThan(vertCenterX('n_root'));
+      expect(vertCenterX('n_leaf_c')).toBeGreaterThan(vertCenterX('n_root'));
+      expect(vert.positions.n_leaf_b.y).not.toBe(vert.positions.n_leaf_c.y);
+      expect(
+        Math.abs(vert.positions.n_leaf_c.y - vert.positions.n_leaf_b.y),
+      ).toBeGreaterThanOrEqual(16);
+
+      // Horizontal
+      const horiz = resolveVisualGraph(domain, presentation({ layoutDirection: 'horizontal' }), {
+        strategy: 'structure',
+      });
+      const horizCenterY = (id: string) => horiz.positions[id].y + horiz.sizes[id].height / 2;
+      expect(horizCenterY('n_cont')).toBeCloseTo(horizCenterY('n_root'), 1);
+      expect(horizCenterY('n_leaf_b')).toBeLessThan(horizCenterY('n_root'));
+      expect(horizCenterY('n_leaf_c')).toBeGreaterThan(horizCenterY('n_root'));
+      expect(horiz.positions.n_leaf_b.x).not.toBe(horiz.positions.n_leaf_c.x);
+      expect(
+        Math.abs(horiz.positions.n_leaf_c.x - horiz.positions.n_leaf_b.x),
+      ).toBeGreaterThanOrEqual(16);
+    });
+
+    it('场景 3：只有一个孩子且显式创建的是侧枝（保留横向偏移，纵向与横向）', () => {
+      const domain: DomainState = {
+        project: { id: 'prj_t', title: 'Test', rootNodeId: 'n_root' },
+        nodes: [
+          {
+            id: 'n_root',
+            title: 'Root',
+            parentId: null,
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+          {
+            id: 'n_branch',
+            title: 'Branch',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: null,
+          },
+        ],
+        edges: [
+          {
+            id: 'e_branch',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_branch',
+            role: 'branch',
+          },
+        ],
+        tasks: [],
+        blocks: [],
+        spines: [],
+        projectRefs: [],
+        archived: false,
+        archiveMeta: null,
+      };
+      // Vertical: even though it's the only child, it must have clear horizontal offset
+      const vert = resolveVisualGraph(domain, presentation({ layoutDirection: 'vertical' }), {
+        strategy: 'structure',
+      });
+      const vertCenterX = (id: string) => vert.positions[id].x + vert.sizes[id].width / 2;
+      expect(Math.abs(vertCenterX('n_branch') - vertCenterX('n_root'))).toBeGreaterThanOrEqual(50);
+      expect(vert.edges[0].color).toBeDefined();
+
+      // Horizontal: vertical offset maintained
+      const horiz = resolveVisualGraph(domain, presentation({ layoutDirection: 'horizontal' }), {
+        strategy: 'structure',
+      });
+      const horizCenterY = (id: string) => horiz.positions[id].y + horiz.sizes[id].height / 2;
+      expect(Math.abs(horizCenterY('n_branch') - horizCenterY('n_root'))).toBeGreaterThanOrEqual(
+        50,
+      );
+    });
+
+    it('场景 4：不同日期与同日过密（时间顺序与同日无碰撞，纵向与横向）', () => {
+      const domain: DomainState = {
+        project: { id: 'prj_t', title: 'Test', rootNodeId: 'n_root' },
+        nodes: [
+          {
+            id: 'n_root',
+            title: 'Root',
+            parentId: null,
+            blockIds: [],
+            archived: false,
+            startAt: '2026-01-01',
+          },
+          {
+            id: 'n_day1_a',
+            title: 'Day 1 A',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: '2026-02-01',
+          },
+          {
+            id: 'n_day1_b',
+            title: 'Day 1 B',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: '2026-02-01',
+          },
+          {
+            id: 'n_day2',
+            title: 'Day 2',
+            parentId: 'n_root',
+            blockIds: [],
+            archived: false,
+            startAt: '2026-03-01',
+          },
+        ],
+        edges: [
+          {
+            id: 'e_1',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_day1_a',
+            role: 'continuation',
+          },
+          {
+            id: 'e_2',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_day1_b',
+            role: 'leaf',
+          },
+          {
+            id: 'e_3',
+            type: 'hierarchy',
+            fromNodeId: 'n_root',
+            toNodeId: 'n_day2',
+            role: 'branch',
+          },
+        ],
+        tasks: [],
+        blocks: [],
+        spines: [],
+        projectRefs: [],
+        archived: false,
+        archiveMeta: null,
+      };
+      // Vertical
+      const vert = resolveVisualGraph(domain, presentation({ layoutDirection: 'vertical' }), {
+        strategy: 'date-constrained',
+      });
+      expect(vert.positions.n_day1_a.y).toBeLessThan(vert.positions.n_day2.y);
+      const a = { ...vert.positions.n_day1_a, ...vert.sizes.n_day1_a };
+      const b = { ...vert.positions.n_day1_b, ...vert.sizes.n_day1_b };
+      const overlapsVert =
+        a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+      expect(overlapsVert).toBe(false);
+
+      // Horizontal
+      const horiz = resolveVisualGraph(domain, presentation({ layoutDirection: 'horizontal' }), {
+        strategy: 'date-constrained',
+      });
+      expect(horiz.positions.n_day1_a.x).toBeLessThan(horiz.positions.n_day2.x);
+      const ha = { ...horiz.positions.n_day1_a, ...horiz.sizes.n_day1_a };
+      const hb = { ...horiz.positions.n_day1_b, ...horiz.sizes.n_day1_b };
+      const overlapsHoriz =
+        ha.x < hb.x + hb.width &&
+        ha.x + ha.width > hb.x &&
+        ha.y < hb.y + hb.height &&
+        ha.y + ha.height > hb.y;
+      expect(overlapsHoriz).toBe(false);
+    });
   });
 });

@@ -95,6 +95,7 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
         sourceId: edge.sourceId,
         targetId: edge.targetId,
         originalIds: edge.originalEdgeIds,
+        color: edge.color,
       }))
     : input.edges.map((edge) => ({
         id: edge.id,
@@ -102,6 +103,7 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
         sourceId: edge.fromNodeId,
         targetId: edge.toNodeId,
         originalIds: [edge.id],
+        color: undefined as string | undefined,
       }));
   for (const edge of exportEdges) {
     if (!visible.has(edge.type)) continue;
@@ -114,7 +116,7 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
       sourceVisual && targetVisual && input.graph
         ? visualEdgePath(sourceVisual, targetVisual, input.graph.direction)
         : pathForNodes(from, to, cfg).path;
-    const stroke = edge.type === 'hierarchy' ? '#64748b' : '#c026d3';
+    const stroke = edge.color ?? (edge.type === 'hierarchy' ? '#64748b' : '#c026d3');
     const dash = edge.type === 'hierarchy' ? '' : ' stroke-dasharray="6 4"';
     lines.push(
       `    <path id="${escapeXml(edge.id)}" data-edge-type="${edge.type}" d="${path}" stroke="${stroke}"${dash} marker-end="url(#wst-arrow)" />`,

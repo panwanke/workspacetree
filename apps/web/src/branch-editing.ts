@@ -10,6 +10,7 @@ import {
 import type {
   BranchFile,
   Command,
+  HierarchyEdgeRole,
   LayoutDirection,
   SavedPresentation,
 } from '@workspacetree/schema';
@@ -172,6 +173,11 @@ export function transferBranch(
       .filter((edge) => edge.type === 'hierarchy')
       .map((edge) => [edge.toNodeId, edge.note]),
   );
+  const hierarchyRoles = new Map(
+    source.domain.edges
+      .filter((edge) => edge.type === 'hierarchy')
+      .map((edge) => [edge.toNodeId, edge.role]),
+  );
   const blockMap = new Map([...blocks].map((id) => [id, makeId('b_')]));
   const next = structuredClone(target.domain);
   next.nodes.push(
@@ -203,6 +209,8 @@ export function transferBranch(
       type: 'hierarchy' as const,
       toNodeId: mapped(node.id),
       fromNodeId: node.id === nodeId ? parentId : mapped(sourceTree.parents.get(node.id)!),
+      role: (node.id === nodeId ? 'branch' : hierarchyRoles.get(node.id)) as
+        HierarchyEdgeRole | undefined,
       note: node.id === nodeId ? undefined : hierarchyNotes.get(node.id),
     })),
   );

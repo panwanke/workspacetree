@@ -376,4 +376,47 @@ describe('subtree movement', () => {
     await editor.undo();
     expect(current().domain).toEqual(before.domain);
   });
+
+  it('改挂分支时以侧向入口接入（role=branch），并保持内部角色，撤销完整还原', async () => {
+    const { reparentBranchEntry } = await import('../../apps/web/src/branch-editing');
+    const storage = new MemoryStorageAdapter();
+    const editor = await EditorController.bootstrap(storage, () => {
+      const file = createDemoBranchFile();
+      const internalCont = file.domain.edges.find((e) => e.toNodeId === 'n_writing_template');
+      if (internalCont) internalCont.role = 'continuation';
+      const internalLeaf = file.domain.edges.find((e) => e.toNodeId === 'n_writing_template_latex');
+      if (internalLeaf) internalLeaf.role = 'leaf';
+      return file;
+    });
+
+    const current = () => editor.getSnapshot().file;
+
+    // Reparent sourceId (n_writing_init) to targetId (n_analysis)
+    const entry = reparentBranchEntry(current(), sourceId, targetId)!;
+    await editor.run(entry);
+
+    const moved = current();
+    const incomingEdge = moved.domain.edges.find(
+      (e) => e.type === 'hierarchy' && e.toNodeId === sourceId,
+    );
+    expect(incomingEdge?.fromNodeId).toBe(targetId);
+    expect(incomingEdge?.role).toBe('branch'); // 侧向入口接入，避免占用目标已有的延续位置
+
+    // Verify internal roles are preserved
+    const movedInternalCont = moved.domain.edges.find((e) => e.toNodeId === 'n_writing_template');
+    expect(movedInternalCont?.role).toBe('continuation');
+    const movedInternalLeaf = moved.domain.edges.find(
+      (e) => e.toNodeId === 'n_writing_template_latex',
+    );
+    expect(movedInternalLeaf?.role).toBe('leaf');
+
+    // Undo restores previous hierarchy edge and role
+    await editor.undo();
+    const restored = current();
+    const restoredIncoming = restored.domain.edges.find(
+      (e) => e.type === 'hierarchy' && e.toNodeId === sourceId,
+    );
+    expect(restoredIncoming?.fromNodeId).toBe('n_init');
+    expect(restoredIncoming?.role).toBeUndefined();
+  });
 });

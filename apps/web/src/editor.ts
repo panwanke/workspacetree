@@ -163,38 +163,47 @@ export class EditorController {
   private async applyEntry(entry: HistoryEntry, phase: 'forward' | 'inverse'): Promise<void> {
     const commands = entry[phase];
     if (entry.atomic && entry.chained) {
-      const operationId = this.nextOperationId();
-      const actor = { kind: entry.actorKind, id: 'local-canvas' };
-      const projectId = this.file.projectId;
       const presentation = entry.chained[phase];
-      const outcome = await this.service.executeCombined(
-        {
-          operationId,
-          actor,
-          projectId,
-          commands,
-          stateClass: 'domain',
-          expectedRevision: this.file.revisions.semanticRevision,
-        },
-        {
-          operationId,
-          actor,
-          projectId,
-          commands: presentation,
-          stateClass: 'presentation',
-          expectedRevision: this.file.revisions.presentationRevision,
-        },
-      );
-      if (
-        outcome.file.revisions.presentationRevision !== this.file.revisions.presentationRevision
-      ) {
-        this.stats.presentationBatches++;
+      if (commands.length > 0 && presentation.length > 0) {
+        const operationId = this.nextOperationId();
+        const actor = { kind: entry.actorKind, id: 'local-canvas' };
+        const projectId = this.file.projectId;
+        const outcome = await this.service.executeCombined(
+          {
+            operationId,
+            actor,
+            projectId,
+            commands,
+            stateClass: 'domain',
+            expectedRevision: this.file.revisions.semanticRevision,
+          },
+          {
+            operationId,
+            actor,
+            projectId,
+            commands: presentation,
+            stateClass: 'presentation',
+            expectedRevision: this.file.revisions.presentationRevision,
+          },
+        );
+        if (
+          outcome.file.revisions.presentationRevision !== this.file.revisions.presentationRevision
+        ) {
+          this.stats.presentationBatches++;
+        }
+        this.file = outcome.file;
+        this.stats.persistedBatches++;
+        this.stats.persistedCommands += commands.length + presentation.length;
+        if (outcome.commit) this.stats.semanticCommits++;
+        this.error = null;
+        return;
       }
-      this.file = outcome.file;
-      this.stats.persistedBatches++;
-      this.stats.persistedCommands += commands.length + presentation.length;
-      if (outcome.commit) this.stats.semanticCommits++;
-      this.error = null;
+      if (commands.length > 0) {
+        await this.applyCommands(entry, commands);
+      }
+      if (presentation.length > 0) {
+        await this.applyCommands(entry.chained, presentation);
+      }
       return;
     }
     if (commands.length > 0) await this.applyCommands(entry, commands);

@@ -7,13 +7,19 @@
  *
  * 本模块为纯逻辑，不 import React / DOM，可在 Node 下独立测试。
  */
-import { resolveLayoutDirection } from '@workspacetree/layout';
+import {
+  DEFAULT_LAYOUT_OPTIONS,
+  LOD_MIN_HEIGHT,
+  LOD_MIN_WIDTH,
+  resolveLayoutDirection,
+} from '@workspacetree/layout';
 import type {
   ActorKind,
   BranchFile,
   Command,
   DomainState,
   Edge,
+  HierarchyEdgeRole,
   LayoutDirection,
   Node,
   SavedPresentation,
@@ -71,19 +77,60 @@ export function createNodeEntry(
   title: string,
   parentId: string | null,
   edgeId: string,
-  presentation?: SavedPresentation,
-  initialPosition?: Point,
+  roleOrPresentation?: HierarchyEdgeRole | SavedPresentation,
+  presentationOrPosition?: SavedPresentation | Point,
+  initialPositionOrDirection?: Point | LayoutDirection,
   direction?: LayoutDirection,
 ): HistoryEntry {
+  let role: HierarchyEdgeRole | undefined;
+  let presentation: SavedPresentation | undefined;
+  let initialPosition: Point | undefined;
+  let resolvedDirection: LayoutDirection | undefined = direction;
+
+  if (typeof roleOrPresentation === 'string') {
+    role = roleOrPresentation as HierarchyEdgeRole;
+    if (
+      typeof presentationOrPosition === 'object' &&
+      presentationOrPosition !== null &&
+      !('x' in presentationOrPosition)
+    ) {
+      presentation = presentationOrPosition as SavedPresentation;
+    }
+    if (
+      typeof initialPositionOrDirection === 'object' &&
+      initialPositionOrDirection !== null &&
+      'x' in initialPositionOrDirection
+    ) {
+      initialPosition = initialPositionOrDirection as Point;
+    }
+  } else if (typeof roleOrPresentation === 'object' && roleOrPresentation !== null) {
+    presentation = roleOrPresentation as SavedPresentation;
+    if (
+      typeof presentationOrPosition === 'object' &&
+      presentationOrPosition !== null &&
+      'x' in presentationOrPosition
+    ) {
+      initialPosition = presentationOrPosition as Point;
+    }
+    if (typeof initialPositionOrDirection === 'string') {
+      resolvedDirection = initialPositionOrDirection as LayoutDirection;
+    }
+  }
+
   const forward = [cmd('node.add', { id, title, parentId })];
   if (parentId !== null) {
     forward.push(
-      cmd('edge.add', { id: edgeId, type: 'hierarchy', fromNodeId: parentId, toNodeId: id }),
+      cmd('edge.add', {
+        id: edgeId,
+        type: 'hierarchy',
+        fromNodeId: parentId,
+        toNodeId: id,
+        ...(role ? { role } : {}),
+      }),
     );
   }
-  const creation = entry(parentId === null ? '创建独立分支' : '创建节点', 'domain', forward, [
-    cmd('node.remove', { id }),
-  ]);
+  const label = parentId === null ? '创建独立分支' : role === 'branch' ? '新建分支' : '新建节点';
+  const creation = entry(label, 'domain', forward, [cmd('node.remove', { id })]);
 
   const presentationCmds: Command[] = [];
   if (initialPosition) {
@@ -92,21 +139,33 @@ export function createNodeEntry(
         nodeId: id,
         x: initialPosition.x,
         y: initialPosition.y,
-        direction: direction ?? 'horizontal',
+        direction: resolvedDirection ?? 'horizontal',
       }),
     );
   }
-  if (parentId !== null && presentation) {
-    const scale = presentation.nodeScales?.[parentId];
-    const size = presentation.nodeSizes?.[parentId];
-    if (scale !== undefined && scale !== 1) {
-      presentationCmds.push(cmd('presentation.setNodeScale', { nodeId: id, scale }));
+  if (parentId !== null) {
+    if (presentation) {
+      const scale = presentation.nodeScales?.[parentId];
+      if (scale !== undefined && scale !== 1) {
+        presentationCmds.push(cmd('presentation.setNodeScale', { nodeId: id, scale }));
+      }
     }
-    if (size)
-      presentationCmds.push(cmd('presentation.setNodeSize', { nodeId: id, size: { ...size } }));
+    const parentBaseWidth =
+      presentation?.nodeSizes?.[parentId]?.width ?? DEFAULT_LAYOUT_OPTIONS.nodeWidth;
+    const parentBaseHeight =
+      presentation?.nodeSizes?.[parentId]?.height ?? DEFAULT_LAYOUT_OPTIONS.nodeHeight;
+    const defaultWidth = Math.max(LOD_MIN_WIDTH, Math.round(parentBaseWidth * 0.85));
+    const defaultHeight = Math.max(LOD_MIN_HEIGHT, Math.round(parentBaseHeight * 0.85));
+    presentationCmds.push(
+      cmd('presentation.setNodeSize', {
+        nodeId: id,
+        size: { width: defaultWidth, height: defaultHeight },
+      }),
+    );
   }
   if (presentationCmds.length > 0) {
     creation.chained = entry('初始化节点位置与样式', 'presentation', presentationCmds, []);
+    creation.atomic = true;
   }
   return creation;
 }

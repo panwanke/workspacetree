@@ -100,6 +100,7 @@ interface ToolbarProps {
   inspectorToggleRef: RefObject<HTMLButtonElement | null>;
   canDeleteNode: boolean;
   onAddNode: () => void;
+  onAddBranch: () => void;
   onAddRandomBranch?: () => void;
   onDeleteNode: () => void;
   onUndo: () => void;
@@ -241,10 +242,21 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
             data-testid="add-node"
             disabled={props.readOnly}
             onClick={props.onAddNode}
-            aria-label="新增子节点"
-            title="新增子节点（画布内 Tab）"
+            aria-label="新建节点"
+            title="新建节点（画布内 Tab）"
           >
-            <WorkspaceIcon name="plus" /> <span>子节点</span>
+            <WorkspaceIcon name="plus" /> <span>新建节点</span>
+          </button>
+          <button
+            type="button"
+            className="wst-tool"
+            data-testid="add-branch"
+            disabled={props.readOnly}
+            onClick={props.onAddBranch}
+            aria-label="新建分支"
+            title="新建分支"
+          >
+            <WorkspaceIcon name="branch" /> <span>新建分支</span>
           </button>
           {props.onAddRandomBranch && (
             <button
@@ -253,10 +265,10 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               data-testid="add-random-branch"
               disabled={props.readOnly}
               onClick={props.onAddRandomBranch}
-              aria-label="随机位置开启新分支"
-              title="在画布随机位置开启新独立分支（快捷键 R）"
+              aria-label="新建独立分支"
+              title="在画布随机位置新建独立分支（快捷键 R）"
             >
-              🎲 <span>随机分支</span>
+              🎲 <span>新建独立分支</span>
             </button>
           )}
           <div className="wst-history-tools">

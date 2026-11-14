@@ -44,10 +44,16 @@ export function reparentNode(
   if (previous) {
     const index = next.edges.indexOf(previous);
     if (parentId === null) next.edges.splice(index, 1);
-    else next.edges[index] = { ...previous, fromNodeId: parentId };
+    else next.edges[index] = { ...previous, fromNodeId: parentId, role: 'branch' };
   } else if (parentId !== null) {
     if (!edgeId) throw new ValidationError('A new hierarchy edge requires an ID');
-    next.edges.push({ id: edgeId, type: 'hierarchy', fromNodeId: parentId, toNodeId: nodeId });
+    next.edges.push({
+      id: edgeId,
+      type: 'hierarchy',
+      fromNodeId: parentId,
+      toNodeId: nodeId,
+      role: 'branch',
+    });
   }
 
   if (previous) {

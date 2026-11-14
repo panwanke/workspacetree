@@ -97,4 +97,25 @@ describe('T-30 SVG 导出', () => {
     expect(result.svg).toContain(`data-edge-note="${edge.id}"`);
     expect(result.svg).toContain('条件 &lt;复核&gt; &amp; 结果');
   });
+
+  it('层级边在包含 visual graph 时消费有效分支颜色', () => {
+    const graph = resolveVisualGraph(domain, {
+      nodePositions: {},
+      verticalNodePositions: {},
+      branchScales: {},
+      nodeScales: {},
+      collapsedByDefault: [],
+      layoutDirection: 'vertical',
+    });
+    const coloredBranchEdge = graph.edges.find((e) => e.color && e.color !== '#64748b');
+    expect(coloredBranchEdge).toBeDefined();
+    const result = exportSvg({
+      nodes: domain.nodes,
+      edges: domain.edges,
+      positions: graph.positions,
+      graph,
+      tasks: domain.tasks,
+    });
+    expect(result.svg).toContain(`stroke="${coloredBranchEdge!.color}"`);
+  });
 });

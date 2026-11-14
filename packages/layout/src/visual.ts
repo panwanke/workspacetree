@@ -3,6 +3,7 @@
  * 2D、3D 和 SVG 必须消费本模块的结果，不分别推导显示坐标。
  */
 import type { DomainState, Edge, Node, SavedPresentation } from '@workspacetree/schema';
+import { resolveGraphBranchColors } from './roles.js';
 import { placeStructure } from './structure.js';
 import { buildHierarchy } from './tree.js';
 import {
@@ -236,6 +237,7 @@ export function resolveVisualGraph(
           domain.spines ?? [],
           options.strategy,
           domain.nodes,
+          domain.edges,
         )
       : placeTimeline(visibleNodes, hierarchy, domain.project.rootNodeId, sizes, direction, cfg);
 
@@ -249,6 +251,13 @@ export function resolveVisualGraph(
     positions[id] = { x: point.x, y: point.y };
     locked.push(id);
   }
+
+  const { edgeColors, nodeBranchColors } = resolveGraphBranchColors(
+    domain.nodes,
+    domain.edges,
+    domain.project.rootNodeId,
+    domain.spines ?? [],
+  );
 
   const subtreeStats = computeSubtreeStats(domain, hierarchy);
   const ownTaskTotal = new Map<string, number>();
@@ -278,10 +287,18 @@ export function resolveVisualGraph(
         : (ownTaskTotal.get(node.id) ?? 0),
       externalConnectionCount: subtreeStats.externalConnections.get(node.id) ?? 0,
       lod: lodById.get(node.id) ?? 'full',
+      branchColor: nodeBranchColors.get(node.id) ?? '#64748b',
     };
   });
   const nodeById = Object.fromEntries(visualNodes.map((node) => [node.id, node]));
-  const edges = resolveVisualEdges(domain.edges, domain.nodes, nodeById, hierarchy.parents);
+  const edges = resolveVisualEdges(
+    domain.edges,
+    domain.nodes,
+    nodeById,
+    hierarchy.parents,
+    undefined,
+    edgeColors,
+  );
   return {
     direction,
     nodes: visualNodes,
@@ -407,6 +424,7 @@ export function resolveVisualEdges(
   visible: Readonly<Record<string, VisualNode>>,
   parents: ReadonlyMap<string, string | null>,
   visibleTypes: VisibleEdgeTypes = ['hierarchy', 'dependency', 'reference', 'custom'],
+  edgeColors?: ReadonlyMap<string, string>,
 ): VisualEdge[] {
   const allowed = new Set(visibleTypes);
   const groups = new Map<string, VisualEdge>();
@@ -421,6 +439,13 @@ export function resolveVisualEdges(
       existing.originalEdgeIds.push(edge.id);
       existing.aggregatedCount += 1;
     } else {
+      const color =
+        edgeColors?.get(edge.id) ??
+        (edge.type === 'hierarchy'
+          ? '#64748b'
+          : edge.type === 'dependency'
+            ? '#dc2626'
+            : '#c026d3');
       groups.set(key, {
         id: `visual:${key}`,
         type: edge.type,
@@ -428,6 +453,7 @@ export function resolveVisualEdges(
         targetId,
         originalEdgeIds: [edge.id],
         aggregatedCount: 1,
+        color,
       });
     }
   }

@@ -84,7 +84,7 @@ input[type='date'] {
   height: 100%;
   min-height: 0;
   overflow: visible;
-  border: 2px solid var(--wst-card-accent, #cbd5e1);
+  border: 2px solid #cbd5e1;
   border-radius: 10px;
   background: #ffffff;
   padding: 10px 12px;
