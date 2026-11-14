@@ -35,6 +35,7 @@ import {
 import { exportSvg } from '@workspacetree/export';
 import {
   FILE_SUFFIX,
+  type AssetRecord,
   type BranchFile,
   type Edge,
   type HierarchyEdgeRole,
@@ -405,7 +406,7 @@ export default function App() {
   }, []);
 
   const handleCommitEdit = useCallback(
-    (id: string, nextTitle: string, nextNote: string) => {
+    (id: string, nextTitle: string, nextNote: string, nextAssets?: Record<string, AssetRecord>) => {
       if (!controller || !file) return;
       setEditingNodeId(null);
       const currentNode = file.domain.nodes.find((item) => item.id === id);
@@ -415,9 +416,9 @@ export default function App() {
         if (nextTitle && nextTitle !== currentNode.title) {
           await controller.run(renameNodeEntry(file.domain, id, nextTitle));
         }
-        if (nextNote !== currentNote) {
+        if (nextNote !== currentNote || (nextAssets && Object.keys(nextAssets).length > 0)) {
           const latest = controller.getSnapshot().file.domain;
-          await controller.run(setNodeNoteEntry(latest, id, nextNote));
+          await controller.run(setNodeNoteEntry(latest, id, nextNote, nextAssets));
         }
       });
     },
@@ -531,11 +532,18 @@ export default function App() {
     const flowNodes: CardNode[] = graph.nodes.map((visual) => {
       const node = nodeMap.get(visual.id)!;
       const hasChildren = (childHierarchyMap.get(visual.id) ?? []).length > 0 || visual.collapsed;
+      const isEditing = editingNodeId === visual.id;
+      const width = isEditing ? Math.max(480, visual.size.width) : visual.size.width;
+      const height = isEditing ? Math.max(280, visual.size.height) : visual.size.height;
       return {
         id: visual.id,
         type: 'card',
         position: visual.position,
-        style: { width: visual.size.width, height: visual.size.height },
+        style: {
+          width,
+          height,
+          zIndex: isEditing ? 1000 : undefined,
+        },
         sourcePosition: graph.direction === 'horizontal' ? Position.Right : Position.Bottom,
         targetPosition: graph.direction === 'horizontal' ? Position.Left : Position.Top,
         data: {
@@ -557,6 +565,7 @@ export default function App() {
           externalConnectionCount: visual.externalConnectionCount,
           lod: visual.lod,
           accentColor: visual.branchColor ?? '#475569',
+          assets: file.domain.assets,
           isEditing: editingNodeId === node.id,
           readOnly,
           isCut: cutBranchId === node.id,
@@ -883,6 +892,8 @@ export default function App() {
       positions: derived.graph?.positions ?? {},
       graph: derived.graph ?? undefined,
       tasks: file.domain.tasks,
+      blocks: file.domain.blocks,
+      assets: file.domain.assets,
       visibleEdgeTypes: visibleTypes,
       highlightNodeIds: derived.highlight.nodeIds,
       title: `${file.domain.project.title} · 统一几何画布导出`,
@@ -1168,7 +1179,8 @@ export default function App() {
         target?.tagName === 'INPUT' ||
         target?.tagName === 'TEXTAREA' ||
         target?.tagName === 'SELECT' ||
-        target?.isContentEditable;
+        target?.isContentEditable ||
+        Boolean(target?.closest('.cm-editor'));
       if (
         !event.defaultPrevented &&
         !isEditing &&
@@ -1498,6 +1510,8 @@ export default function App() {
               <ThreeCanvas
                 graph={derived.graph}
                 nodes={file.domain.nodes}
+                blocks={file.domain.blocks}
+                assets={file.domain.assets}
                 selectedNodeId={selectedNodeId}
                 visibleEdgeTypes={visibleTypes}
                 fitTrigger={fitTrigger}

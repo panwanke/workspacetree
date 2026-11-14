@@ -6,6 +6,7 @@
  * workspace.replace），供 Undo/Redo 与受控导入经同一 Command Service 重放（C6）。
  */
 import {
+  AssetRecordSchema,
   DomainStateSchema,
   NodeScaleSchema,
   SavedPresentationSchema,
@@ -58,6 +59,9 @@ export const DOMAIN_COMMAND_TYPES = new Set([
   'spine.setNodes',
   'project.archive',
   'workspace.replace',
+  'asset.put',
+  'asset.remove',
+  'node.setNoteWithAssets',
 ]);
 
 export const PRESENTATION_COMMAND_TYPES = new Set([
@@ -141,7 +145,7 @@ function taskOf(payload: Payload): Task {
   if (!parsed.success) throw new ValidationError('invalid task fields', parsed.error.issues);
   const task = parsed.data;
   if (task.done && task.status) {
-    throw new ValidationError('a completed task cannot be pending or discarded');
+    throw new ValidationError('a completed task cannot be pending, discarded, or paused');
   }
   return task;
 }
@@ -202,6 +206,7 @@ function cloneDomain(domain: DomainState): DomainState {
     spines: domain.spines.map((spine) => ({ ...spine, nodeIds: [...spine.nodeIds] })),
     blocks: domain.blocks.map((block) => ({ ...block })),
     projectRefs: domain.projectRefs.map((ref) => ({ ...ref })),
+    ...(domain.assets === undefined ? {} : { assets: { ...domain.assets } }),
     archived: domain.archived,
     archiveMeta: domain.archiveMeta ? { ...domain.archiveMeta } : null,
   };
@@ -342,7 +347,8 @@ export function applyCommand(
       node.startAt = nullableDate(payload, 'startAt');
       break;
     }
-    case 'node.setNote': {
+    case 'node.setNote':
+    case 'node.setNoteWithAssets': {
       const payload = payloadOf(envelope, ['id', 'markdown']);
       const id = str(payload, 'id');
       const node = nextDomain.nodes.find((item) => item.id === id);
@@ -363,6 +369,35 @@ export function applyCommand(
         if (!node.blockIds.includes(blockId)) {
           node.blockIds.push(blockId);
         }
+      }
+      if (payload.assets && typeof payload.assets === 'object' && !Array.isArray(payload.assets)) {
+        nextDomain.assets = nextDomain.assets ?? {};
+        for (const [assetId, record] of Object.entries(payload.assets)) {
+          const parsed = AssetRecordSchema.safeParse(record);
+          if (!parsed.success) {
+            throw new ValidationError(`invalid asset record: ${assetId}`, parsed.error.issues);
+          }
+          nextDomain.assets[assetId] = parsed.data;
+        }
+      }
+      break;
+    }
+    case 'asset.put': {
+      const payload = payloadOf(envelope, ['id', 'asset']);
+      const id = str(payload, 'id');
+      const parsed = AssetRecordSchema.safeParse(payload.asset);
+      if (!parsed.success) {
+        throw new ValidationError(`invalid asset record: ${id}`, parsed.error.issues);
+      }
+      nextDomain.assets = nextDomain.assets ?? {};
+      nextDomain.assets[id] = parsed.data;
+      break;
+    }
+    case 'asset.remove': {
+      const payload = payloadOf(envelope, ['id']);
+      const id = str(payload, 'id');
+      if (nextDomain.assets && id in nextDomain.assets) {
+        delete nextDomain.assets[id];
       }
       break;
     }
@@ -388,6 +423,16 @@ export function applyCommand(
         throw new ValidationError('invalid Markdown block: ' + blockId);
       }
       block.payload = { ...block.payload, markdown: payload.markdown };
+      if (payload.assets && typeof payload.assets === 'object' && !Array.isArray(payload.assets)) {
+        nextDomain.assets = nextDomain.assets ?? {};
+        for (const [assetId, record] of Object.entries(payload.assets)) {
+          const parsed = AssetRecordSchema.safeParse(record);
+          if (!parsed.success) {
+            throw new ValidationError(`invalid asset record: ${assetId}`, parsed.error.issues);
+          }
+          nextDomain.assets[assetId] = parsed.data;
+        }
+      }
       break;
     }
     case 'node.setTags':

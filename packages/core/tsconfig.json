@@ -7,7 +7,8 @@
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "@workspacetree/schema": ["../schema/src/index.ts"]
+      "@workspacetree/schema": ["../schema/src/index.ts"],
+      "@workspacetree/markdown": ["../markdown/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts"]

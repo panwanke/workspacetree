@@ -1,6 +1,6 @@
 import { makeId } from '@workspacetree/core';
 import type { LayoutDirection } from '@workspacetree/layout';
-import type { BranchFile, EdgeType, Node } from '@workspacetree/schema';
+import type { AssetRecord, BranchFile, EdgeType, Node } from '@workspacetree/schema';
 import { useEffect, useRef, useState } from 'react';
 import type { EditorController } from './editor';
 import {
@@ -21,6 +21,7 @@ import {
   toggleTaskEntry,
 } from './history';
 import { MarkdownPreview } from './MarkdownPreview';
+import { MarkdownEditor } from './markdown/MarkdownEditor';
 import { TODO_STATUS } from './markdown-todos';
 import { TagEditor } from './TagEditor';
 import { TagList } from './TagList';
@@ -77,6 +78,7 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
   const [editingNote, setEditingNote] = useState(false);
   const [taskDraft, setTaskDraft] = useState('');
   const [editingTaskTags, setEditingTaskTags] = useState<string | null>(null);
+  const [draftAssets, setDraftAssets] = useState<Record<string, AssetRecord>>({});
   const tasks = file.domain.tasks.filter((task) => task.nodeId === node.id);
   const done = tasks.filter((task) => task.done).length;
   const title = titleDraft.trim();
@@ -84,14 +86,18 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
   useEffect(() => setTitleDraft(node.title), [node.title]);
   useEffect(() => setNoteDraft(note), [note]);
 
-  function saveNote() {
-    if (noteDraft === note) {
+  function saveNote(assets?: Record<string, AssetRecord>) {
+    const assetsToCommit = assets ?? draftAssets;
+    if (noteDraft === note && Object.keys(assetsToCommit).length === 0) {
       setEditingNote(false);
       return;
     }
     guard(async () => {
-      await controller.run(setNodeNoteEntry(file.domain, node.id, noteDraft));
-      if (!controller.getSnapshot().error) setEditingNote(false);
+      await controller.run(setNodeNoteEntry(file.domain, node.id, noteDraft, assetsToCommit));
+      if (!controller.getSnapshot().error) {
+        setDraftAssets({});
+        setEditingNote(false);
+      }
     });
   }
 
@@ -173,20 +179,19 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
         </div>
         {editingNote ? (
           <>
-            <textarea
-              autoFocus
-              aria-label="Markdown 笔记"
-              className="wst-note-textarea"
-              data-testid="node-note"
+            <MarkdownEditor
               value={noteDraft}
-              placeholder="例如 - [ ] 核对招募条件 #招募"
-              onChange={(event) => setNoteDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  saveNote();
-                }
+              assets={file.domain.assets}
+              onChange={(val) => setNoteDraft(val)}
+              onAssetsChange={setDraftAssets}
+              onSave={saveNote}
+              onCancel={() => {
+                setNoteDraft(note);
+                setDraftAssets({});
+                setEditingNote(false);
               }}
+              autoFocus
+              placeholder="例如 - [ ] 核对招募条件 #招募"
             />
             <div className="wst-section-actions">
               <button
@@ -194,18 +199,23 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
                 className="wst-tool"
                 onClick={() => {
                   setNoteDraft(note);
+                  setDraftAssets({});
                   setEditingNote(false);
                 }}
               >
                 取消
               </button>
-              <button type="button" className="wst-tool is-accent" onClick={saveNote}>
+              <button type="button" className="wst-tool is-accent" onClick={() => saveNote()}>
                 保存笔记
               </button>
             </div>
           </>
         ) : note.trim() ? (
-          <MarkdownPreview markdown={note} className="wst-inspector-note" />
+          <MarkdownPreview
+            markdown={note}
+            assets={file.domain.assets}
+            className="wst-inspector-note"
+          />
         ) : (
           <p className="wst-empty-line">暂无笔记</p>
         )}
@@ -685,6 +695,7 @@ export default function WorkspaceInspector(props: InspectorProps) {
           <TagList tags={node.tags ?? []} label="节点标签" />
           <MarkdownPreview
             markdown={getNodeNote(file.domain, node.id)}
+            assets={file.domain.assets}
             className="wst-inspector-markdown"
           />
         </div>

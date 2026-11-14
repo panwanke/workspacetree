@@ -8,7 +8,9 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import type { LayoutDirection, VisualLod } from '@workspacetree/layout';
+import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownPreview } from './MarkdownPreview';
+import { MarkdownEditor } from './markdown/MarkdownEditor';
 import {
   calculateResizeScale,
   resolveEffectiveResizeMode,
@@ -36,6 +38,7 @@ export interface CardNodeData extends Record<string, unknown> {
   externalConnectionCount: number;
   lod: VisualLod;
   accentColor?: string;
+  assets?: Record<string, AssetRecord>;
   isEditing?: boolean;
   readOnly?: boolean;
   isCut?: boolean;
@@ -44,7 +47,7 @@ export interface CardNodeData extends Record<string, unknown> {
   hasChildren?: boolean;
   onToggleCollapse?: (id: string) => void;
   onStartEdit?: (id: string) => void;
-  onCommitEdit?: (id: string, title: string, note: string) => void;
+  onCommitEdit?: (id: string, title: string, note: string, newAssets?: Record<string, AssetRecord>) => void;
   onCancelEdit?: () => void;
   onResizeBox?: (id: string, width: number, height: number) => void;
   onResizeScale?: (id: string, scale: number, kind: 'node' | 'branch') => void;
@@ -59,6 +62,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   const { zoom } = useViewport();
   const [titleDraft, setTitleDraft] = useState(data.title);
   const [noteDraft, setNoteDraft] = useState(data.note ?? '');
+  const [draftAssets, setDraftAssets] = useState<Record<string, AssetRecord>>({});
   const [modifierKeys, setModifierKeys] = useState<ResizeModifiers>({
     shiftKey: false,
     altKey: false,
@@ -108,9 +112,10 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   const cardStyle = {
     '--wst-card-accent': accent,
-    fontSize: `${data.lod === 'summary' ? 0.9 : data.scale}em`,
-    padding:
-      data.lod === 'summary'
+    fontSize: data.isEditing ? '13px' : `${data.lod === 'summary' ? 0.9 : data.scale}em`,
+    padding: data.isEditing
+      ? '10px 12px'
+      : data.lod === 'summary'
         ? '6px 10px'
         : `${Math.max(7, 10 * data.scale)}px ${Math.max(9, 12 * data.scale)}px`,
   } as CSSProperties;
@@ -127,15 +132,21 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
       }}
     >
       <NodeResizer
-        isVisible={Boolean(selected) && !data.isEditing && !data.readOnly}
-        minWidth={effectiveResize.mode === 'branch' ? 22 : 77}
-        maxWidth={560}
-        minHeight={effectiveResize.mode === 'branch' ? 16 : 36}
-        maxHeight={380}
-        keepAspectRatio={effectiveResize.isProportional}
+        isVisible={Boolean(selected || data.isEditing) && !data.readOnly}
+        minWidth={data.isEditing ? 360 : (effectiveResize.mode === 'branch' ? 22 : 77)}
+        maxWidth={data.isEditing ? 1400 : 560}
+        minHeight={data.isEditing ? 200 : (effectiveResize.mode === 'branch' ? 16 : 36)}
+        maxHeight={data.isEditing ? 1000 : 380}
+        keepAspectRatio={!data.isEditing && effectiveResize.isProportional}
         lineClassName="wst-resizer-line"
         handleClassName="wst-resizer-handle"
         onResize={(event, params) => {
+          if (data.isEditing) {
+            setResizeTooltip(
+              `📐 编辑尺寸: ${Math.round(params.width)} × ${Math.round(params.height)}`,
+            );
+            return;
+          }
           const mouse = event.sourceEvent as MouseEvent | undefined;
           const currentModifiers: Partial<ResizeModifiers> = mouse
             ? {
@@ -174,6 +185,10 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         }}
         onResizeEnd={(event, params) => {
           setResizeTooltip(null);
+          if (data.isEditing) {
+            data.onResizeBox?.(id, Math.round(params.width), Math.round(params.height));
+            return;
+          }
           const mouse = event.sourceEvent as MouseEvent | undefined;
           const endModifiers: Partial<ResizeModifiers> = mouse
             ? {
@@ -198,29 +213,30 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         }}
       />
       {resizeTooltip && <div className="wst-resize-tooltip nodrag nopan">{resizeTooltip}</div>}
-      {data.startAt && (
+      {!data.isEditing && data.startAt && (
         <span className="wst-card-border-date" title={`开始日期：${data.startAt}`}>
           {data.startAt}
         </span>
       )}
-      {Object.values(Position).flatMap((position) =>
-        (['source', 'target'] as const).map((type) => {
-          const isPrimary = type === 'source' && position === primaryPosition;
-          return (
-            <Handle
-              key={`${type}-${position}`}
-              id={`${type}-${position}`}
-              type={type}
-              position={position}
-              isConnectable={!data.readOnly && !data.isEditing}
-              isConnectableStart={!data.readOnly && !data.isEditing}
-              isConnectableEnd={!data.readOnly && !data.isEditing}
-              className={`wst-handle${isPrimary ? ' is-primary' : ''}`}
-              title={isPrimary ? '拖拽连接到其他节点' : undefined}
-            />
-          );
-        }),
-      )}
+      {!data.isEditing &&
+        Object.values(Position).flatMap((position) =>
+          (['source', 'target'] as const).map((type) => {
+            const isPrimary = type === 'source' && position === primaryPosition;
+            return (
+              <Handle
+                key={`${type}-${position}`}
+                id={`${type}-${position}`}
+                type={type}
+                position={position}
+                isConnectable={!data.readOnly && !data.isEditing}
+                isConnectableStart={!data.readOnly && !data.isEditing}
+                isConnectableEnd={!data.readOnly && !data.isEditing}
+                className={`wst-handle${isPrimary ? ' is-primary' : ''}`}
+                title={isPrimary ? '拖拽连接到其他节点' : undefined}
+              />
+            );
+          }),
+        )}
       {data.isEditing ? (
         <div
           className="wst-card-editor nodrag nopan nowheel"
@@ -236,38 +252,51 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft);
+                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft, draftAssets);
               } else if (event.key === 'Escape') {
                 event.preventDefault();
                 data.onCancelEdit?.();
               }
             }}
           />
-          <textarea
-            className="wst-card-edit-note"
+          <MarkdownEditor
             value={noteDraft}
-            rows={4}
+            assets={data.assets}
+            onChange={(val) => setNoteDraft(val)}
+            onAssetsChange={(assets) => setDraftAssets(assets)}
+            onSave={(assets) =>
+              data.onCommitEdit?.(
+                id,
+                titleDraft.trim() || data.title,
+                noteDraft,
+                assets ?? draftAssets,
+              )
+            }
+            onCancel={() => data.onCancelEdit?.()}
+            autoFocus={false}
             placeholder="例如 - [ ] 核对招募条件 #招募"
-            onChange={(event) => setNoteDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault();
-                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft);
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                data.onCancelEdit?.();
-              }
-            }}
           />
           <div className="wst-card-edit-actions">
             <button
               type="button"
-              onClick={() => data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft)}
+              className="wst-card-btn-cancel"
+              onClick={() => data.onCancelEdit?.()}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="wst-card-btn-save"
+              onClick={() =>
+                data.onCommitEdit?.(
+                  id,
+                  titleDraft.trim() || data.title,
+                  noteDraft,
+                  draftAssets,
+                )
+              }
             >
               保存
-            </button>
-            <button type="button" onClick={() => data.onCancelEdit?.()}>
-              取消
             </button>
           </div>
         </div>
@@ -284,7 +313,12 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             <TagList tags={data.tags} label="节点标签" limit={data.lod === 'summary' ? 1 : 2} />
           )}
           {data.note && data.lod === 'full' && zoom >= 0.42 && (
-            <MarkdownPreview markdown={data.note} className="wst-card-markdown" maxLines={8} />
+            <MarkdownPreview
+              markdown={data.note}
+              assets={data.assets}
+              className="wst-card-markdown"
+              maxLines={8}
+            />
           )}
         </>
       )}

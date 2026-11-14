@@ -437,17 +437,38 @@ input[type='date'] {
 }
 
 .wst-card.is-editing {
-  z-index: 30;
-  cursor: text;
+  z-index: 1000 !important;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 440px;
+  min-height: 260px;
+  background: #ffffff !important;
+  border-color: #2563eb !important;
+  border-width: 2px !important;
+  border-style: solid !important;
   box-shadow:
-    0 0 0 3px rgb(37 99 235 / 22%),
-    0 12px 28px rgb(15 23 42 / 16%);
+    0 0 0 3px rgb(37 99 235 / 25%),
+    0 16px 36px rgb(15 23 42 / 20%) !important;
+}
+
+.wst-card.is-editing .wst-handle {
+  display: none !important;
+}
+
+.wst-card.is-editing .wst-card-border-date {
+  display: none !important;
 }
 
 .wst-card-editor {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
 }
 
 .wst-card-edit-title,
@@ -455,32 +476,86 @@ input[type='date'] {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 3px 6px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
   background: #ffffff;
   color: #0f172a;
+  box-sizing: border-box;
 }
 
 .wst-card-edit-title {
   font-weight: 600;
+  font-size: 14px;
+}
+
+.wst-card-edit-title:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(59 130 246 / 15%);
 }
 
 .wst-card-edit-note {
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .wst-card-edit-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 .wst-card-edit-actions button {
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.wst-card-edit-actions button:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.wst-card-btn-save {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.wst-card-btn-save:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+.wst-card-btn-cancel {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.wst-card-btn-cancel:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.wst-card:has(.wst-card-markdown) {
+  justify-content: flex-start;
+}
+
+.wst-card:has(.wst-card-markdown) .wst-card-meta {
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 .wst-card-markdown {
@@ -492,7 +567,11 @@ input[type='date'] {
   font-size: 0.78em;
   line-height: 1.4;
   color: #334155;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .wst-md-heading {
@@ -532,8 +611,9 @@ input[type='date'] {
 
 .wst-md-img {
   display: block;
+  width: 100%;
   max-width: 100%;
-  max-height: 86px;
+  height: auto;
   margin-top: 4px;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
@@ -561,6 +641,10 @@ input[type='date'] {
   border-radius: 2px !important;
   background: #ffffff !important;
   border: 2px solid #2563eb !important;
+}
+
+.react-flow__node:has(.wst-card.is-editing) .react-flow__resize-control {
+  z-index: 1010;
 }
 
 .wst-resize-tooltip {

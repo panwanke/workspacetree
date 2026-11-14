@@ -30,6 +30,10 @@ export default defineConfig({
         find: /^@workspacetree\/export$/,
         replacement: fromRoot('../../packages/export/src/index.ts'),
       },
+      {
+        find: /^@workspacetree\/markdown$/,
+        replacement: fromRoot('../../packages/markdown/src/index.ts'),
+      },
     ],
   },
   server: {

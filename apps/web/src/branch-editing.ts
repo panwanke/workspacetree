@@ -7,6 +7,7 @@ import {
   type Point,
   type VisualGraph,
 } from '@workspacetree/layout';
+import { extractAssetIds } from '@workspacetree/markdown';
 import type {
   BranchFile,
   Command,
@@ -193,6 +194,24 @@ export function transferBranch(
       .filter((block) => blocks.has(block.id))
       .map((block) => ({ ...block, id: blockMap.get(block.id)! })),
   );
+  if (source.domain.assets) {
+    const transferredMarkdown = source.domain.blocks
+      .filter((block) => blocks.has(block.id))
+      .map((block) => {
+        const payload = block.payload as { markdown?: string } | undefined;
+        return typeof payload?.markdown === 'string' ? payload.markdown : '';
+      })
+      .join('\n');
+    const referencedAssetIds = extractAssetIds(transferredMarkdown);
+    if (referencedAssetIds.length > 0) {
+      next.assets = next.assets ? { ...next.assets } : {};
+      for (const assetId of referencedAssetIds) {
+        if (source.domain.assets[assetId]) {
+          next.assets[assetId] = source.domain.assets[assetId];
+        }
+      }
+    }
+  }
   next.edges.push(
     ...source.domain.edges
       .filter(

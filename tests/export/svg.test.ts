@@ -118,4 +118,42 @@ describe('T-30 SVG 导出', () => {
     });
     expect(result.svg).toContain(`stroke="${coloredBranchEdge!.color}"`);
   });
+
+  it('SVG 导出支持内嵌图片资产（转换为 data URL）与自定义相对宽度', () => {
+    const testNodeId = domain.project.rootNodeId;
+    const testAssetId = 'sha256_svg_demo';
+    const sampleRecord = {
+      mime: 'image/png',
+      byteLength: 64,
+      width: 100,
+      height: 100,
+      base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    };
+
+    const blockId = 'blk_svg_test';
+    const nodes = domain.nodes.map((n) =>
+      n.id === testNodeId ? { ...n, blockIds: [blockId] } : n,
+    );
+    const blocks = [
+      {
+        id: blockId,
+        kind: 'text' as const,
+        payload: {
+          markdown: `测试笔记带图: ![示例图](asset:${testAssetId}){width=50%}\n![远程外链](https://example.com/ext.png)`,
+        },
+      },
+    ];
+
+    const result = exportSvg({
+      nodes,
+      edges: domain.edges,
+      positions,
+      blocks,
+      assets: { [testAssetId]: sampleRecord },
+    });
+
+    expect(result.svg).toContain(`data:${sampleRecord.mime};base64,${sampleRecord.base64}`);
+    expect(result.svg).toContain('https://example.com/ext.png');
+    expect(result.svg).toContain('<image ');
+  });
 });

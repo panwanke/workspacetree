@@ -15,7 +15,8 @@ import {
   type VisibleEdgeTypes,
   type VisualGraph,
 } from '@workspacetree/layout';
-import type { Edge, Node, Task } from '@workspacetree/schema';
+import { extractAllImages } from '@workspacetree/markdown';
+import type { AssetRecord, Block, Edge, Node, Task } from '@workspacetree/schema';
 
 export interface SvgExportInput {
   nodes: readonly Node[];
@@ -23,6 +24,8 @@ export interface SvgExportInput {
   /** nodeId -> 左上角坐标，来自 resolvePositions / SavedPresentation。 */
   positions: Record<string, Point>;
   tasks?: readonly Task[];
+  blocks?: readonly Block[];
+  assets?: Record<string, AssetRecord>;
   /** 默认只含 hierarchy；调用方可显式选择 dependency / reference / custom。 */
   visibleEdgeTypes?: VisibleEdgeTypes;
   highlightNodeIds?: readonly string[];
@@ -143,6 +146,8 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
   lines.push('  </g>');
 
   lines.push('  <g id="nodes">');
+  const blockMap = new Map((input.blocks ?? []).map((b) => [b.id, b]));
+
   for (const node of input.nodes) {
     const position = positions[node.id];
     if (!position) continue;
@@ -167,11 +172,39 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
         ? `LOD summary · tasks ${stats.done}/${stats.total}`
         : `tasks ${stats.done}/${stats.total}${node.archived ? ' · archived' : ''}`;
     const textScale = visual?.lod === 'summary' ? 1 : (visual?.scale ?? 1);
+
+    const imageElements: string[] = [];
+    if (!visual?.collapsed && visual?.lod !== 'summary') {
+      const nodeBlocks = node.blockIds.map((id) => blockMap.get(id)).filter(Boolean);
+      let imgOffsetY = position.y + 60 * textScale;
+      for (const b of nodeBlocks) {
+        const markdown = (b?.payload as { markdown?: string })?.markdown;
+        if (markdown) {
+          const images = extractAllImages(markdown);
+          for (const imgMeta of images) {
+            let href = imgMeta.url;
+            if (imgMeta.isAsset && imgMeta.assetId && input.assets?.[imgMeta.assetId]) {
+              const record = input.assets[imgMeta.assetId];
+              href = `data:${record.mime};base64,${record.base64}`;
+            }
+            const pct = (imgMeta.widthPercent ?? 50) / 100;
+            const imgWidth = Math.max(20, Math.round((width - 24) * pct));
+            const imgHeight = Math.round(imgWidth * 0.6);
+            imageElements.push(
+              `      <image href="${escapeXml(href)}" x="${position.x + 12}" y="${imgOffsetY}" width="${imgWidth}" height="${imgHeight}" preserveAspectRatio="xMidYMid meet" />`,
+            );
+            imgOffsetY += imgHeight + 4;
+          }
+        }
+      }
+    }
+
     lines.push(
       `    <g id="${escapeXml(node.id)}" data-node-id="${escapeXml(node.id)}">`,
       `      <rect x="${position.x}" y="${position.y}" width="${width}" height="${height}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="${active ? 2.5 : 1.4}" />`,
       `      <text x="${position.x + 12}" y="${position.y + 27 * textScale}" font-family="system-ui, sans-serif" font-size="${14 * textScale}" font-weight="600" fill="#0f172a">${escapeXml(truncate(node.title, 24))}</text>`,
       `      <text x="${position.x + 12}" y="${position.y + 50 * textScale}" font-family="system-ui, sans-serif" font-size="${11 * textScale}" fill="#64748b">${escapeXml(summary)}</text>`,
+      ...imageElements,
       '    </g>',
     );
   }

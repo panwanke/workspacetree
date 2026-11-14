@@ -5,7 +5,8 @@ import {
   type VisualGraph,
   type VisualNode,
 } from '@workspacetree/layout';
-import type { Node } from '@workspacetree/schema';
+import { extractAllImages } from '@workspacetree/markdown';
+import type { AssetRecord, Block, Node } from '@workspacetree/schema';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -13,6 +14,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 interface ThreeCanvasProps {
   graph: VisualGraph;
   nodes: readonly Node[];
+  blocks?: readonly Block[];
+  assets?: Record<string, AssetRecord>;
   selectedNodeId: string | null;
   visibleEdgeTypes: VisibleEdgeTypes;
   fitTrigger: number;
@@ -24,7 +27,12 @@ interface ThreeCanvasProps {
   onError: (message: string) => void;
 }
 
-function labelTexture(node: VisualNode, domain: Node): THREE.CanvasTexture {
+function labelTexture(
+  node: VisualNode,
+  domain: Node,
+  blocks?: readonly Block[],
+  assets?: Record<string, AssetRecord>,
+): THREE.CanvasTexture {
   const { title, archived, tags } = domain;
   const canvas = document.createElement('canvas');
   canvas.width = 768;
@@ -52,6 +60,25 @@ function labelTexture(node: VisualNode, domain: Node): THREE.CanvasTexture {
     context.fillStyle = '#0e604f';
     context.fillText(visible.join('  '), 32, 170, 704);
   }
+
+  // 检查是否有图片
+  if (blocks) {
+    const nodeBlocks = blocks.filter((b) => domain.blockIds.includes(b.id));
+    const allMarkdown = nodeBlocks
+      .map((b) => (b.payload as { markdown?: string })?.markdown ?? '')
+      .join('\n');
+    const images = extractAllImages(allMarkdown);
+    if (images.length > 0) {
+      const first = images[0]!;
+      context.fillStyle = '#4f46e5';
+      context.font = '24px system-ui, sans-serif';
+      const imgLabel = first.isAsset
+        ? `📷 图片资产 (${first.assetId && assets?.[first.assetId] ? '已内嵌' : '未内嵌'})`
+        : `🔗 远程外链`;
+      context.fillText(imgLabel, 500, 170, 240);
+    }
+  }
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -62,6 +89,8 @@ function labelTexture(node: VisualNode, domain: Node): THREE.CanvasTexture {
 export default function ThreeCanvas({
   graph,
   nodes,
+  blocks,
+  assets,
   selectedNodeId,
   visibleEdgeTypes,
   fitTrigger,
@@ -151,7 +180,7 @@ export default function ThreeCanvas({
       scene.add(mesh);
       pickable.push(mesh);
 
-      const texture = labelTexture(visual, domain);
+      const texture = labelTexture(visual, domain, blocks, assets);
       const labelMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
       const label = new THREE.Sprite(labelMaterial);
       label.scale.set(visual.size.width, visual.size.width / 3, 1);

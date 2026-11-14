@@ -132,6 +132,7 @@ export function createGoldenBranchFile(seed: number = GOLDEN_SEED): BranchFile {
       { projectId: 'prj_wpt_sub', mode: 'link', hostNodeId: 'n_wpt' },
       { projectId: 'prj_pdd_sub', mode: 'preview', hostNodeId: 'n_pdd' },
     ],
+    assets: {},
     // 归档与缩放分离（C8）：仅旧理论分支节点归档，项目本身未归档；缩放的是 WPT 分支。
     archived: false,
     archiveMeta: null,

@@ -15,6 +15,7 @@ import {
 } from '@workspacetree/layout';
 import type {
   ActorKind,
+  AssetRecord,
   BranchFile,
   Command,
   DomainState,
@@ -253,14 +254,27 @@ export function getNodeNote(domain: DomainState, id: string): string {
   return getNodeNoteBlock(domain, id)?.markdown ?? '';
 }
 
-export function setNodeNoteEntry(domain: DomainState, id: string, markdown: string): HistoryEntry {
+export function setNodeNoteEntry(
+  domain: DomainState,
+  id: string,
+  markdown: string,
+  newAssets?: Record<string, AssetRecord>,
+): HistoryEntry {
   const before = getNodeNote(domain, id);
-  return entry(
-    '编辑 Markdown 笔记',
-    'domain',
-    [cmd('node.setNote', { id, markdown })],
-    [cmd('node.setNote', { id, markdown: before })],
-  );
+  const forwardCmd = newAssets
+    ? cmd('node.setNoteWithAssets', { id, markdown, assets: newAssets })
+    : cmd('node.setNote', { id, markdown });
+
+  const inverseCmds: Command[] = [cmd('node.setNote', { id, markdown: before })];
+  if (newAssets) {
+    for (const assetId of Object.keys(newAssets)) {
+      if (!domain.assets || !(assetId in domain.assets)) {
+        inverseCmds.push(cmd('asset.remove', { id: assetId }));
+      }
+    }
+  }
+
+  return entry('编辑 Markdown 笔记', 'domain', [forwardCmd], inverseCmds);
 }
 
 export function addEdgeEntry(edge: Edge): HistoryEntry {

@@ -9,6 +9,7 @@
   "types": "./src/index.ts",
   "dependencies": {
     "@workspacetree/layout": "workspace:*",
+    "@workspacetree/markdown": "workspace:*",
     "@workspacetree/schema": "workspace:*"
   }
 }

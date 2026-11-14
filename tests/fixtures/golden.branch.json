@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "projectId": "prj_golden_thesis",
   "activeBranch": "main",
   "domain": {
@@ -344,6 +344,7 @@
         "hostNodeId": "n_pdd"
       }
     ],
+    "assets": {},
     "archived": false,
     "archiveMeta": null
   },
@@ -431,10 +432,10 @@
   },
   "revisions": {
     "semanticRevision": 0,
-    "semanticHash": "9224b406fa0453759b1cc32497d54f3a4ae95c9f0f48a75119385b3947a320a7",
+    "semanticHash": "9cfccbf277868b4739cb80defbd2324ec49aa216614de9ef2fdc012e8870cbc3",
     "presentationRevision": 0,
     "presentationHash": "ea8f6739011a05cbc6d991b5067ec668d627a9f03e0695250105a14370142760",
-    "fileHash": "547c816df681b412e95f0abacf914a4cf544b140a23f2179e4d340dac00aeb51",
+    "fileHash": "17eb8e54579f3f5292863c2114edf5869f6ac255e74cee8ee2736f23fb4400cf",
     "fileWriteVersion": 0
   }
 }

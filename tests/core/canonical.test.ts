@@ -16,6 +16,7 @@ function reorderedDomain(): DomainState {
   return {
     archiveMeta: original.archiveMeta,
     archived: original.archived,
+    assets: original.assets,
     projectRefs: original.projectRefs,
     blocks: original.blocks,
     spines: original.spines,

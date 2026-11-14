@@ -18,6 +18,8 @@ Both views support horizontal and vertical layouts. Undated parent nodes are pos
 ## Features
 
 - Create, move, copy, cut, paste and collapse branches, including across project tabs.
+- Real-time Markdown live editing & preview with CodeMirror 6, formatting shortcuts, Callouts and 5-state tasks (`[ ]`, `[x]`, `[-]`, `[~]`, `[?]`).
+- Self-contained image embedding with SHA-256 deduplication, automatic Worker compression (1 MiB / 2048 px threshold) and drag-to-resize relative width (`{width=X%}`).
 - Edit node dates, Markdown notes, tags, tasks, sizes and connections.
 - Browse tasks by branch and locate nodes using the date directory.
 - Switch between 2D and 3D, highlight paths and export SVG.
