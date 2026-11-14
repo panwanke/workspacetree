@@ -9,6 +9,7 @@ import {
 } from '@xyflow/react';
 import type { LayoutDirection, VisualLod } from '@workspacetree/layout';
 import { MarkdownPreview } from './MarkdownPreview';
+import { MarkdownEditor } from './markdown/MarkdownEditor';
 import {
   calculateResizeScale,
   resolveEffectiveResizeMode,
@@ -243,21 +244,13 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
               }
             }}
           />
-          <textarea
-            className="wst-card-edit-note"
+          <MarkdownEditor
             value={noteDraft}
-            rows={4}
+            onChange={(val) => setNoteDraft(val)}
+            onSave={() => data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft)}
+            onCancel={() => data.onCancelEdit?.()}
+            autoFocus={false}
             placeholder="例如 - [ ] 核对招募条件 #招募"
-            onChange={(event) => setNoteDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault();
-                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft);
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                data.onCancelEdit?.();
-              }
-            }}
           />
           <div className="wst-card-edit-actions">
             <button

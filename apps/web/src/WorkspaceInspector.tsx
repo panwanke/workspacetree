@@ -21,6 +21,7 @@ import {
   toggleTaskEntry,
 } from './history';
 import { MarkdownPreview } from './MarkdownPreview';
+import { MarkdownEditor } from './markdown/MarkdownEditor';
 import { TODO_STATUS } from './markdown-todos';
 import { TagEditor } from './TagEditor';
 import { TagList } from './TagList';
@@ -173,20 +174,16 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
         </div>
         {editingNote ? (
           <>
-            <textarea
-              autoFocus
-              aria-label="Markdown 笔记"
-              className="wst-note-textarea"
-              data-testid="node-note"
+            <MarkdownEditor
               value={noteDraft}
-              placeholder="例如 - [ ] 核对招募条件 #招募"
-              onChange={(event) => setNoteDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  saveNote();
-                }
+              onChange={(val) => setNoteDraft(val)}
+              onSave={saveNote}
+              onCancel={() => {
+                setNoteDraft(note);
+                setEditingNote(false);
               }}
+              autoFocus
+              placeholder="例如 - [ ] 核对招募条件 #招募"
             />
             <div className="wst-section-actions">
               <button

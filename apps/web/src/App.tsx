@@ -1168,7 +1168,8 @@ export default function App() {
         target?.tagName === 'INPUT' ||
         target?.tagName === 'TEXTAREA' ||
         target?.tagName === 'SELECT' ||
-        target?.isContentEditable;
+        target?.isContentEditable ||
+        Boolean(target?.closest('.cm-editor'));
       if (
         !event.defaultPrevented &&
         !isEditing &&
