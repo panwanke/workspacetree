@@ -141,7 +141,7 @@ function taskOf(payload: Payload): Task {
   if (!parsed.success) throw new ValidationError('invalid task fields', parsed.error.issues);
   const task = parsed.data;
   if (task.done && task.status) {
-    throw new ValidationError('a completed task cannot be pending or discarded');
+    throw new ValidationError('a completed task cannot be pending, discarded, or paused');
   }
   return task;
 }
@@ -202,6 +202,7 @@ function cloneDomain(domain: DomainState): DomainState {
     spines: domain.spines.map((spine) => ({ ...spine, nodeIds: [...spine.nodeIds] })),
     blocks: domain.blocks.map((block) => ({ ...block })),
     projectRefs: domain.projectRefs.map((ref) => ({ ...ref })),
+    ...(domain.assets === undefined ? {} : { assets: { ...domain.assets } }),
     archived: domain.archived,
     archiveMeta: domain.archiveMeta ? { ...domain.archiveMeta } : null,
   };

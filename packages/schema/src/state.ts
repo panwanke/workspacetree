@@ -25,6 +25,14 @@ export const ArchiveMetaSchema = z.object({
   replacementBranchId: z.string().nullable(),
 });
 
+export const AssetRecordSchema = z.object({
+  mime: z.string(),
+  byteLength: z.number().int().nonnegative(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  base64: z.string(),
+});
+
 export const DomainStateSchema = z.object({
   project: ProjectSchema,
   nodes: z.array(NodeSchema),
@@ -33,6 +41,7 @@ export const DomainStateSchema = z.object({
   spines: z.array(SpineSchema),
   blocks: z.array(BlockSchema),
   projectRefs: z.array(ProjectRefSchema),
+  assets: z.record(z.string(), AssetRecordSchema).optional(),
   archived: z.boolean(),
   archiveMeta: ArchiveMetaSchema.nullable(),
 });
@@ -81,6 +90,7 @@ export const BranchFileSchema = z.object({
   revisions: RevisionsSchema,
 });
 
+export type AssetRecord = z.infer<typeof AssetRecordSchema>;
 export type DomainState = z.infer<typeof DomainStateSchema>;
 export type LayoutDirection = z.infer<typeof LayoutDirectionSchema>;
 export type SavedPresentation = z.infer<typeof SavedPresentationSchema>;

@@ -47,6 +47,8 @@ export const EdgeSchema = z.object({
     .optional(),
 });
 
+export const TaskStatusSchema = z.enum(['pending', 'discarded', 'paused']);
+
 export const TaskSchema = z.object({
   id: z.string().min(1),
   nodeId: z.string().min(1).nullable(),
@@ -54,7 +56,7 @@ export const TaskSchema = z.object({
   done: z.boolean(),
   tags: TagsSchema.optional(),
   scheduledAt: StartAtSchema.optional(),
-  status: z.enum(['pending', 'discarded']).optional(),
+  status: TaskStatusSchema.optional(),
 });
 
 /** Spine = 由连续有效层级边组成的有序路径；多条 Spine 可共享前缀。 */
@@ -75,6 +77,7 @@ export type Block = z.infer<typeof BlockSchema>;
 export type Node = z.infer<typeof NodeSchema>;
 export type Edge = z.infer<typeof EdgeSchema>;
 export type HierarchyEdgeRole = z.infer<typeof HierarchyEdgeRoleSchema>;
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type Spine = z.infer<typeof SpineSchema>;
 export type ProjectRef = z.infer<typeof ProjectRefSchema>;

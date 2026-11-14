@@ -111,7 +111,9 @@ export function saveTodoEntry(
     title,
     nodeId,
     done: draft.status === 'done',
-    ...(draft.status === 'pending' || draft.status === 'discarded' ? { status: draft.status } : {}),
+    ...(draft.status === 'pending' || draft.status === 'discarded' || draft.status === 'paused'
+      ? { status: draft.status }
+      : {}),
     ...(scheduledAt ? { scheduledAt } : {}),
     ...(tags.length ? { tags } : {}),
   };

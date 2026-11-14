@@ -7,10 +7,14 @@ import { SCHEMA_VERSION } from './common.js';
 
 export type Migration = (input: Record<string, unknown>) => Record<string, unknown>;
 
-export const KNOWN_SCHEMA_VERSIONS: readonly number[] = [SCHEMA_VERSION];
+export const KNOWN_SCHEMA_VERSIONS: readonly number[] = [1, SCHEMA_VERSION];
 
 /** key = 源版本号，value = 迁移到下一版本的纯函数；必须保留未知字段。 */
-export const MIGRATIONS: Readonly<Record<number, Migration>> = {};
+export const MIGRATIONS: Record<number, Migration> = {};
+
+export function registerMigration(version: number, migration: Migration): void {
+  MIGRATIONS[version] = migration;
+}
 
 export function isKnownSchemaVersion(version: number): boolean {
   return KNOWN_SCHEMA_VERSIONS.includes(version);

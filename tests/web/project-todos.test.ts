@@ -34,9 +34,9 @@ const domain: DomainState = {
     { id: 'tsk_leaf', nodeId: 'n_leaf', title: 'Write methods', done: false },
   ],
   blocks: [
-    { id: 'blk_a', kind: 'text', payload: { markdown: '- [*] Draft outline' } },
+    { id: 'blk_a', kind: 'text', payload: { markdown: '- [x] Draft outline' } },
     { id: 'blk_leaf', kind: 'text', payload: { markdown: '- [?] Review methods' } },
-    { id: 'blk_extra', kind: 'checklist', payload: { markdown: '- [x] Alternate methods' } },
+    { id: 'blk_extra', kind: 'checklist', payload: { markdown: '- [-] Alternate methods' } },
   ],
   spines: [],
   projectRefs: [],
@@ -48,15 +48,15 @@ describe('Markdown TODOs', () => {
   it('reads the four status markers from lists and skips fenced examples', () => {
     const markdown = [
       '- [ ] Open',
-      '  1. [*] Complete',
-      '* [x] Dropped',
+      '  1. [x] Complete',
+      '* [-] Dropped',
       '+ [?] Pending',
-      '- [\\*] Escaped',
+      '- [~] Paused',
       '~~~md',
       '- [ ] Example',
       '~~~',
-      'A sentence containing [*] is not a task.',
-      '- [*]   ',
+      'A sentence containing [x] is not a task.',
+      '- [x]   ',
       '- [X] Uppercase',
     ].join('\r\n');
 
@@ -65,14 +65,14 @@ describe('Markdown TODOs', () => {
       { lineIndex: 1, status: 'done', title: 'Complete', tags: [] },
       { lineIndex: 2, status: 'discarded', title: 'Dropped', tags: [] },
       { lineIndex: 3, status: 'pending', title: 'Pending', tags: [] },
-      { lineIndex: 4, status: 'done', title: 'Escaped', tags: [] },
-      { lineIndex: 10, status: 'discarded', title: 'Uppercase', tags: [] },
+      { lineIndex: 4, status: 'paused', title: 'Paused', tags: [] },
+      { lineIndex: 10, status: 'done', title: 'Uppercase', tags: [] },
     ]);
   });
 
   it('extracts inline tags, including tag-only TODOs, while preserving code, escapes and URLs', () => {
     const markdown = [
-      '- [x]  #实验',
+      '- [-]  #实验',
       '- [ ] #招募 核对 #数据质量，#招募 与 `#code`、\\#literal、[引用](https://example.test/#ref) #QC-1',
       '- [?] Use ``value ` #code`` https://example.test/?q=1;#section #QC-1',
     ].join('\n');

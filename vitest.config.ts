@@ -14,6 +14,7 @@ export default defineConfig({
       '@workspacetree/storage': fromRoot('packages/storage/src/index.ts'),
       '@workspacetree/export': fromRoot('packages/export/src/index.ts'),
       '@workspacetree/cli': fromRoot('packages/cli/src/index.ts'),
+      '@workspacetree/markdown': fromRoot('packages/markdown/src/index.ts'),
     },
   },
   test: {

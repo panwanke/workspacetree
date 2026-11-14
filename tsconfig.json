@@ -9,7 +9,8 @@
       "@workspacetree/layout": ["packages/layout/src/index.ts"],
       "@workspacetree/storage": ["packages/storage/src/index.ts"],
       "@workspacetree/export": ["packages/export/src/index.ts"],
-      "@workspacetree/cli": ["packages/cli/src/index.ts"]
+      "@workspacetree/cli": ["packages/cli/src/index.ts"],
+      "@workspacetree/markdown": ["packages/markdown/src/index.ts"]
     }
   },
   "include": [

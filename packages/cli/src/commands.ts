@@ -37,6 +37,7 @@ export function createMinimalBranchFile(): BranchFile {
     spines: [{ id: 'spn_main', title: 'Main', nodeIds: ['n_root', 'n_child'] }],
     blocks: [],
     projectRefs: [],
+    assets: {},
     archived: false,
     archiveMeta: null,
   };

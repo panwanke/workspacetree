@@ -78,7 +78,7 @@ describe('TODO editor', () => {
         target: { mode: 'existing', nodeId: sourceId },
       }),
     );
-    const updated = 'Keep this\r\n  1. [*] Check more data #质控 📅 2026-11-21\r\nKeep this too';
+    const updated = 'Keep this\r\n  1. [x] Check more data #质控 📅 2026-11-21\r\nKeep this too';
     expect(getNodeNote(file().domain, sourceId)).toBe(updated);
     expect(sourceItem()).toMatchObject({ scheduledAt: '2026-11-21', title: 'Check more data' });
     const targetBefore = getNodeNote(file().domain, targetId);
@@ -90,7 +90,7 @@ describe('TODO editor', () => {
     );
     expect(getNodeNote(file().domain, sourceId)).toBe('Keep this\r\nKeep this too');
     expect(getNodeNote(file().domain, targetId)).toBe(
-      targetBefore + '\n- [*] Check more data #质控 📅 2026-11-21',
+      targetBefore + '\n- [x] Check more data #质控 📅 2026-11-21',
     );
     await editor.undo();
     expect(getNodeNote(file().domain, sourceId)).toBe(updated);

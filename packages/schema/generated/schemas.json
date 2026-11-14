@@ -170,7 +170,8 @@
           "type": "string",
           "enum": [
             "pending",
-            "discarded"
+            "discarded",
+            "paused"
           ]
         }
       },
@@ -382,7 +383,8 @@
                 "type": "string",
                 "enum": [
                   "pending",
-                  "discarded"
+                  "discarded",
+                  "paused"
                 ]
               }
             },
@@ -484,6 +486,43 @@
               "projectId",
               "mode",
               "hostNodeId"
+            ]
+          }
+        },
+        "assets": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "mime": {
+                "type": "string"
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "base64": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mime",
+              "byteLength",
+              "width",
+              "height",
+              "base64"
             ]
           }
         },
@@ -1269,7 +1308,8 @@
                     "type": "string",
                     "enum": [
                       "pending",
-                      "discarded"
+                      "discarded",
+                      "paused"
                     ]
                   }
                 },
@@ -1371,6 +1411,43 @@
                   "projectId",
                   "mode",
                   "hostNodeId"
+                ]
+              }
+            },
+            "assets": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "mime": {
+                    "type": "string"
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "base64": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mime",
+                  "byteLength",
+                  "width",
+                  "height",
+                  "base64"
                 ]
               }
             },
