@@ -885,6 +885,8 @@ export default function App() {
       positions: derived.graph?.positions ?? {},
       graph: derived.graph ?? undefined,
       tasks: file.domain.tasks,
+      blocks: file.domain.blocks,
+      assets: file.domain.assets,
       visibleEdgeTypes: visibleTypes,
       highlightNodeIds: derived.highlight.nodeIds,
       title: `${file.domain.project.title} · 统一几何画布导出`,
@@ -1501,6 +1503,8 @@ export default function App() {
               <ThreeCanvas
                 graph={derived.graph}
                 nodes={file.domain.nodes}
+                blocks={file.domain.blocks}
+                assets={file.domain.assets}
                 selectedNodeId={selectedNodeId}
                 visibleEdgeTypes={visibleTypes}
                 fitTrigger={fitTrigger}

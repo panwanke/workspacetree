@@ -10,6 +10,7 @@ import { EditorState, Facet, RangeSetBuilder, StateEffect, StateField } from '@c
 import { syntaxTree } from '@codemirror/language';
 import {
   IMAGE_TAG_REGEX,
+  formatImageTag,
   parseCalloutHeader,
   parseImageMeta,
   type MarkdownImageMeta,
@@ -165,8 +166,10 @@ export class ImageWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement('div');
-    wrap.className = 'wst-live-image-wrap';
+    wrap.className = 'wst-image-container is-interactive nodrag nopan';
     wrap.contentEditable = 'false';
+    const initialPercent = this.meta.widthPercent ?? 100;
+    wrap.style.width = `${initialPercent}%`;
 
     if (this.meta.isAsset && (!this.resolvedUrl || this.resolvedUrl === '')) {
       const err = document.createElement('div');
@@ -179,16 +182,14 @@ export class ImageWidget extends WidgetType {
     const img = document.createElement('img');
     img.src = this.resolvedUrl || this.meta.url;
     img.alt = this.meta.alt || '插图';
-    img.className = 'wst-live-img';
-    if (this.meta.widthPercent) {
-      img.style.width = `${this.meta.widthPercent}%`;
-    }
+    img.className = 'wst-md-img';
     img.loading = 'lazy';
     img.onload = () => {
       view.requestMeasure();
     };
 
-    wrap.addEventListener('click', (event) => {
+    // 点击图片聚焦展开源码
+    img.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
       view.dispatch({
@@ -197,7 +198,49 @@ export class ImageWidget extends WidgetType {
       view.focus();
     });
 
+    // 拖动柄
+    const handle = document.createElement('div');
+    handle.className = 'wst-image-resize-handle';
+    handle.title = `拖动调整尺寸 (${initialPercent}%)`;
+
+    handle.addEventListener('pointerdown', (e: PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const startX = e.clientX;
+      const parentWidth = wrap.parentElement?.getBoundingClientRect().width || 400;
+      let currentPercent = initialPercent;
+      handle.classList.add('is-dragging');
+
+      const onPointerMove = (moveEvt: PointerEvent) => {
+        const deltaX = moveEvt.clientX - startX;
+        const deltaPercent = (deltaX / parentWidth) * 100;
+        currentPercent = Math.max(10, Math.min(100, Math.round(initialPercent + deltaPercent)));
+        wrap.style.width = `${currentPercent}%`;
+        view.requestMeasure();
+      };
+
+      const onPointerUp = () => {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        handle.classList.remove('is-dragging');
+
+        const newTag = formatImageTag({
+          alt: this.meta.alt,
+          url: this.meta.url,
+          widthPercent: currentPercent,
+        });
+        view.dispatch({
+          changes: { from: this.from, to: this.to, insert: newTag },
+        });
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
+
     wrap.appendChild(img);
+    wrap.appendChild(handle);
     return wrap;
   }
 

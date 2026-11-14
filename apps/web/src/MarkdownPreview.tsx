@@ -3,7 +3,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parseCalloutHeader, parseImageMeta } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
-import { assetBlobUrls } from './images/image-assets.js';
+import { MarkdownImage } from './images/MarkdownImage.js';
 import './markdown/markdown.css';
 
 export function renderInlineMarkdown(text: string): ReactNode[] {
@@ -136,29 +136,7 @@ export function MarkdownPreview({
           img({ src, alt }) {
             if (!src) return null;
             const meta = parseImageMeta(alt || '', src);
-            const resolvedUrl =
-              meta.isAsset && meta.assetId
-                ? assetBlobUrls.getUrl(meta.assetId, assets?.[meta.assetId])
-                : meta.url;
-
-            if (meta.isAsset && (!resolvedUrl || resolvedUrl === '')) {
-              return (
-                <div className="wst-md-img-missing" title={meta.url}>
-                  ⚠️ 缺失图片资产 ({meta.url})
-                </div>
-              );
-            }
-
-            const style = meta.widthPercent ? { width: `${meta.widthPercent}%` } : undefined;
-            return (
-              <img
-                src={resolvedUrl || meta.url}
-                alt={meta.alt}
-                style={style}
-                className="wst-md-img"
-                loading="lazy"
-              />
-            );
+            return <MarkdownImage meta={meta} assets={assets} interactive={false} />;
           },
           input({ type, checked }) {
             if (type === 'checkbox') {

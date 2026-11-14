@@ -19,6 +19,7 @@ import {
   generatePlaceholderToken,
   handlePastedContent,
 } from '../../apps/web/src/images/image-input.js';
+import { formatImageTag, parseImageMeta } from '@workspacetree/markdown';
 
 describe('阶段 3: 图片插入、压缩、URL 与资产处理 (tests/web/image-insertion.test.ts)', () => {
   it('Base64 与 Uint8Array 互转及 SHA-256 资产 ID 往返正确', () => {
@@ -139,6 +140,32 @@ describe('阶段 3: 图片插入、压缩、URL 与资产处理 (tests/web/image
     it('缺失资产查询时优雅返回空字符串，不产生崩溃', () => {
       const nonExistentUrl = assetBlobUrls.getUrl('sha256_non_existent');
       expect(nonExistentUrl).toBe('');
+    });
+  });
+
+  describe('图片相对尺寸联动与语法往返', () => {
+    it('formatImageTag 支持输出 {width=X%} 并限制在 10% 到 100% 范围', () => {
+      const tag100 = formatImageTag({ alt: '全宽图', url: 'https://example.com/img.png', widthPercent: 100 });
+      expect(tag100).toBe('![全宽图](https://example.com/img.png){width=100%}');
+
+      const tag60 = formatImageTag({ alt: '缩略图', url: 'asset:sha256_abcd', widthPercent: 60 });
+      expect(tag60).toBe('![缩略图](asset:sha256_abcd){width=60%}');
+
+      // 缺省时不添加 width 属性
+      const tagDefault = formatImageTag({ alt: '普通', url: 'asset:sha256_def' });
+      expect(tagDefault).toBe('![普通](asset:sha256_def)');
+    });
+
+    it('parseImageMeta 与 extractAllImages 支持识别 {width=X%} 及 Obsidian 兼容写法', () => {
+      const meta = parseImageMeta('实验图', 'asset:sha256_123', '{width=45%}');
+      expect(meta.widthPercent).toBe(45);
+      expect(meta.isAsset).toBe(true);
+      expect(meta.assetId).toBe('sha256_123');
+
+      // Obsidian 兼容：`alt|60%`
+      const obsidianMeta = parseImageMeta('观察记录|75%', 'https://example.com/demo.jpg');
+      expect(obsidianMeta.alt).toBe('观察记录');
+      expect(obsidianMeta.widthPercent).toBe(75);
     });
   });
 });
