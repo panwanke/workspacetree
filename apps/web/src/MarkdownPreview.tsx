@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parseCalloutHeader, parseImageMeta } from '@workspacetree/markdown';
+import type { AssetRecord } from '@workspacetree/schema';
+import { assetBlobUrls } from './images/image-assets.js';
 import './markdown/markdown.css';
 
 export function renderInlineMarkdown(text: string): ReactNode[] {
@@ -83,15 +85,19 @@ function trimMarkdownSafely(markdown: string, maxLines?: number): string {
   return result.join('\n');
 }
 
-export function MarkdownPreview({
-  markdown,
-  className = '',
-  maxLines,
-}: {
+export interface MarkdownPreviewProps {
   markdown: string;
+  assets?: Record<string, AssetRecord>;
   className?: string;
   maxLines?: number;
-}) {
+}
+
+export function MarkdownPreview({
+  markdown,
+  assets,
+  className = '',
+  maxLines,
+}: MarkdownPreviewProps) {
   const content = trimMarkdownSafely(markdown, maxLines);
 
   return (
@@ -130,10 +136,23 @@ export function MarkdownPreview({
           img({ src, alt }) {
             if (!src) return null;
             const meta = parseImageMeta(alt || '', src);
+            const resolvedUrl =
+              meta.isAsset && meta.assetId
+                ? assetBlobUrls.getUrl(meta.assetId, assets?.[meta.assetId])
+                : meta.url;
+
+            if (meta.isAsset && (!resolvedUrl || resolvedUrl === '')) {
+              return (
+                <div className="wst-md-img-missing" title={meta.url}>
+                  ⚠️ 缺失图片资产 ({meta.url})
+                </div>
+              );
+            }
+
             const style = meta.widthPercent ? { width: `${meta.widthPercent}%` } : undefined;
             return (
               <img
-                src={meta.url}
+                src={resolvedUrl || meta.url}
                 alt={meta.alt}
                 style={style}
                 className="wst-md-img"

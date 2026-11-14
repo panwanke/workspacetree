@@ -3,6 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import type { AssetRecord } from '@workspacetree/schema';
 import {
   handleListEnter,
   insertCallout,
@@ -15,18 +16,29 @@ import {
   toggleUnorderedList,
 } from './commands.js';
 import {
+  assetsFacet,
   livePreviewField,
   livePreviewPlugin,
   setSourceModeEffect,
   sourceModeState,
 } from './live-preview.js';
+import {
+  extractFilesFromClipboard,
+  extractFilesFromDrop,
+  formatPlaceholder,
+  generatePlaceholderToken,
+  handlePastedContent,
+  processFileToAsset,
+} from '../images/image-input.js';
 import './markdown.css';
 
 export interface MarkdownEditorProps {
   value: string;
+  assets?: Record<string, AssetRecord>;
   onChange?: (value: string) => void;
-  onSave?: () => void;
+  onSave?: (newAssets?: Record<string, AssetRecord>) => void;
   onCancel?: () => void;
+  onAssetsChange?: (assets: Record<string, AssetRecord>) => void;
   autoFocus?: boolean;
   placeholder?: string;
   readOnly?: boolean;
@@ -36,9 +48,11 @@ export interface MarkdownEditorProps {
 
 export function MarkdownEditor({
   value,
+  assets,
   onChange,
   onSave,
   onCancel,
+  onAssetsChange,
   autoFocus = true,
   placeholder = '输入 Markdown 笔记...',
   readOnly = false,
@@ -47,7 +61,89 @@ export function MarkdownEditor({
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const newAssetsRef = useRef<Record<string, AssetRecord>>({});
   const [sourceMode, setSourceMode] = useState(sourceModeDefault);
+
+  const insertFiles = async (files: File[]) => {
+    if (!viewRef.current || files.length === 0) return;
+    const view = viewRef.current;
+
+    for (const file of files) {
+      const token = generatePlaceholderToken();
+      const placeholder = `\n${formatPlaceholder(token, `处理图片: ${file.name}...`)}\n`;
+      const sel = view.state.selection.main;
+      view.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: placeholder },
+        selection: { anchor: sel.from + placeholder.length },
+      });
+
+      try {
+        const { id, record, markdown } = await processFileToAsset(file);
+        newAssetsRef.current[id] = record;
+        onAssetsChange?.(newAssetsRef.current);
+
+        const currentDoc = view.state.doc.toString();
+        const tokenIdx = currentDoc.indexOf(token);
+        if (tokenIdx !== -1) {
+          const lineStart = currentDoc.lastIndexOf('\n', tokenIdx);
+          const lineEnd = currentDoc.indexOf('\n', tokenIdx);
+          const from = lineStart === -1 ? 0 : lineStart + 1;
+          const to = lineEnd === -1 ? currentDoc.length : lineEnd;
+          view.dispatch({
+            changes: { from, to, insert: markdown },
+          });
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : '图片处理失败';
+        const currentDoc = view.state.doc.toString();
+        const tokenIdx = currentDoc.indexOf(token);
+        if (tokenIdx !== -1) {
+          const lineStart = currentDoc.lastIndexOf('\n', tokenIdx);
+          const lineEnd = currentDoc.indexOf('\n', tokenIdx);
+          const from = lineStart === -1 ? 0 : lineStart + 1;
+          const to = lineEnd === -1 ? currentDoc.length : lineEnd;
+          view.dispatch({
+            changes: { from, to, insert: `> [!warning] ${errMsg}` },
+          });
+        }
+      }
+    }
+  };
+
+  const handlePaste = async (event: React.ClipboardEvent) => {
+    const files = extractFilesFromClipboard(event.nativeEvent);
+    if (files.length > 0) {
+      event.preventDefault();
+      await insertFiles(files);
+      return;
+    }
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (text) {
+      const result = await handlePastedContent(text, []);
+      if (result.type === 'image-url') {
+        event.preventDefault();
+        if (viewRef.current) {
+          const view = viewRef.current;
+          const sel = view.state.selection.main;
+          const insertText = `\n${result.markdown}\n`;
+          view.dispatch({
+            changes: { from: sel.from, to: sel.to, insert: insertText },
+            selection: { anchor: sel.from + insertText.length },
+          });
+        }
+      }
+    }
+  };
+
+  const handleDrop = async (event: React.DragEvent) => {
+    const files = extractFilesFromDrop(event.nativeEvent);
+    if (files.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      await insertFiles(files);
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -56,7 +152,7 @@ export function MarkdownEditor({
       {
         key: 'Mod-Enter',
         run: () => {
-          onSave?.();
+          onSave?.(newAssetsRef.current);
           return true;
         },
       },
@@ -115,6 +211,7 @@ export function MarkdownEditor({
         editorKeymap,
         markdown({ base: markdownLanguage }),
         sourceModeState.init(() => sourceMode),
+        assetsFacet.of({ ...assets, ...newAssetsRef.current }),
         livePreviewField,
         livePreviewPlugin,
         cmPlaceholder(placeholder),
@@ -155,7 +252,12 @@ export function MarkdownEditor({
   };
 
   return (
-    <div className={`wst-markdown-editor-container ${className}`}>
+    <div
+      className={`wst-markdown-editor-container ${className}`}
+      onPaste={handlePaste}
+      onDrop={handleDrop}
+      onDragOver={(e) => e.preventDefault()}
+    >
       <div className="wst-markdown-toolbar">
         <div className="wst-markdown-toolbar-tools">
           <button
@@ -214,6 +316,28 @@ export function MarkdownEditor({
           >
             💡 提示
           </button>
+          <button
+            type="button"
+            className="wst-markdown-toolbar-btn"
+            title="插入图片 (支持粘贴与拖放)"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            📷 图片
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) {
+                insertFiles(files);
+              }
+              e.target.value = '';
+            }}
+          />
         </div>
         <div className="wst-markdown-toolbar-actions">
           <button
@@ -229,7 +353,7 @@ export function MarkdownEditor({
               type="button"
               className="wst-markdown-toolbar-btn"
               title="保存笔记 (Ctrl/Cmd+Enter)"
-              onClick={onSave}
+              onClick={() => onSave(newAssetsRef.current)}
             >
               保存
             </button>

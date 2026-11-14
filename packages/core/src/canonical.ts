@@ -43,8 +43,12 @@ export function utf8Bytes(input: string): Uint8Array {
   return new Uint8Array(out);
 }
 
-function sha256Hex(input: string): string {
+export function sha256Hex(input: string): string {
   return bytesToHex(sha256(utf8Bytes(input)));
+}
+
+export function computeBytesSha256Hex(bytes: Uint8Array): string {
+  return bytesToHex(sha256(bytes));
 }
 
 /** 递归按 key 排序，剔除 undefined，保证相同逻辑状态输出字节一致。 */

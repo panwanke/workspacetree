@@ -35,6 +35,7 @@ import {
 import { exportSvg } from '@workspacetree/export';
 import {
   FILE_SUFFIX,
+  type AssetRecord,
   type BranchFile,
   type Edge,
   type HierarchyEdgeRole,
@@ -405,7 +406,7 @@ export default function App() {
   }, []);
 
   const handleCommitEdit = useCallback(
-    (id: string, nextTitle: string, nextNote: string) => {
+    (id: string, nextTitle: string, nextNote: string, nextAssets?: Record<string, AssetRecord>) => {
       if (!controller || !file) return;
       setEditingNodeId(null);
       const currentNode = file.domain.nodes.find((item) => item.id === id);
@@ -415,9 +416,9 @@ export default function App() {
         if (nextTitle && nextTitle !== currentNode.title) {
           await controller.run(renameNodeEntry(file.domain, id, nextTitle));
         }
-        if (nextNote !== currentNote) {
+        if (nextNote !== currentNote || (nextAssets && Object.keys(nextAssets).length > 0)) {
           const latest = controller.getSnapshot().file.domain;
-          await controller.run(setNodeNoteEntry(latest, id, nextNote));
+          await controller.run(setNodeNoteEntry(latest, id, nextNote, nextAssets));
         }
       });
     },
@@ -557,6 +558,7 @@ export default function App() {
           externalConnectionCount: visual.externalConnectionCount,
           lod: visual.lod,
           accentColor: visual.branchColor ?? '#475569',
+          assets: file.domain.assets,
           isEditing: editingNodeId === node.id,
           readOnly,
           isCut: cutBranchId === node.id,

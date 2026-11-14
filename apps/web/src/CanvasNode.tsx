@@ -8,6 +8,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import type { LayoutDirection, VisualLod } from '@workspacetree/layout';
+import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownPreview } from './MarkdownPreview';
 import { MarkdownEditor } from './markdown/MarkdownEditor';
 import {
@@ -37,6 +38,7 @@ export interface CardNodeData extends Record<string, unknown> {
   externalConnectionCount: number;
   lod: VisualLod;
   accentColor?: string;
+  assets?: Record<string, AssetRecord>;
   isEditing?: boolean;
   readOnly?: boolean;
   isCut?: boolean;
@@ -45,7 +47,7 @@ export interface CardNodeData extends Record<string, unknown> {
   hasChildren?: boolean;
   onToggleCollapse?: (id: string) => void;
   onStartEdit?: (id: string) => void;
-  onCommitEdit?: (id: string, title: string, note: string) => void;
+  onCommitEdit?: (id: string, title: string, note: string, newAssets?: Record<string, AssetRecord>) => void;
   onCancelEdit?: () => void;
   onResizeBox?: (id: string, width: number, height: number) => void;
   onResizeScale?: (id: string, scale: number, kind: 'node' | 'branch') => void;
@@ -60,6 +62,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   const { zoom } = useViewport();
   const [titleDraft, setTitleDraft] = useState(data.title);
   const [noteDraft, setNoteDraft] = useState(data.note ?? '');
+  const [draftAssets, setDraftAssets] = useState<Record<string, AssetRecord>>({});
   const [modifierKeys, setModifierKeys] = useState<ResizeModifiers>({
     shiftKey: false,
     altKey: false,
@@ -246,8 +249,17 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
           />
           <MarkdownEditor
             value={noteDraft}
+            assets={data.assets}
             onChange={(val) => setNoteDraft(val)}
-            onSave={() => data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft)}
+            onAssetsChange={(assets) => setDraftAssets(assets)}
+            onSave={(assets) =>
+              data.onCommitEdit?.(
+                id,
+                titleDraft.trim() || data.title,
+                noteDraft,
+                assets ?? draftAssets,
+              )
+            }
             onCancel={() => data.onCancelEdit?.()}
             autoFocus={false}
             placeholder="例如 - [ ] 核对招募条件 #招募"
@@ -255,7 +267,14 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
           <div className="wst-card-edit-actions">
             <button
               type="button"
-              onClick={() => data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft)}
+              onClick={() =>
+                data.onCommitEdit?.(
+                  id,
+                  titleDraft.trim() || data.title,
+                  noteDraft,
+                  draftAssets,
+                )
+              }
             >
               保存
             </button>
@@ -277,7 +296,12 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             <TagList tags={data.tags} label="节点标签" limit={data.lod === 'summary' ? 1 : 2} />
           )}
           {data.note && data.lod === 'full' && zoom >= 0.42 && (
-            <MarkdownPreview markdown={data.note} className="wst-card-markdown" maxLines={8} />
+            <MarkdownPreview
+              markdown={data.note}
+              assets={data.assets}
+              className="wst-card-markdown"
+              maxLines={8}
+            />
           )}
         </>
       )}

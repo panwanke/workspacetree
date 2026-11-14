@@ -176,3 +176,46 @@
 .wst-callout.is-question { border-left-color: #7c3aed; background: rgba(124, 58, 237, 0.06); }
 .wst-callout.is-success { border-left-color: #16a34a; background: rgba(22, 163, 74, 0.06); }
 .wst-callout.is-example { border-left-color: #4b5563; background: rgba(75, 85, 99, 0.06); }
+
+/* 图片样式与缺失提示 */
+.wst-md-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.wst-live-image-wrap {
+  display: inline-block;
+  max-width: 100%;
+  cursor: pointer;
+  margin: 4px 0;
+  vertical-align: middle;
+  border-radius: 4px;
+  transition: outline 0.15s ease;
+}
+
+.wst-live-image-wrap:hover {
+  outline: 2px solid var(--accent, #6366f1);
+}
+
+.wst-live-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  display: block;
+}
+
+.wst-md-img-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px dashed #f87171;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 4px 0;
+}
