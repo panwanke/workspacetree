@@ -43,6 +43,7 @@ export interface MarkdownEditorProps {
   placeholder?: string;
   readOnly?: boolean;
   sourceModeDefault?: boolean;
+  showToolbarActions?: boolean;
   className?: string;
 }
 
@@ -57,6 +58,7 @@ export function MarkdownEditor({
   placeholder = '输入 Markdown 笔记...',
   readOnly = false,
   sourceModeDefault = false,
+  showToolbarActions = false,
   className = '',
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -210,6 +212,7 @@ export function MarkdownEditor({
         history(),
         editorKeymap,
         markdown({ base: markdownLanguage }),
+        EditorView.lineWrapping,
         sourceModeState.init(() => sourceMode),
         assetsFacet.of({ ...assets, ...newAssetsRef.current }),
         livePreviewField,
@@ -290,7 +293,7 @@ export function MarkdownEditor({
             title="无序列表 (Ctrl/Cmd+Shift+7)"
             onClick={() => viewRef.current && toggleUnorderedList(viewRef.current)}
           >
-            • 列表
+            •
           </button>
           <button
             type="button"
@@ -298,15 +301,15 @@ export function MarkdownEditor({
             title="数字列表 (Ctrl/Cmd+Shift+8)"
             onClick={() => viewRef.current && toggleOrderedList(viewRef.current)}
           >
-            1. 列表
+            1.
           </button>
           <button
             type="button"
             className="wst-markdown-toolbar-btn"
-            title="任务复选框 (Ctrl/Cmd+Shift+9)"
+            title="任务列表 (Ctrl/Cmd+Shift+9)"
             onClick={() => viewRef.current && toggleTaskList(viewRef.current)}
           >
-            ☑ 任务
+            ☑
           </button>
           <button
             type="button"
@@ -314,7 +317,7 @@ export function MarkdownEditor({
             title="Callout 引用 (Ctrl/Cmd+Shift+C)"
             onClick={() => viewRef.current && insertCallout(viewRef.current, 'note')}
           >
-            💡 提示
+            💡
           </button>
           <button
             type="button"
@@ -322,7 +325,7 @@ export function MarkdownEditor({
             title="插入图片 (支持粘贴与拖放)"
             onClick={() => fileInputRef.current?.click()}
           >
-            📷 图片
+            📷
           </button>
           <input
             ref={fileInputRef}
@@ -348,7 +351,7 @@ export function MarkdownEditor({
           >
             {sourceMode ? '预览' : '源码'}
           </button>
-          {onSave && (
+          {showToolbarActions && onSave && (
             <button
               type="button"
               className="wst-markdown-toolbar-btn"
@@ -358,7 +361,7 @@ export function MarkdownEditor({
               保存
             </button>
           )}
-          {onCancel && (
+          {showToolbarActions && onCancel && (
             <button
               type="button"
               className="wst-markdown-toolbar-btn"

@@ -112,9 +112,10 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   const cardStyle = {
     '--wst-card-accent': accent,
-    fontSize: `${data.lod === 'summary' ? 0.9 : data.scale}em`,
-    padding:
-      data.lod === 'summary'
+    fontSize: data.isEditing ? '13px' : `${data.lod === 'summary' ? 0.9 : data.scale}em`,
+    padding: data.isEditing
+      ? '10px 12px'
+      : data.lod === 'summary'
         ? '6px 10px'
         : `${Math.max(7, 10 * data.scale)}px ${Math.max(9, 12 * data.scale)}px`,
   } as CSSProperties;
@@ -131,15 +132,21 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
       }}
     >
       <NodeResizer
-        isVisible={Boolean(selected) && !data.isEditing && !data.readOnly}
-        minWidth={effectiveResize.mode === 'branch' ? 22 : 77}
-        maxWidth={560}
-        minHeight={effectiveResize.mode === 'branch' ? 16 : 36}
-        maxHeight={380}
-        keepAspectRatio={effectiveResize.isProportional}
+        isVisible={Boolean(selected || data.isEditing) && !data.readOnly}
+        minWidth={data.isEditing ? 360 : (effectiveResize.mode === 'branch' ? 22 : 77)}
+        maxWidth={data.isEditing ? 1400 : 560}
+        minHeight={data.isEditing ? 200 : (effectiveResize.mode === 'branch' ? 16 : 36)}
+        maxHeight={data.isEditing ? 1000 : 380}
+        keepAspectRatio={!data.isEditing && effectiveResize.isProportional}
         lineClassName="wst-resizer-line"
         handleClassName="wst-resizer-handle"
         onResize={(event, params) => {
+          if (data.isEditing) {
+            setResizeTooltip(
+              `📐 编辑尺寸: ${Math.round(params.width)} × ${Math.round(params.height)}`,
+            );
+            return;
+          }
           const mouse = event.sourceEvent as MouseEvent | undefined;
           const currentModifiers: Partial<ResizeModifiers> = mouse
             ? {
@@ -178,6 +185,10 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         }}
         onResizeEnd={(event, params) => {
           setResizeTooltip(null);
+          if (data.isEditing) {
+            data.onResizeBox?.(id, Math.round(params.width), Math.round(params.height));
+            return;
+          }
           const mouse = event.sourceEvent as MouseEvent | undefined;
           const endModifiers: Partial<ResizeModifiers> = mouse
             ? {
@@ -202,29 +213,30 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         }}
       />
       {resizeTooltip && <div className="wst-resize-tooltip nodrag nopan">{resizeTooltip}</div>}
-      {data.startAt && (
+      {!data.isEditing && data.startAt && (
         <span className="wst-card-border-date" title={`开始日期：${data.startAt}`}>
           {data.startAt}
         </span>
       )}
-      {Object.values(Position).flatMap((position) =>
-        (['source', 'target'] as const).map((type) => {
-          const isPrimary = type === 'source' && position === primaryPosition;
-          return (
-            <Handle
-              key={`${type}-${position}`}
-              id={`${type}-${position}`}
-              type={type}
-              position={position}
-              isConnectable={!data.readOnly && !data.isEditing}
-              isConnectableStart={!data.readOnly && !data.isEditing}
-              isConnectableEnd={!data.readOnly && !data.isEditing}
-              className={`wst-handle${isPrimary ? ' is-primary' : ''}`}
-              title={isPrimary ? '拖拽连接到其他节点' : undefined}
-            />
-          );
-        }),
-      )}
+      {!data.isEditing &&
+        Object.values(Position).flatMap((position) =>
+          (['source', 'target'] as const).map((type) => {
+            const isPrimary = type === 'source' && position === primaryPosition;
+            return (
+              <Handle
+                key={`${type}-${position}`}
+                id={`${type}-${position}`}
+                type={type}
+                position={position}
+                isConnectable={!data.readOnly && !data.isEditing}
+                isConnectableStart={!data.readOnly && !data.isEditing}
+                isConnectableEnd={!data.readOnly && !data.isEditing}
+                className={`wst-handle${isPrimary ? ' is-primary' : ''}`}
+                title={isPrimary ? '拖拽连接到其他节点' : undefined}
+              />
+            );
+          }),
+        )}
       {data.isEditing ? (
         <div
           className="wst-card-editor nodrag nopan nowheel"
@@ -240,7 +252,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft);
+                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft, draftAssets);
               } else if (event.key === 'Escape') {
                 event.preventDefault();
                 data.onCancelEdit?.();
@@ -267,6 +279,14 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
           <div className="wst-card-edit-actions">
             <button
               type="button"
+              className="wst-card-btn-cancel"
+              onClick={() => data.onCancelEdit?.()}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="wst-card-btn-save"
               onClick={() =>
                 data.onCommitEdit?.(
                   id,
@@ -277,9 +297,6 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
               }
             >
               保存
-            </button>
-            <button type="button" onClick={() => data.onCancelEdit?.()}>
-              取消
             </button>
           </div>
         </div>

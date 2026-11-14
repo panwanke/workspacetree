@@ -532,11 +532,18 @@ export default function App() {
     const flowNodes: CardNode[] = graph.nodes.map((visual) => {
       const node = nodeMap.get(visual.id)!;
       const hasChildren = (childHierarchyMap.get(visual.id) ?? []).length > 0 || visual.collapsed;
+      const isEditing = editingNodeId === visual.id;
+      const width = isEditing ? Math.max(480, visual.size.width) : visual.size.width;
+      const height = isEditing ? Math.max(280, visual.size.height) : visual.size.height;
       return {
         id: visual.id,
         type: 'card',
         position: visual.position,
-        style: { width: visual.size.width, height: visual.size.height },
+        style: {
+          width,
+          height,
+          zIndex: isEditing ? 1000 : undefined,
+        },
         sourcePosition: graph.direction === 'horizontal' ? Position.Right : Position.Bottom,
         targetPosition: graph.direction === 'horizontal' ? Position.Left : Position.Top,
         data: {
