@@ -16,6 +16,7 @@ import {
   toggleUnorderedList,
 } from './commands.js';
 import {
+  assetsCompartment,
   assetsFacet,
   livePreviewField,
   livePreviewPlugin,
@@ -81,7 +82,7 @@ export function MarkdownEditor({
       });
 
       try {
-        const { id, record, markdown } = await processFileToAsset(file);
+        const { id, record, markdown } = await processFileToAsset(file, 50);
         newAssetsRef.current[id] = record;
         onAssetsChange?.(newAssetsRef.current);
 
@@ -94,6 +95,9 @@ export function MarkdownEditor({
           const to = lineEnd === -1 ? currentDoc.length : lineEnd;
           view.dispatch({
             changes: { from, to, insert: markdown },
+            effects: assetsCompartment.reconfigure(
+              assetsFacet.of({ ...assets, ...newAssetsRef.current }),
+            ),
           });
         }
       } catch (err) {
@@ -230,7 +234,7 @@ export function MarkdownEditor({
         markdown({ base: markdownLanguage }),
         EditorView.lineWrapping,
         sourceModeState.init(() => sourceMode),
-        assetsFacet.of({ ...assets, ...newAssetsRef.current }),
+        assetsCompartment.of(assetsFacet.of({ ...assets, ...newAssetsRef.current })),
         livePreviewField,
         livePreviewPlugin,
         cmPlaceholder(placeholder),
@@ -258,6 +262,17 @@ export function MarkdownEditor({
       viewRef.current = null;
     };
   }, []);
+
+  // 监听外部 assets 变更，动态同步到 CodeMirror compartment
+  useEffect(() => {
+    if (viewRef.current && assets) {
+      viewRef.current.dispatch({
+        effects: assetsCompartment.reconfigure(
+          assetsFacet.of({ ...assets, ...newAssetsRef.current }),
+        ),
+      });
+    }
+  }, [assets]);
 
   // 切换源码模式
   const handleToggleSourceMode = () => {

@@ -6,7 +6,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
-import { EditorState, Facet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { Compartment, EditorState, Facet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import {
   IMAGE_TAG_REGEX,
@@ -41,6 +41,8 @@ export const assetsFacet = Facet.define<Record<string, AssetRecord>, Record<stri
     return combined;
   },
 });
+
+export const assetsCompartment = new Compartment();
 
 /**
  * 可点击的任务复选框 Widget
@@ -168,7 +170,7 @@ export class ImageWidget extends WidgetType {
     const wrap = document.createElement('div');
     wrap.className = 'wst-image-container is-interactive nodrag nopan';
     wrap.contentEditable = 'false';
-    const initialPercent = this.meta.widthPercent ?? 100;
+    const initialPercent = this.meta.widthPercent ?? 50;
     wrap.style.width = `${initialPercent}%`;
 
     if (this.meta.isAsset && (!this.resolvedUrl || this.resolvedUrl === '')) {
@@ -208,7 +210,9 @@ export class ImageWidget extends WidgetType {
       e.stopPropagation();
 
       const startX = e.clientX;
-      const parentWidth = wrap.parentElement?.getBoundingClientRect().width || 400;
+      const editorEl = (view.dom.querySelector('.cm-content') as HTMLElement) || view.dom;
+      const parentWidth =
+        editorEl.getBoundingClientRect().width || wrap.parentElement?.getBoundingClientRect().width || 400;
       let currentPercent = initialPercent;
       handle.classList.add('is-dragging');
 
@@ -217,6 +221,7 @@ export class ImageWidget extends WidgetType {
         const deltaPercent = (deltaX / parentWidth) * 100;
         currentPercent = Math.max(10, Math.min(100, Math.round(initialPercent + deltaPercent)));
         wrap.style.width = `${currentPercent}%`;
+        handle.title = `拖动调整尺寸 (${currentPercent}%)`;
         view.requestMeasure();
       };
 

@@ -19,7 +19,7 @@ export function MarkdownImage({
   onWidthPercentChange,
   className = '',
 }: MarkdownImageProps) {
-  const [widthPercent, setWidthPercent] = useState<number>(meta.widthPercent ?? 100);
+  const [widthPercent, setWidthPercent] = useState<number>(meta.widthPercent ?? 50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 

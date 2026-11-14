@@ -173,3 +173,5 @@ export function remarkImageAttributes() {
     });
   };
 }
+
+export const remarkImageDimensionsPlugin = remarkImageAttributes;

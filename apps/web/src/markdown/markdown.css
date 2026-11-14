@@ -211,11 +211,12 @@
 
 /* 图片样式与缺失提示 */
 .wst-md-img {
+  width: 100%;
   max-width: 100%;
   height: auto;
-  border-radius: 4px;
-  display: inline-block;
-  vertical-align: middle;
+  border-radius: 6px;
+  display: block;
+  object-fit: contain;
 }
 
 .wst-live-image-wrap {
@@ -255,10 +256,19 @@
 /* 尺寸调整与拖拽柄交互 */
 .wst-image-container {
   position: relative;
-  display: inline-block;
+  display: block;
   max-width: 100%;
-  margin: 4px 0;
-  vertical-align: middle;
+  margin: 6px 0;
+  box-sizing: border-box;
+}
+
+.wst-image-container .wst-md-img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  display: block;
+  object-fit: contain;
 }
 
 .wst-image-container.is-interactive {

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseCalloutHeader, parseImageMeta } from '@workspacetree/markdown';
+import { parseCalloutHeader, parseImageMeta, remarkImageDimensionsPlugin } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownImage } from './images/MarkdownImage.js';
 import './markdown/markdown.css';
@@ -103,7 +103,7 @@ export function MarkdownPreview({
   return (
     <div className={`wst-markdown-preview ${className}`}>
       <Markdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkImageDimensionsPlugin]}
         components={{
           blockquote({ children }) {
             // 提取首行判断是否为 Callout
@@ -133,9 +133,12 @@ export function MarkdownPreview({
 
             return <blockquote>{children}</blockquote>;
           },
-          img({ src, alt }) {
+          img({ node, src, alt }) {
             if (!src) return null;
-            const meta = parseImageMeta(alt || '', src);
+            const nodeData = (node?.data as any) || {};
+            const meta = nodeData.url
+              ? nodeData
+              : parseImageMeta(alt || '', src);
             return <MarkdownImage meta={meta} assets={assets} interactive={false} />;
           },
           input({ type, checked }) {

@@ -60,7 +60,7 @@ export function extractFilesFromDrop(event: DragEvent): File[] {
  */
 export async function processFileToAsset(
   file: File,
-  widthPercent = 100,
+  widthPercent = 50,
 ): Promise<{ id: string; record: AssetRecord; markdown: string }> {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
@@ -104,7 +104,7 @@ export async function handlePastedContent(
       const markdown = formatImageTag({
         alt: '参考图片',
         url: trimmed,
-        widthPercent: 100,
+        widthPercent: 50,
       });
       return { type: 'image-url', url: trimmed, markdown };
     }
@@ -114,7 +114,7 @@ export async function handlePastedContent(
       const markdown = formatImageTag({
         alt: '参考图片',
         url: trimmed,
-        widthPercent: 100,
+        widthPercent: 50,
       });
       return { type: 'image-url', url: trimmed, markdown };
     }

@@ -549,6 +549,10 @@ input[type='date'] {
   color: #0f172a !important;
 }
 
+.wst-card:has(.wst-card-markdown) {
+  justify-content: flex-start;
+}
+
 .wst-card-markdown {
   margin-top: 4px;
   padding: 4px 6px;
@@ -558,7 +562,9 @@ input[type='date'] {
   font-size: 0.78em;
   line-height: 1.4;
   color: #334155;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 100%;
 }
 
 .wst-md-heading {
@@ -598,8 +604,9 @@ input[type='date'] {
 
 .wst-md-img {
   display: block;
+  width: 100%;
   max-width: 100%;
-  max-height: 86px;
+  height: auto;
   margin-top: 4px;
   border-radius: 6px;
   border: 1px solid #e2e8f0;

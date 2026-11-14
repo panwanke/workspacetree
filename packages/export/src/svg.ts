@@ -187,7 +187,7 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
               const record = input.assets[imgMeta.assetId];
               href = `data:${record.mime};base64,${record.base64}`;
             }
-            const pct = (imgMeta.widthPercent ?? 100) / 100;
+            const pct = (imgMeta.widthPercent ?? 50) / 100;
             const imgWidth = Math.max(20, Math.round((width - 24) * pct));
             const imgHeight = Math.round(imgWidth * 0.6);
             imageElements.push(
