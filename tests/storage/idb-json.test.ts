@@ -49,6 +49,11 @@ function fakeFactory(): IdbFactoryLike {
           delete(key: string) {
             data.delete(key);
           },
+          getAllKeys() {
+            const request = makeRequest(Array.from(data.keys()));
+            queueMicrotask(() => request.onsuccess?.());
+            return request;
+          },
         }),
       };
       // put 所在事务在请求排队后提交
@@ -142,5 +147,46 @@ describe('T-31 IndexedDB JSON 适配器', () => {
     const file = createMinimalBranchFile();
     await adapter.save(file);
     await expect(adapter.save({ ...file })).rejects.toThrow(/stale fileWriteVersion/);
+  });
+
+  it('listProjects 列出已存项目并在 clear 后更新', async () => {
+    const store = createMemoryKeyValueStore();
+    const adapter = new IdbJsonStorageAdapter(store);
+    expect(await adapter.listProjects()).toEqual([]);
+
+    const file1 = createMinimalBranchFile();
+    file1.projectId = 'prj_alpha';
+    file1.domain.project.title = 'Alpha 项目';
+    await adapter.save(file1);
+
+    const file2 = createMinimalBranchFile();
+    file2.projectId = 'prj_beta';
+    file2.domain.project.title = 'Beta 项目';
+    await adapter.save(file2);
+
+    const listed = await adapter.listProjects();
+    expect(listed).toHaveLength(2);
+    expect(listed.map((p) => p.projectId).sort()).toEqual(['prj_alpha', 'prj_beta']);
+    expect(listed.find((p) => p.projectId === 'prj_alpha')?.title).toBe('Alpha 项目');
+
+    await adapter.clear('prj_alpha');
+    const afterClear = await adapter.listProjects();
+    expect(afterClear).toHaveLength(1);
+    expect(afterClear[0].projectId).toBe('prj_beta');
+  });
+
+  it('IndexedDB 假实现支持 listProjects', async () => {
+    const store = await createIndexedDbKeyValueStore('test-db', fakeFactory());
+    const adapter = new IdbJsonStorageAdapter(store);
+
+    const file = createMinimalBranchFile();
+    file.projectId = 'prj_fake_idb';
+    file.domain.project.title = 'IDB 测试项目';
+    await adapter.save(file);
+
+    const listed = await adapter.listProjects();
+    expect(listed).toHaveLength(1);
+    expect(listed[0].projectId).toBe('prj_fake_idb');
+    expect(listed[0].title).toBe('IDB 测试项目');
   });
 });

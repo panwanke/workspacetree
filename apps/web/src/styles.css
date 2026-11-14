@@ -1083,3 +1083,134 @@ input[type='date'] {
   border-top: 1px solid #e2e8f0;
   background: #f8fafc;
 }
+
+/* 项目管理弹窗与 Tab 栏按钮 */
+.wst-tab-projects-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-top: 5px;
+  border-radius: 6px;
+  transition: all 0.12s ease;
+}
+
+.wst-tab-projects-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.wst-projects-modal {
+  width: 580px;
+}
+
+.wst-projects-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.wst-modal-error {
+  padding: 10px 14px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.wst-projects-loading,
+.wst-projects-empty {
+  padding: 36px 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13.5px;
+}
+
+.wst-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wst-project-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  transition: all 0.12s ease;
+}
+
+.wst-project-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.wst-project-card.is-open {
+  border-color: #93c5fd;
+  background: #f0f7ff;
+}
+
+.wst-project-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wst-project-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wst-project-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.wst-project-badge-open {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+.wst-project-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.wst-project-card-id {
+  font-family: monospace;
+  background: #e2e8f0;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.wst-project-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wst-projects-count {
+  font-size: 12.5px;
+  color: #64748b;
+}
