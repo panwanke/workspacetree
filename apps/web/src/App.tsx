@@ -73,6 +73,7 @@ import { reconnectEdgeEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
 import SettingsModal from './SettingsModal';
 import ProjectsModal from './ProjectsModal';
+import SaveProjectModal from './SaveProjectModal';
 import { WorkspaceIcon } from './WorkspaceIcon';
 import { loadWorkspaceSession, saveWorkspaceSession } from './workspace-session';
 import {
@@ -247,6 +248,7 @@ export default function App() {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const booted = useRef(false);
 
@@ -1019,13 +1021,8 @@ export default function App() {
   }
 
   function exportJson(): void {
-    const current = controller?.getSnapshot().file;
-    if (!current) return;
-    download(
-      `${current.projectId}${FILE_SUFFIX.project}`,
-      `${JSON.stringify(current, null, 2)}\n`,
-      'application/json',
-    );
+    if (!file) return;
+    setSaveModalOpen(true);
   }
 
   function openFiles(files: readonly File[]): void {
@@ -2255,6 +2252,15 @@ export default function App() {
         onOpenProject={handleOpenProjectById}
         onCreateProject={handleNewTab}
         onDeleteProject={handleDeleteProject}
+      />
+
+      <SaveProjectModal
+        open={saveModalOpen}
+        onClose={() => setSaveModalOpen(false)}
+        file={file}
+        onSaved={(_name) => {
+          setUiError(null);
+        }}
       />
     </div>
   );

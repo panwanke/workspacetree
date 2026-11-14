@@ -206,7 +206,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                     props.onExportJson();
                   }}
                 >
-                  <WorkspaceIcon name="download" /> 导出 .branch.json
+                  <WorkspaceIcon name="download" /> 保存 / 另存为...
                 </button>
                 <button
                   type="button"
