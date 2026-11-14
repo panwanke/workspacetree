@@ -9,6 +9,12 @@ import {
 } from '@xyflow/react';
 import type { LayoutDirection, VisualLod } from '@workspacetree/layout';
 import { MarkdownPreview } from './MarkdownPreview';
+import {
+  calculateResizeScale,
+  resolveEffectiveResizeMode,
+  type DragResizeBindings,
+  type ResizeModifiers,
+} from './node-resize';
 import { TagList } from './TagList';
 
 export interface CardNodeData extends Record<string, unknown> {
@@ -34,6 +40,7 @@ export interface CardNodeData extends Record<string, unknown> {
   readOnly?: boolean;
   isCut?: boolean;
   resizeMode?: 'box' | 'uniform' | 'branch';
+  dragResizeBindings?: DragResizeBindings;
   hasChildren?: boolean;
   onToggleCollapse?: (id: string) => void;
   onStartEdit?: (id: string) => void;
@@ -52,6 +59,13 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   const { zoom } = useViewport();
   const [titleDraft, setTitleDraft] = useState(data.title);
   const [noteDraft, setNoteDraft] = useState(data.note ?? '');
+  const [modifierKeys, setModifierKeys] = useState<ResizeModifiers>({
+    shiftKey: false,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+  });
+  const [resizeTooltip, setResizeTooltip] = useState<string | null>(null);
 
   useEffect(() => {
     if (data.isEditing) {
@@ -59,6 +73,33 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
       setNoteDraft(data.note ?? '');
     }
   }, [data.isEditing, data.title, data.note]);
+
+  useEffect(() => {
+    if (!selected || data.isEditing || data.readOnly) {
+      setModifierKeys({ shiftKey: false, altKey: false, ctrlKey: false, metaKey: false });
+      return;
+    }
+    const updateModifiers = (event: KeyboardEvent) => {
+      setModifierKeys({
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+      });
+    };
+    window.addEventListener('keydown', updateModifiers);
+    window.addEventListener('keyup', updateModifiers);
+    return () => {
+      window.removeEventListener('keydown', updateModifiers);
+      window.removeEventListener('keyup', updateModifiers);
+    };
+  }, [selected, data.isEditing, data.readOnly]);
+
+  const effectiveResize = resolveEffectiveResizeMode(
+    data.resizeMode ?? 'box',
+    modifierKeys,
+    data.dragResizeBindings,
+  );
 
   // 缩小时自动补偿标题字号：无论是节点自身 scale < 1 还是画布缩小（zoom < 0.75），标题都保持清晰可读。
   const zoomBoost = zoom < 0.75 ? Math.min(2.6, 0.75 / Math.max(0.18, zoom)) : 1;
@@ -74,6 +115,8 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         : `${Math.max(7, 10 * data.scale)}px ${Math.max(9, 12 * data.scale)}px`,
   } as CSSProperties;
 
+  const primaryPosition = horizontal ? Position.Right : Position.Bottom;
+
   return (
     <div
       className={`wst-card${selected ? ' is-selected' : ''}${data.highlighted ? ' is-highlighted' : ''}${data.dimmed ? ' is-dimmed' : ''}${data.archived ? ' is-archived' : ''}${data.collapsed ? ' is-collapsed' : ''}${data.lod === 'summary' ? ' is-lod-summary' : ''}${data.isEditing ? ' is-editing' : ''}${data.isCut ? ' is-cut' : ''}`}
@@ -85,45 +128,98 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
     >
       <NodeResizer
         isVisible={Boolean(selected) && !data.isEditing && !data.readOnly}
-        minWidth={77}
+        minWidth={effectiveResize.mode === 'branch' ? 22 : 77}
         maxWidth={560}
-        minHeight={36}
+        minHeight={effectiveResize.mode === 'branch' ? 16 : 36}
         maxHeight={380}
-        keepAspectRatio={data.resizeMode !== 'box'}
+        keepAspectRatio={effectiveResize.isProportional}
         lineClassName="wst-resizer-line"
         handleClassName="wst-resizer-handle"
-        onResizeEnd={(_, params) => {
-          if (data.resizeMode === 'box') {
+        onResize={(event, params) => {
+          const mouse = event.sourceEvent as MouseEvent | undefined;
+          const currentModifiers: Partial<ResizeModifiers> = mouse
+            ? {
+                shiftKey: mouse.shiftKey,
+                altKey: mouse.altKey,
+                ctrlKey: mouse.ctrlKey,
+                metaKey: mouse.metaKey,
+              }
+            : modifierKeys;
+          const current = resolveEffectiveResizeMode(
+            data.resizeMode ?? 'box',
+            currentModifiers,
+            data.dragResizeBindings,
+          );
+          const branchKey = data.dragResizeBindings?.resizeBranch ?? 'Alt';
+          const nodeKey = data.dragResizeBindings?.resizeNodeScale ?? 'Ctrl';
+          const propKey = data.dragResizeBindings?.resizeProportional ?? 'Shift';
+
+          if (current.mode === 'branch') {
+            const scale = calculateResizeScale(params.width, 'branch', current.snap);
+            setResizeTooltip(
+              `🌱 分支缩放: ${scale}x (${branchKey})${current.snap ? ' [吸附]' : ''}`,
+            );
+          } else if (current.mode === 'uniform') {
+            const scale = calculateResizeScale(params.width, 'node', current.snap);
+            setResizeTooltip(`🔍 节点缩放: ${scale}x (${nodeKey})${current.snap ? ' [吸附]' : ''}`);
+          } else if (current.isProportional) {
+            setResizeTooltip(
+              `📐 等比尺寸: ${Math.round(params.width)} × ${Math.round(params.height)} (${propKey})`,
+            );
+          } else {
+            setResizeTooltip(
+              `📐 方框尺寸: ${Math.round(params.width)} × ${Math.round(params.height)}`,
+            );
+          }
+        }}
+        onResizeEnd={(event, params) => {
+          setResizeTooltip(null);
+          const mouse = event.sourceEvent as MouseEvent | undefined;
+          const endModifiers: Partial<ResizeModifiers> = mouse
+            ? {
+                shiftKey: mouse.shiftKey,
+                altKey: mouse.altKey,
+                ctrlKey: mouse.ctrlKey,
+                metaKey: mouse.metaKey,
+              }
+            : modifierKeys;
+          const final = resolveEffectiveResizeMode(
+            data.resizeMode ?? 'box',
+            endModifiers,
+            data.dragResizeBindings,
+          );
+          if (final.mode === 'box') {
             data.onResizeBox?.(id, Math.round(params.width), Math.round(params.height));
             return;
           }
-          const kind = data.resizeMode === 'branch' ? 'branch' : 'node';
-          const minScale = kind === 'branch' ? 0.1 : 0.35;
-          const nextScale = Math.min(
-            2,
-            Math.max(minScale, Number((params.width / 220).toFixed(2))),
-          );
+          const kind = final.mode === 'branch' ? 'branch' : 'node';
+          const nextScale = calculateResizeScale(params.width, kind, final.snap);
           data.onResizeScale?.(id, nextScale, kind);
         }}
       />
+      {resizeTooltip && <div className="wst-resize-tooltip nodrag nopan">{resizeTooltip}</div>}
       {data.startAt && (
         <span className="wst-card-border-date" title={`开始日期：${data.startAt}`}>
           {data.startAt}
         </span>
       )}
       {Object.values(Position).flatMap((position) =>
-        (['source', 'target'] as const).map((type) => (
-          <Handle
-            key={`${type}-${position}`}
-            id={`${type}-${position}`}
-            type={type}
-            position={position}
-            isConnectable={!data.readOnly}
-            isConnectableStart={false}
-            isConnectableEnd={!data.readOnly}
-            className="wst-handle"
-          />
-        )),
+        (['source', 'target'] as const).map((type) => {
+          const isPrimary = type === 'source' && position === primaryPosition;
+          return (
+            <Handle
+              key={`${type}-${position}`}
+              id={`${type}-${position}`}
+              type={type}
+              position={position}
+              isConnectable={!data.readOnly && !data.isEditing}
+              isConnectableStart={!data.readOnly && !data.isEditing}
+              isConnectableEnd={!data.readOnly && !data.isEditing}
+              className={`wst-handle${isPrimary ? ' is-primary' : ''}`}
+              title={isPrimary ? '拖拽连接到其他节点' : undefined}
+            />
+          );
+        }),
       )}
       {data.isEditing ? (
         <div

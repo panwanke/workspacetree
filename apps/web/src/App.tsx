@@ -72,6 +72,7 @@ import { reconnectEdgeEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
 import SettingsModal from './SettingsModal';
 import {
+  addEdgeEntry,
   clearPositionEntry,
   clearPositionsEntry,
   createNodeEntry,
@@ -560,6 +561,11 @@ export default function App() {
           readOnly,
           isCut: cutBranchId === node.id,
           resizeMode,
+          dragResizeBindings: {
+            resizeProportional: keybindings.resizeProportional,
+            resizeBranch: keybindings.resizeBranch,
+            resizeNodeScale: keybindings.resizeNodeScale,
+          },
           hasChildren,
           onToggleCollapse: (targetId: string) => {
             if (!controller || readOnly) return;
@@ -655,6 +661,7 @@ export default function App() {
     handleCancelEdit,
     handleResizeBox,
     handleResizeScale,
+    keybindings,
     controller,
     guard,
   ]);
@@ -1090,6 +1097,40 @@ export default function App() {
       if (!controller.getSnapshot().error) setSelectedEdgeId(null);
     });
   }
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!controller || readOnly || !file) return;
+      if (!connection.source || !connection.target) return;
+      if (connection.source === connection.target) return;
+
+      // 避免重复创建已存在的非层级关联
+      const alreadyExists = file.domain.edges.some(
+        (edge) =>
+          edge.fromNodeId === connection.source &&
+          edge.toNodeId === connection.target &&
+          edge.type !== 'hierarchy',
+      );
+      if (alreadyExists) return;
+
+      guard(async () => {
+        const edgeId = makeId('e_');
+        await controller.run(
+          addEdgeEntry({
+            id: edgeId,
+            type: 'dependency',
+            fromNodeId: connection.source,
+            toNodeId: connection.target,
+          }),
+        );
+        if (!controller.getSnapshot().error) {
+          if (!showRelations) setShowRelations(true);
+          setSelectedEdgeId(edgeId);
+        }
+      });
+    },
+    [controller, file, guard, readOnly, showRelations],
+  );
 
   function revealConnection(edge: Edge): void {
     guard(async () => {
@@ -1550,6 +1591,8 @@ export default function App() {
                 });
               }}
               onReconnect={reconnectConnection}
+              onConnect={handleConnect}
+              connectionLineStyle={{ stroke: '#2563eb', strokeWidth: 2, strokeDasharray: '5 5' }}
               connectionMode={ConnectionMode.Loose}
               connectionRadius={24}
               connectOnClick={false}
@@ -1603,7 +1646,13 @@ export default function App() {
                   ) : (
                     <>
                       <li>左键拖动框选，中键或右键平移</li>
-                      <li>双击卡片编辑，拖动四角调整尺寸</li>
+                      <li>悬停节点圆点拖拽连线，双击卡片编辑</li>
+                      <li>
+                        拖动四角调整尺寸（
+                        <kbd>{keybindings.resizeProportional}</kbd> 等比、
+                        <kbd>{keybindings.resizeBranch}</kbd> 分支联动、
+                        <kbd>{keybindings.resizeNodeScale}</kbd> 节点等比吸附）
+                      </li>
                       <li>
                         <kbd>{keybindings.addChildNode}</kbd> 新建子节点，
                         <kbd>{keybindings.deleteNode}</kbd> 删除节点

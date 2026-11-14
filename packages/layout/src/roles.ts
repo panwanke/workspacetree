@@ -195,7 +195,7 @@ export function resolveGraphBranchColors(
   for (const node of nodes) {
     if (node.id !== rootNodeId && !childrenSet.has(node.id) && !nodeBranchColors.has(node.id)) {
       const branchColor = nextColor();
-      traverse(node.id, branchColor, false);
+      traverse(node.id, branchColor);
     }
   }
 

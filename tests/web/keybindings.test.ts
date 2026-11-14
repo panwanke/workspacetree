@@ -41,6 +41,10 @@ describe('keybindings matching & formatting', () => {
     expect(formatKeyboardEventToKeybinding({ key: 'Control' })).toBe(null);
     expect(formatKeyboardEventToKeybinding({ key: 'd', ctrlKey: true })).toBe('Ctrl+D');
     expect(formatKeyboardEventToKeybinding({ key: 'Delete' })).toBe('Delete');
+    // 当 allowModifierOnly 为 true 时，允许单独捕获修饰键
+    expect(formatKeyboardEventToKeybinding({ key: 'Shift', shiftKey: true }, true)).toBe('Shift');
+    expect(formatKeyboardEventToKeybinding({ key: 'Alt', altKey: true }, true)).toBe('Alt');
+    expect(formatKeyboardEventToKeybinding({ key: 'Control', ctrlKey: true }, true)).toBe('Ctrl');
   });
 
   it('支持读取与重置默认快捷键并保存', () => {
@@ -48,7 +52,10 @@ describe('keybindings matching & formatting', () => {
     expect(keys.deleteNode).toBe('Delete');
     expect(keys.addRandomBranch).toBe('r');
     expect(keys.saveBranch).toBe('Ctrl+S');
+    expect(keys.resizeProportional).toBe('Shift');
+    expect(keys.resizeBranch).toBe('Alt');
+    expect(keys.resizeNodeScale).toBe('Ctrl');
     expect(isEventMatchingKeybinding({ key: 's', ctrlKey: true }, keys.saveBranch)).toBe(true);
-    saveKeybindings({ ...keys, deleteNode: 'Backspace' });
+    saveKeybindings({ ...keys, deleteNode: 'Backspace', resizeBranch: 'Ctrl' });
   });
 });
