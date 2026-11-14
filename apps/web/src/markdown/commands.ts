@@ -102,21 +102,56 @@ export function toggleLinePrefix(
     const existingPrefix = match[1]!;
     if (existingPrefix.trim() === prefix.trim()) {
       // 移除现有前缀
+      const newFrom = Math.max(line.from, range.from - existingPrefix.length);
+      const newTo = Math.max(line.from, range.to - existingPrefix.length);
       view.dispatch({
         changes: { from: line.from, to: line.from + existingPrefix.length, insert: '' },
+        selection: range.empty
+          ? EditorSelection.cursor(newFrom)
+          : EditorSelection.range(newFrom, newTo),
+        scrollIntoView: true,
       });
       return true;
     }
     // 替换为新前缀
+    const diff = prefix.length - existingPrefix.length;
+    let newFrom: number;
+    let newTo: number;
+    if (range.from <= line.from + existingPrefix.length) {
+      newFrom = line.from + prefix.length;
+      newTo = range.empty ? newFrom : Math.max(newFrom, range.to + diff);
+    } else {
+      newFrom = range.from + diff;
+      newTo = range.to + diff;
+    }
     view.dispatch({
       changes: { from: line.from, to: line.from + existingPrefix.length, insert: prefix },
+      selection: range.empty
+        ? EditorSelection.cursor(newFrom)
+        : EditorSelection.range(newFrom, newTo),
+      scrollIntoView: true,
     });
     return true;
   }
 
   // 插入前缀
+  let newFrom: number;
+  let newTo: number;
+  if (range.from === line.from) {
+    // 光标在行首时，插入前缀后光标置于前缀右侧
+    newFrom = line.from + prefix.length;
+    newTo = range.empty ? newFrom : range.to + prefix.length;
+  } else {
+    newFrom = range.from + prefix.length;
+    newTo = range.to + prefix.length;
+  }
+
   view.dispatch({
     changes: { from: line.from, to: line.from, insert: prefix },
+    selection: range.empty
+      ? EditorSelection.cursor(newFrom)
+      : EditorSelection.range(newFrom, newTo),
+    scrollIntoView: true,
   });
   return true;
 }

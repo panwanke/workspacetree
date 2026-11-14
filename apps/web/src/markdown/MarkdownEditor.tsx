@@ -178,24 +178,40 @@ export function MarkdownEditor({
         run: (view) => insertLink(view),
       },
       {
+        key: 'Alt-1',
+        run: (view) => toggleUnorderedList(view),
+      },
+      {
         key: 'Mod-Shift-7',
         run: (view) => toggleUnorderedList(view),
+      },
+      {
+        key: 'Alt-2',
+        run: (view) => toggleOrderedList(view),
       },
       {
         key: 'Mod-Shift-8',
         run: (view) => toggleOrderedList(view),
       },
       {
+        key: 'Alt-3',
+        run: (view) => toggleTaskList(view),
+      },
+      {
         key: 'Mod-Shift-9',
         run: (view) => toggleTaskList(view),
       },
       {
-        key: 'Mod-Shift-Enter',
-        run: (view) => toggleTaskCheck(view),
+        key: 'Alt-4',
+        run: (view) => insertCallout(view, 'note'),
       },
       {
         key: 'Mod-Shift-c',
         run: (view) => insertCallout(view, 'note'),
+      },
+      {
+        key: 'Mod-Shift-Enter',
+        run: (view) => toggleTaskCheck(view),
       },
       {
         key: 'Enter',
@@ -290,7 +306,7 @@ export function MarkdownEditor({
           <button
             type="button"
             className="wst-markdown-toolbar-btn"
-            title="无序列表 (Ctrl/Cmd+Shift+7)"
+            title="无序列表 (Alt+1)"
             onClick={() => viewRef.current && toggleUnorderedList(viewRef.current)}
           >
             •
@@ -298,7 +314,7 @@ export function MarkdownEditor({
           <button
             type="button"
             className="wst-markdown-toolbar-btn"
-            title="数字列表 (Ctrl/Cmd+Shift+8)"
+            title="有序列表 (Alt+2)"
             onClick={() => viewRef.current && toggleOrderedList(viewRef.current)}
           >
             1.
@@ -306,7 +322,7 @@ export function MarkdownEditor({
           <button
             type="button"
             className="wst-markdown-toolbar-btn"
-            title="任务列表 (Ctrl/Cmd+Shift+9)"
+            title="任务列表 (Alt+3)"
             onClick={() => viewRef.current && toggleTaskList(viewRef.current)}
           >
             ☑
@@ -314,7 +330,7 @@ export function MarkdownEditor({
           <button
             type="button"
             className="wst-markdown-toolbar-btn"
-            title="Callout 引用 (Ctrl/Cmd+Shift+C)"
+            title="Callout 引用 (Alt+4)"
             onClick={() => viewRef.current && insertCallout(viewRef.current, 'note')}
           >
             💡

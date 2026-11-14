@@ -75,30 +75,48 @@ describe('Markdown 快捷键与命令处理 (commands.ts)', () => {
     expect(target.docString()).toBe('查看[文档](https://)');
   });
 
-  it('toggleUnorderedList 与 toggleOrderedList 切换列表前缀', () => {
+  it('toggleUnorderedList 与 toggleOrderedList 切换列表前缀并将光标置于右侧', () => {
+    // 1. 在非空行首触发无序列表
     const target = createTestTarget('我的列表条目', { from: 0, to: 0 });
-    // 添加无序列表
     expect(toggleUnorderedList(target)).toBe(true);
     expect(target.docString()).toBe('- 我的列表条目');
+    expect(target.state.selection.main.from).toBe(2); // 光标在 '- ' 右侧而非左侧
 
     // 再次触发取消列表
     expect(toggleUnorderedList(target)).toBe(true);
     expect(target.docString()).toBe('我的列表条目');
+    expect(target.state.selection.main.from).toBe(0);
 
-    // 添加有序列表
-    expect(toggleOrderedList(target)).toBe(true);
-    expect(target.docString()).toBe('1. 我的列表条目');
+    // 2. 在空行触发无序列表
+    const emptyTarget = createTestTarget('', { from: 0, to: 0 });
+    expect(toggleUnorderedList(emptyTarget)).toBe(true);
+    expect(emptyTarget.docString()).toBe('- ');
+    expect(emptyTarget.state.selection.main.from).toBe(2);
 
-    // 再次触发取消
-    expect(toggleOrderedList(target)).toBe(true);
-    expect(target.docString()).toBe('我的列表条目');
+    // 3. 在空行触发有序列表
+    const emptyOrd = createTestTarget('', { from: 0, to: 0 });
+    expect(toggleOrderedList(emptyOrd)).toBe(true);
+    expect(emptyOrd.docString()).toBe('1. ');
+    expect(emptyOrd.state.selection.main.from).toBe(3);
+
+    // 4. 再次触发取消
+    expect(toggleOrderedList(emptyOrd)).toBe(true);
+    expect(emptyOrd.docString()).toBe('');
+    expect(emptyOrd.state.selection.main.from).toBe(0);
   });
 
-  it('toggleTaskList 与 toggleTaskCheck 切换任务标记与完成状态', () => {
+  it('toggleTaskList 与 toggleTaskCheck 切换任务标记与完成状态并将光标置于右侧', () => {
+    // 1. 空行插入任务
+    const emptyTask = createTestTarget('', { from: 0, to: 0 });
+    expect(toggleTaskList(emptyTask)).toBe(true);
+    expect(emptyTask.docString()).toBe('- [ ] ');
+    expect(emptyTask.state.selection.main.from).toBe(6); // 光标在 '- [ ] ' 右侧而非左侧
+
+    // 2. 非空行转换为任务
     const target = createTestTarget('开发新功能', { from: 0, to: 0 });
-    // 转换为任务
     expect(toggleTaskList(target)).toBe(true);
     expect(target.docString()).toBe('- [ ] 开发新功能');
+    expect(target.state.selection.main.from).toBe(6);
 
     // 切换勾选状态（[ ] -> [x]）
     expect(toggleTaskCheck(target)).toBe(true);
