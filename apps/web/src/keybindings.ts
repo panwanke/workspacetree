@@ -1,3 +1,5 @@
+export type KeybindingCategory = 'canvas' | 'drag';
+
 export type KeybindingAction =
   | 'deleteNode'
   | 'addChildNode'
@@ -7,12 +9,17 @@ export type KeybindingAction =
   | 'redo'
   | 'cutBranch'
   | 'pasteBranch'
-  | 'saveBranch';
+  | 'saveBranch'
+  | 'resizeProportional'
+  | 'resizeBranch'
+  | 'resizeNodeScale';
 
 export interface KeybindingMeta {
   label: string;
   description: string;
   defaultKey: string;
+  category?: KeybindingCategory;
+  options?: readonly string[];
 }
 
 export const DEFAULT_KEYBINDINGS: Record<KeybindingAction, KeybindingMeta> = {
@@ -20,42 +27,76 @@ export const DEFAULT_KEYBINDINGS: Record<KeybindingAction, KeybindingMeta> = {
     label: '导出项目文件',
     description: '下载当前项目的 .branch.json 文件',
     defaultKey: 'Ctrl+S',
+    category: 'canvas',
   },
   deleteNode: {
     label: '删除选中项',
     description: '删除选中的连线或节点子树（根节点除外）',
     defaultKey: 'Delete',
+    category: 'canvas',
   },
-  cutBranch: { label: '剪切分支', description: '标记当前分支以便移动', defaultKey: 'Ctrl+X' },
+  cutBranch: {
+    label: '剪切分支',
+    description: '标记当前分支以便移动',
+    defaultKey: 'Ctrl+X',
+    category: 'canvas',
+  },
   pasteBranch: {
     label: '粘贴为子分支',
     description: '将剪切的分支移动到选中节点下',
     defaultKey: 'Ctrl+V',
+    category: 'canvas',
   },
   addChildNode: {
     label: '新增子节点',
     description: '在选中的节点下新增子节点并进入编辑',
     defaultKey: 'Tab',
+    category: 'canvas',
   },
   addRandomBranch: {
     label: '随机开启新分支',
     description: '在画布视口中心随机位置创建独立新分支节点',
     defaultKey: 'r',
+    category: 'canvas',
   },
   fitView: {
     label: '自适应视图',
     description: '缩放并平移画布以完全居中呈现所有节点',
     defaultKey: 'f',
+    category: 'canvas',
   },
   undo: {
     label: '撤销',
     description: '撤销上一次操作',
     defaultKey: 'Ctrl+Z',
+    category: 'canvas',
   },
   redo: {
     label: '重做',
     description: '重做上一次已撤销的操作',
     defaultKey: 'Ctrl+Y',
+    category: 'canvas',
+  },
+  resizeProportional: {
+    label: '保持等比尺寸',
+    description: '拖拽节点四角调整尺寸时按住，锁定宽高比进行等比尺寸调整',
+    defaultKey: 'Shift',
+    category: 'drag',
+    options: ['Shift', 'Alt', 'Ctrl', 'Alt+Shift', 'Ctrl+Shift'],
+  },
+  resizeBranch: {
+    label: '分支联动缩放',
+    description: '拖拽节点四角调整尺寸时按住，当前节点与所有子树后代同步缩放',
+    defaultKey: 'Alt',
+    category: 'drag',
+    options: ['Alt', 'Shift', 'Ctrl', 'Alt+Shift', 'Ctrl+Alt'],
+  },
+  resizeNodeScale: {
+    label: '单节点等比吸附',
+    description: '拖拽节点四角调整尺寸时按住，仅缩放单节点并吸附到标准整档刻度',
+    defaultKey: 'Ctrl',
+    category: 'drag',
+    options: ['Ctrl', 'Shift', 'Alt', 'Ctrl+Shift', 'Ctrl+Alt'],
   },
 };
 
@@ -72,6 +113,9 @@ export function loadKeybindings(): Record<KeybindingAction, string> {
     cutBranch: DEFAULT_KEYBINDINGS.cutBranch.defaultKey,
     pasteBranch: DEFAULT_KEYBINDINGS.pasteBranch.defaultKey,
     saveBranch: DEFAULT_KEYBINDINGS.saveBranch.defaultKey,
+    resizeProportional: DEFAULT_KEYBINDINGS.resizeProportional.defaultKey,
+    resizeBranch: DEFAULT_KEYBINDINGS.resizeBranch.defaultKey,
+    resizeNodeScale: DEFAULT_KEYBINDINGS.resizeNodeScale.defaultKey,
   };
   try {
     if (typeof localStorage !== 'undefined') {
@@ -144,13 +188,27 @@ export function isEventMatchingKeybinding(event: KeyLike, keybinding: string): b
 }
 
 /**
- * 将录制到的 KeyboardEvent 格式化为快捷键字符串展示
+ * 将录制到的 KeyboardEvent 格式化为快捷键字符串展示。
+ * 当 allowModifierOnly 为 true 时，允许单独按修饰键（如 Shift / Alt / Ctrl）。
  */
-export function formatKeyboardEventToKeybinding(event: KeyLike): string | null {
+export function formatKeyboardEventToKeybinding(
+  event: KeyLike,
+  allowModifierOnly = false,
+): string | null {
   const key = event.key;
-  if (!key || ['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
+  if (!key) return null;
+
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
+    if (allowModifierOnly) {
+      const parts: string[] = [];
+      if (event.ctrlKey || event.metaKey || key === 'Control' || key === 'Meta') parts.push('Ctrl');
+      if (event.altKey || key === 'Alt') parts.push('Alt');
+      if (event.shiftKey || key === 'Shift') parts.push('Shift');
+      return parts.join('+') || (key === 'Control' || key === 'Meta' ? 'Ctrl' : key);
+    }
     return null; // 正在按下修饰键，尚未按下主键
   }
+
   const parts: string[] = [];
   if (event.ctrlKey || event.metaKey) parts.push('Ctrl');
   if (event.altKey) parts.push('Alt');

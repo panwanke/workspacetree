@@ -35,7 +35,8 @@ export default function SettingsModal({
         return;
       }
 
-      const formatted = formatKeyboardEventToKeybinding(event);
+      const isDragModifier = DEFAULT_KEYBINDINGS[recordingAction]?.category === 'drag';
+      const formatted = formatKeyboardEventToKeybinding(event, isDragModifier);
       if (formatted) {
         const next = { ...keybindings, [recordingAction]: formatted };
         onChangeKeybindings(next);
@@ -50,20 +51,17 @@ export default function SettingsModal({
 
   if (!open) return null;
 
-  const actions = Object.keys(DEFAULT_KEYBINDINGS) as KeybindingAction[];
+  const canvasActions = (Object.keys(DEFAULT_KEYBINDINGS) as KeybindingAction[]).filter(
+    (act) => DEFAULT_KEYBINDINGS[act].category !== 'drag',
+  );
+  const dragActions = (Object.keys(DEFAULT_KEYBINDINGS) as KeybindingAction[]).filter(
+    (act) => DEFAULT_KEYBINDINGS[act].category === 'drag',
+  );
 
   function handleResetAll() {
-    const next: Record<KeybindingAction, string> = {
-      deleteNode: DEFAULT_KEYBINDINGS.deleteNode.defaultKey,
-      addChildNode: DEFAULT_KEYBINDINGS.addChildNode.defaultKey,
-      addRandomBranch: DEFAULT_KEYBINDINGS.addRandomBranch.defaultKey,
-      fitView: DEFAULT_KEYBINDINGS.fitView.defaultKey,
-      undo: DEFAULT_KEYBINDINGS.undo.defaultKey,
-      redo: DEFAULT_KEYBINDINGS.redo.defaultKey,
-      cutBranch: DEFAULT_KEYBINDINGS.cutBranch.defaultKey,
-      pasteBranch: DEFAULT_KEYBINDINGS.pasteBranch.defaultKey,
-      saveBranch: DEFAULT_KEYBINDINGS.saveBranch.defaultKey,
-    };
+    const next = Object.fromEntries(
+      Object.entries(DEFAULT_KEYBINDINGS).map(([k, v]) => [k, v.defaultKey]),
+    ) as Record<KeybindingAction, string>;
     onChangeKeybindings(next);
     saveKeybindings(next);
   }
@@ -73,6 +71,65 @@ export default function SettingsModal({
     onChangeKeybindings(next);
     saveKeybindings(next);
   }
+
+  function handleSelectOption(action: KeybindingAction, key: string) {
+    const next = { ...keybindings, [action]: key };
+    onChangeKeybindings(next);
+    saveKeybindings(next);
+  }
+
+  const renderRow = (act: KeybindingAction) => {
+    const meta = DEFAULT_KEYBINDINGS[act];
+    const currentKey = keybindings[act] ?? meta.defaultKey;
+    const isRecording = recordingAction === act;
+    const isCustomized = currentKey !== meta.defaultKey;
+
+    return (
+      <div key={act} className="wst-keybinding-row">
+        <div className="wst-keybinding-info">
+          <span className="wst-keybinding-label">{meta.label}</span>
+          <span className="wst-keybinding-desc">{meta.description}</span>
+        </div>
+
+        <div className="wst-keybinding-controls">
+          {meta.options && (
+            <div className="wst-keybinding-options">
+              {meta.options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  className={`wst-keybinding-opt-btn${currentKey === opt ? ' is-active' : ''}`}
+                  onClick={() => handleSelectOption(act, opt)}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className={`wst-keybinding-badge ${isRecording ? 'is-recording' : ''}`}
+            title={isRecording ? '请在键盘上按下新按键（Esc 取消）' : '点击通过键盘录制修改'}
+            onClick={() => setRecordingAction(isRecording ? null : act)}
+          >
+            {isRecording ? '按下新按键…' : currentKey}
+          </button>
+
+          {isCustomized && (
+            <button
+              type="button"
+              className="wst-keybinding-reset-one"
+              title={`恢复默认（${meta.defaultKey}）`}
+              onClick={() => handleResetOne(act)}
+            >
+              <WorkspaceIcon name="reset" size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -91,7 +148,7 @@ export default function SettingsModal({
       >
         <div className="wst-modal-header">
           <h2 id="settings-modal-title">
-            <WorkspaceIcon name="sliders" size={18} /> 画布快捷键设置
+            <WorkspaceIcon name="sliders" size={18} /> 画布快捷键与修饰键设置
           </h2>
           <button
             type="button"
@@ -105,49 +162,19 @@ export default function SettingsModal({
 
         <div className="wst-modal-body">
           <p className="wst-settings-desc">
-            点击下方按键框后直接按下键盘新快捷键即可修改。支持单键与组合键（如
-            Delete、Tab、r、Ctrl+Z 等）。
+            点击按键框后直接按下键盘新键即可修改，或点击预设修饰键标签快速切换。
           </p>
 
-          <div className="wst-keybindings-list">
-            {actions.map((act) => {
-              const meta = DEFAULT_KEYBINDINGS[act];
-              const currentKey = keybindings[act] ?? meta.defaultKey;
-              const isRecording = recordingAction === act;
-              const isCustomized = currentKey !== meta.defaultKey;
+          <div className="wst-keybindings-section-title">常用画布快捷键</div>
+          <div className="wst-keybindings-list">{canvasActions.map(renderRow)}</div>
 
-              return (
-                <div key={act} className="wst-keybinding-row">
-                  <div className="wst-keybinding-info">
-                    <span className="wst-keybinding-label">{meta.label}</span>
-                    <span className="wst-keybinding-desc">{meta.description}</span>
-                  </div>
-
-                  <div className="wst-keybinding-controls">
-                    <button
-                      type="button"
-                      className={`wst-keybinding-badge ${isRecording ? 'is-recording' : ''}`}
-                      title={isRecording ? '请在键盘上按下新按键（Esc 取消）' : '点击修改快捷键'}
-                      onClick={() => setRecordingAction(isRecording ? null : act)}
-                    >
-                      {isRecording ? '按下新按键…' : currentKey}
-                    </button>
-
-                    {isCustomized && (
-                      <button
-                        type="button"
-                        className="wst-keybinding-reset-one"
-                        title={`恢复默认（${meta.defaultKey}）`}
-                        onClick={() => handleResetOne(act)}
-                      >
-                        <WorkspaceIcon name="reset" size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="wst-keybindings-section-title" style={{ marginTop: 20 }}>
+            节点四角拖拽缩放修饰键
           </div>
+          <p className="wst-settings-desc" style={{ marginBottom: 10 }}>
+            拖动选中节点的四角调整大小时，按住以下修饰键触发不同的缩放行为。
+          </p>
+          <div className="wst-keybindings-list">{dragActions.map(renderRow)}</div>
         </div>
 
         <div className="wst-modal-footer">

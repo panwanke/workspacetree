@@ -4,7 +4,7 @@ import { resolveVisualGraph } from '@workspacetree/layout';
 import { createDemoBranchFile } from '../../apps/web/src/demo';
 import { EditorController } from '../../apps/web/src/editor';
 import { reconnectEdgeEntry, setEdgeNoteEntry } from '../../apps/web/src/edge-editing';
-import { removeEdgeEntry } from '../../apps/web/src/history';
+import { addEdgeEntry, removeEdgeEntry } from '../../apps/web/src/history';
 
 async function setup() {
   const storage = new MemoryStorageAdapter();
@@ -75,5 +75,38 @@ describe('canvas edge editing', () => {
     expect(editor.getSnapshot().error).toMatch(/same node/i);
     expect(editor.getSnapshot().undoDepth).toBe(0);
     expect(domain().edges.find((item) => item.id === edge.id)).toEqual(edge);
+  });
+
+  it('adds a new relation edge between nodes, supporting undo and redo', async () => {
+    const { editor, domain } = await setup();
+    const sourceNode = domain().nodes[0]!;
+    const targetNode = domain().nodes[1]!;
+    const newEdgeId = 'e_test_new_relation';
+
+    await editor.run(
+      addEdgeEntry({
+        id: newEdgeId,
+        type: 'dependency',
+        fromNodeId: sourceNode.id,
+        toNodeId: targetNode.id,
+      }),
+    );
+
+    const created = domain().edges.find((e) => e.id === newEdgeId);
+    expect(created).toBeDefined();
+    expect(created).toMatchObject({
+      id: newEdgeId,
+      type: 'dependency',
+      fromNodeId: sourceNode.id,
+      toNodeId: targetNode.id,
+    });
+
+    // Undo should remove the edge
+    await editor.undo();
+    expect(domain().edges.some((e) => e.id === newEdgeId)).toBe(false);
+
+    // Redo should restore the edge
+    await editor.redo();
+    expect(domain().edges.some((e) => e.id === newEdgeId)).toBe(true);
   });
 });

@@ -415,7 +415,10 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                     <option value="horizontal">从左到右</option>
                   </select>
                 </label>
-                <label className="wst-field">
+                <label
+                  className="wst-field"
+                  title="拖拽节点四角时：可随时按住 Shift 保持等比、Alt 分支联动、Ctrl 节点等比吸附"
+                >
                   拖拽缩放方式
                   <select
                     data-testid="resize-mode"
