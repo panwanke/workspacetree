@@ -159,7 +159,8 @@ function FlowViewportController({
   useEffect(() => {
     if (!focusNodeId) return;
     void reactFlow.fitView({ nodes: [{ id: focusNodeId }], padding: 0.85, duration: 300 });
-    onFocused();
+    const timer = window.setTimeout(() => onFocused(), 30);
+    return () => window.clearTimeout(timer);
   }, [focusNodeId, reactFlow, onFocused]);
 
   return null;
@@ -1399,12 +1400,13 @@ export default function App() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null;
+      const elementTarget = event.target instanceof Element ? event.target : null;
       const isEditing =
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.tagName === 'SELECT' ||
-        target?.isContentEditable ||
-        Boolean(target?.closest('.cm-editor'));
+        elementTarget?.tagName === 'INPUT' ||
+        elementTarget?.tagName === 'TEXTAREA' ||
+        elementTarget?.tagName === 'SELECT' ||
+        Boolean((elementTarget as HTMLElement | null)?.isContentEditable) ||
+        Boolean(elementTarget?.closest('.cm-editor'));
       if (
         !event.defaultPrevented &&
         !isEditing &&
@@ -1428,9 +1430,14 @@ export default function App() {
         setEditingEdge(null);
         return;
       }
-      if (projectView !== 'canvas' || target?.closest('.wst-project-view-switch')) return;
+      if (projectView !== 'canvas' || elementTarget?.closest('.wst-project-view-switch')) return;
 
-      if (!readOnly && viewMode === '2d' && canvasRef.current?.contains(target)) {
+      if (
+        !readOnly &&
+        viewMode === '2d' &&
+        target instanceof Node &&
+        canvasRef.current?.contains(target)
+      ) {
         if (
           selectedNodeId &&
           (event.ctrlKey || event.metaKey) &&

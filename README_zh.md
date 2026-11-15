@@ -6,9 +6,33 @@
 
 > [English](README.md) | [在线演示](https://panwanke.github.io/workspacetree/)
 
-WorkspaceTree 是一个浏览器项目画布，用树状节点组织工作，结合日期查看分支、编辑任务和梳理项目进展。
+WorkspaceTree 是一个基于浏览器的本地优先（Local-First）拓扑工作区画布，以树状拓扑组织工作，结合时间主轴查看分支、编辑任务、沉浸书写 Markdown 并进行复杂架构演进透视。
+
+<p align="center">
+  <img src="docs/images/demo-showcase.png" width="100%" alt="WorkspaceTree 官方演示项目全景与排布美学" />
+</p>
 
 **开发原型：** 项目仍在开发中，不能用于承载正式项目数据。试用时请另行保留备份。
+
+## 官方演示项目与构建美学：艺术、工程与哲学的平衡
+
+WorkspaceTree 不只是一个简单的脑图绘制或任务看板工具，更是一套追求**艺术的韵律**、**工程的坚实**与**哲学的秩序**动态平衡的拓扑认知空间。
+
+在官方交互演示项目（**「WorkspaceTree · 技术全景与架构演进」**）中，我们全方位实践并展示了这一平衡思路：
+
+### 1. 三位一体的平衡哲学
+
+- **工程之骨（Engineering Rigor）**：纯函数确定性排布（0 DOM 依赖）、双轴（时间轴 + 树层级）几何约束、AABB 碰撞检测与避障、Local-First 离线持久化与微秒级哈希隔离。没有工程的绝对确定性，拓扑美学就会沦为失控的杂乱。
+- **艺术之韵（Artistic Rhythm）**：拒绝均质网格的机械冰冷，引入**错落有致（Staggered Pacing）**。通过**分支缩放（Branch Scale）**调节子树信息密度场，通过**节点缩放（Node Scale）**锚定关键战术焦点；配合平滑三次贝塞尔曲线、优雅的 Callout 留白与行内 Pele/Mermaid 矢量流程图，让工作区拥有如交响乐般的呼吸感。
+- **哲学之序（Philosophical Order）**：宏观透视（Macro Overview）与微观沉浸（Micro Immersion）的辩证统一；时间演进（Chronos）与逻辑分流（Logos）的正交展开；克制分叉、及时收敛，化解信息熵增与任务碎片化。
+
+### 2. 树状排布美学与构建指导（内置核心指南节点）
+
+演示项目中特别内置了 **「排布美学与构建哲学指南」** 核心节点（ID: `n_layout_philosophy`），提供系统性实践指导：
+
+- **卡片排版法则（Card Layout）**：标题视觉重心锚定、Callout 告警框（`[!IMPORTANT]` / `[!TIP]` / `[!NOTE]` / `[!WARNING]`）克制留白（一张卡片不超过 1~2 个）、5 态任务体系（`[x]` / `[~]` / `[?]` / `[-]` / `[ ]`）动态流转、行内矢量图元尺度平衡。
+- **分支规划与演进策略（Branching Strategy）**：3~5 根一级核心支柱的黄金发散度、主干（Spines）的叙事贯穿与专注聚焦、侧枝的专业延展、跨分支关联边（`dependency` / `reference` / `custom`）的精准联络。
+- **分支与节点缩放实操（Scale Mastery）**：三级层次缩放律（战略核心 1.15~1.25、战术支柱与高亮重音 1.05~1.15、标准流转 0.95~1.02、细节与背景支撑 0.80~0.90）、分支缩放的级联场效应与虚实相生的折叠胶囊（Negative Space & Collapsing）。
 
 ## 布局方式
 

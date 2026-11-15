@@ -16,6 +16,7 @@
     "test": "vitest run",
     "generate:json-schema": "tsx packages/schema/scripts/generate-json-schema.ts",
     "generate:golden": "tsx tests/support/generate-golden.ts",
+    "capture:screenshot": "node scripts/capture-demo-screenshot.mjs",
     "validate:all": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
   },
   "devDependencies": {
