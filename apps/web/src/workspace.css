@@ -65,8 +65,18 @@
   height: 36px;
   place-items: center;
   border-radius: 10px;
-  background: #15463c;
+  background: #11362d;
   color: #e7fff3;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.2);
+}
+
+.wst-brand-logo {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border-radius: 6px;
+  user-select: none;
 }
 
 .wst-project-titles {

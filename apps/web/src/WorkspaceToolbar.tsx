@@ -2,6 +2,7 @@ import type { LayoutDirection, LayoutStrategy, MultiSpineHighlight } from '@work
 import type { BranchFile } from '@workspacetree/schema';
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { WorkspaceIcon, type WorkspaceIconName } from './WorkspaceIcon';
+import appLogo from './assets/logo.svg';
 
 export type ResizeMode = 'box' | 'uniform' | 'branch';
 export type ViewMode = '2d' | '3d';
@@ -133,8 +134,14 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
     <header className="wst-header">
       <div className="wst-project-bar">
         <div className="wst-project-identity">
-          <span className="wst-brand-mark">
-            <WorkspaceIcon name="tree" size={21} />
+          <span className="wst-brand-mark" title="WorkspaceTree">
+            <img
+              src={appLogo}
+              alt="WorkspaceTree Logo"
+              className="wst-brand-logo"
+              width={28}
+              height={28}
+            />
           </span>
           <div className="wst-project-titles">
             <div className="wst-brand-name">WorkspaceTree</div>

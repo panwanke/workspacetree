@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- 背景渐变：深邃科技绿渐变 -->
+    <linearGradient id="wst-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a231c"/>
+      <stop offset="50%" stop-color="#0d352b"/>
+      <stop offset="100%" stop-color="#061914"/>
+    </linearGradient>
+
+    <!-- 边框微光渐变 -->
+    <linearGradient id="wst-border" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#059669" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.4"/>
+    </linearGradient>
+
+    <!-- 主干与主分支流光渐变 -->
+    <linearGradient id="wst-trunk-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="50%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+
+    <linearGradient id="wst-left-branch" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+
+    <linearGradient id="wst-right-branch" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+
+    <!-- 核心光晕 -->
+    <radialGradient id="wst-ambient" cx="50%" cy="52%" r="50%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.32"/>
+      <stop offset="45%" stop-color="#065f46" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#061914" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 顶端北极星光芒 -->
+    <radialGradient id="wst-crown-halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6ee7b7" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#10b981" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 卡片节点填充渐变 -->
+    <linearGradient id="wst-card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#194d3f" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#0e3229" stop-opacity="0.96"/>
+    </linearGradient>
+
+    <!-- 顶端核心节点渐变 -->
+    <linearGradient id="wst-apex-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+
+    <!-- 发光滤镜 -->
+    <filter id="wst-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="wst-soft-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 图标底座圆角矩形 (Squircle) -->
+  <rect x="20" y="20" width="472" height="472" rx="116" fill="url(#wst-bg)" stroke="url(#wst-border)" stroke-width="3.5"/>
+
+  <!-- 背景中心氛围光晕 -->
+  <circle cx="256" cy="265" r="195" fill="url(#wst-ambient)"/>
+
+  <!-- 关系连接线 (微弱虚线跨分支关联 - WorkspaceTree 核心特色) -->
+  <path d="M 165 130 C 205 105, 230 100, 256 96" fill="none" stroke="#38bdf8" stroke-width="3" stroke-dasharray="6 6" stroke-opacity="0.65"/>
+  <path d="M 347 130 C 307 105, 282 100, 256 96" fill="none" stroke="#2dd4bf" stroke-width="3" stroke-dasharray="6 6" stroke-opacity="0.65"/>
+
+  <!-- 树枝网络 (Tree Branches) -->
+  <!-- 左上分支延伸线 -->
+  <path d="M 135 210 C 135 165, 150 145, 165 130" fill="none" stroke="url(#wst-left-branch)" stroke-width="9" stroke-linecap="round"/>
+  <!-- 右上分支延伸线 -->
+  <path d="M 377 210 C 377 165, 362 145, 347 130" fill="none" stroke="url(#wst-right-branch)" stroke-width="9" stroke-linecap="round"/>
+  <!-- 枢纽至左侧主分支 -->
+  <path d="M 256 270 C 256 232, 185 232, 135 210" fill="none" stroke="url(#wst-left-branch)" stroke-width="12" stroke-linecap="round"/>
+  <!-- 枢纽至右侧主分支 -->
+  <path d="M 256 270 C 256 232, 327 232, 377 210" fill="none" stroke="url(#wst-right-branch)" stroke-width="12" stroke-linecap="round"/>
+  <!-- 主干：根节点至中心枢纽 -->
+  <path d="M 256 360 L 256 270" fill="none" stroke="url(#wst-trunk-grad)" stroke-width="15" stroke-linecap="round"/>
+  <!-- 枢纽至顶部核心 -->
+  <path d="M 256 270 L 256 126" fill="none" stroke="url(#wst-trunk-grad)" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- 分支上的能量脉冲数据粒子 -->
+  <circle cx="204" cy="235" r="5" fill="#6ee7b7" filter="url(#wst-soft-glow)"/>
+  <circle cx="308" cy="235" r="5" fill="#38bdf8" filter="url(#wst-soft-glow)"/>
+  <circle cx="256" cy="188" r="5" fill="#a7f3d0" filter="url(#wst-soft-glow)"/>
+
+  <!-- 节点层 (Nodes) -->
+
+  <!-- 1. 根节点 (Root Node, 底座基石工作区) -->
+  <g id="root-node">
+    <rect x="188" y="356" width="136" height="50" rx="25" fill="url(#wst-card-grad)" stroke="#10b981" stroke-width="3.5" filter="url(#wst-soft-glow)"/>
+    <circle cx="222" cy="381" r="7.5" fill="#34d399"/>
+    <rect x="239" y="377" width="56" height="8" rx="4" fill="#a7f3d0" fill-opacity="0.9"/>
+  </g>
+
+  <!-- 2. 左侧工作区卡片节点 (Left Node) -->
+  <g id="left-node">
+    <rect x="94" y="185" width="82" height="50" rx="16" fill="url(#wst-card-grad)" stroke="#38bdf8" stroke-width="3" filter="url(#wst-soft-glow)"/>
+    <!-- 任务复选对勾小徽章 -->
+    <circle cx="118" cy="210" r="9" fill="#0284c7"/>
+    <path d="M 114 210 L 117 213 L 123 207" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="134" y="206" width="28" height="8" rx="4" fill="#bae6fd"/>
+  </g>
+
+  <!-- 3. 右侧工作区卡片节点 (Right Node) -->
+  <g id="right-node">
+    <rect x="336" y="185" width="82" height="50" rx="16" fill="url(#wst-card-grad)" stroke="#2dd4bf" stroke-width="3" filter="url(#wst-soft-glow)"/>
+    <!-- 分支展开小徽章 -->
+    <circle cx="360" cy="210" r="9" fill="#0d9488"/>
+    <path d="M 357 207 L 363 210 L 357 213" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="376" y="206" width="28" height="8" rx="4" fill="#99f6e4"/>
+  </g>
+
+  <!-- 4. 中心枢纽节点 (Central Hub) -->
+  <g id="hub-node">
+    <circle cx="256" cy="270" r="28" fill="url(#wst-card-grad)" stroke="#34d399" stroke-width="4" filter="url(#wst-glow)"/>
+    <circle cx="256" cy="270" r="12" fill="#34d399"/>
+    <circle cx="256" cy="270" r="5" fill="#ffffff"/>
+  </g>
+
+  <!-- 5. 左上二级叶子节点 (Upper Left Node) -->
+  <g id="upper-left-node">
+    <circle cx="165" cy="130" r="21" fill="url(#wst-card-grad)" stroke="#38bdf8" stroke-width="3.5" filter="url(#wst-soft-glow)"/>
+    <circle cx="165" cy="130" r="8" fill="#38bdf8"/>
+    <circle cx="165" cy="130" r="3.5" fill="#ffffff"/>
+  </g>
+
+  <!-- 6. 右上二级叶子节点 (Upper Right Node) -->
+  <g id="upper-right-node">
+    <circle cx="347" cy="130" r="21" fill="url(#wst-card-grad)" stroke="#2dd4bf" stroke-width="3.5" filter="url(#wst-soft-glow)"/>
+    <circle cx="347" cy="130" r="8" fill="#2dd4bf"/>
+    <circle cx="347" cy="130" r="3.5" fill="#ffffff"/>
+  </g>
+
+  <!-- 7. 顶端北极星核心节点 (Apex Crown / North Star) -->
+  <g id="apex-crown">
+    <circle cx="256" cy="95" r="42" fill="url(#wst-crown-halo)"/>
+    <circle cx="256" cy="95" r="24" fill="url(#wst-apex-grad)" stroke="#ffffff" stroke-width="3.5" filter="url(#wst-glow)"/>
+    <!-- 四角核心星芒 -->
+    <path d="M 256 83 Q 256 95 268 95 Q 256 95 256 107 Q 256 95 244 95 Q 256 95 256 83 Z" fill="#ffffff"/>
+  </g>
+</svg>
