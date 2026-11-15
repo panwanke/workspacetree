@@ -81,6 +81,7 @@ import {
   getNodeNote,
   removeEdgeEntry,
   renameNodeEntry,
+  renameProjectEntry,
   replaceDomainEntry,
   replacePresentationEntry,
   scaledCustomSize,
@@ -245,6 +246,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTabTitle, setEditingTabTitle] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const booted = useRef(false);
 
@@ -476,6 +479,63 @@ export default function App() {
       });
     },
     [controller, file, guard],
+  );
+
+  const handleRenameProject = useCallback(
+    (newTitle: string) => {
+      if (!controller || !file) return;
+      const trimmed = newTitle.trim();
+      if (!trimmed || trimmed === file.domain.project.title) return;
+      guard(async () => {
+        await controller.run(renameProjectEntry(file.domain, trimmed));
+      });
+    },
+    [controller, file, guard],
+  );
+
+  const handleRenameProjectById = useCallback(
+    async (projectId: string, newTitle: string) => {
+      const trimmed = newTitle.trim();
+      if (!trimmed) return;
+      const tab = tabs.find((t) => t.projectId === projectId);
+      if (tab) {
+        const snap = tab.controller.getSnapshot();
+        if (snap.file.domain.project.title !== trimmed) {
+          guard(async () => {
+            await tab.controller.run(renameProjectEntry(snap.file.domain, trimmed));
+          });
+        }
+        return;
+      }
+      const storage = storageRef.current;
+      if (storage) {
+        const targetFile = await storage.load(projectId);
+        if (targetFile && targetFile.domain.project.title !== trimmed) {
+          const tempController = new EditorController(storage, targetFile);
+          await tempController.run(renameProjectEntry(targetFile.domain, trimmed));
+        }
+      }
+    },
+    [tabs, guard],
+  );
+
+  const handleStartRenameTab = useCallback((tab: WorkspaceTab) => {
+    if (tab.controller.isReadOnly) return;
+    setEditingTabId(tab.id);
+    setEditingTabTitle(tab.title);
+  }, []);
+
+  const handleCommitRenameTab = useCallback(
+    (tab: WorkspaceTab) => {
+      setEditingTabId(null);
+      const trimmed = editingTabTitle.trim();
+      if (!trimmed || trimmed === tab.title) return;
+      guard(async () => {
+        const snap = tab.controller.getSnapshot();
+        await tab.controller.run(renameProjectEntry(snap.file.domain, trimmed));
+      });
+    },
+    [editingTabTitle, guard],
   );
 
   const handleAutoSave = useCallback(
@@ -1516,12 +1576,53 @@ export default function App() {
             aria-selected={tab.id === activeTabId}
             className={`wst-tab-item ${tab.id === activeTabId ? 'is-active' : ''}`}
             onClick={() => setActiveTabId(tab.id)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              handleStartRenameTab(tab);
+            }}
           >
-            <span className="wst-tab-title" title={`${tab.title} (${tab.branchName})`}>
-              {tab.title}
-            </span>
+            {editingTabId === tab.id ? (
+              <input
+                className="wst-tab-title-input"
+                value={editingTabTitle}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setEditingTabTitle(e.target.value)}
+                onBlur={() => handleCommitRenameTab(tab)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCommitRenameTab(tab);
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setEditingTabId(null);
+                  }
+                }}
+              />
+            ) : (
+              <span
+                className="wst-tab-title"
+                title={`${tab.title} (${tab.branchName}) - 双击或点击图标重命名`}
+              >
+                {tab.title}
+              </span>
+            )}
             <span className="wst-tab-branch-badge">{tab.branchName}</span>
             {tab.controller.isReadOnly && <span className="wst-tab-branch-badge">只读预览</span>}
+            {!tab.controller.isReadOnly && editingTabId !== tab.id && (
+              <button
+                type="button"
+                className="wst-tab-rename-btn"
+                title="重命名项目分支"
+                aria-label={`重命名项目分支 ${tab.title}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartRenameTab(tab);
+                }}
+              >
+                <WorkspaceIcon name="pencil" size={11} />
+              </button>
+            )}
             {tabs.length > 1 && (
               <button
                 type="button"
@@ -1557,6 +1658,7 @@ export default function App() {
       <WorkspaceToolbar
         file={file}
         readOnly={readOnly}
+        onRenameProject={handleRenameProject}
         projectView={projectView}
         edgeCount={derived.flowEdges.length}
         hiddenCount={derived.hidden}
@@ -2276,6 +2378,7 @@ export default function App() {
         onOpenProject={handleOpenProjectById}
         onCreateProject={handleNewTab}
         onDeleteProject={handleDeleteProject}
+        onRenameProject={handleRenameProjectById}
       />
 
       <SaveProjectModal

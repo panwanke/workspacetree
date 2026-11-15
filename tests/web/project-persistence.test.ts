@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { createMemoryKeyValueStore, IdbJsonStorageAdapter } from '@workspacetree/storage';
 import { createDemoBranchFile, createEmptyBranchFile } from '../../apps/web/src/demo';
 import { EditorController } from '../../apps/web/src/editor';
+import { renameProjectEntry } from '../../apps/web/src/history';
 import {
   loadWorkspaceSession,
   saveWorkspaceSession,
@@ -142,5 +143,23 @@ describe('Project and tab session persistence across refresh', () => {
     expect(fallbackEditor.getSnapshot().file.domain.project.title).toBe(
       '博士论文 · 研究与写作全流程',
     );
+  });
+
+  it('通过 renameProjectEntry 重命名项目，更新快照、落盘存储并支持 Undo 撤销', async () => {
+    const kv = createMemoryKeyValueStore();
+    const storage = new IdbJsonStorageAdapter(kv);
+    const editor = await EditorController.bootstrap(storage, createDemoBranchFile);
+    const oldTitle = editor.getSnapshot().file.domain.project.title;
+
+    await editor.run(renameProjectEntry(editor.getSnapshot().file.domain, '认知神经科学实验总览'));
+    expect(editor.getSnapshot().file.domain.project.title).toBe('认知神经科学实验总览');
+
+    const summaries = await storage.listProjects();
+    expect(summaries.find((s) => s.projectId === editor.getSnapshot().file.projectId)?.title).toBe(
+      '认知神经科学实验总览',
+    );
+
+    await editor.undo();
+    expect(editor.getSnapshot().file.domain.project.title).toBe(oldTitle);
   });
 });

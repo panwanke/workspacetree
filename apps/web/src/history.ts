@@ -208,6 +208,16 @@ export function deleteSubtreeEntry(domain: DomainState, rootId: string): History
   return entry('删除子树', 'domain', forward, [cmd('workspace.replace', { domain: before })]);
 }
 
+export function renameProjectEntry(domain: DomainState, title: string): HistoryEntry {
+  const before = domain.project.title;
+  return entry(
+    '重命名项目',
+    'domain',
+    [cmd('project.rename', { title })],
+    [cmd('project.rename', { title: before })],
+  );
+}
+
 export function renameNodeEntry(domain: DomainState, id: string, title: string): HistoryEntry {
   const before = findNode(domain, id).title;
   return entry(

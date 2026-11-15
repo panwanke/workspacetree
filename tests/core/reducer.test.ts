@@ -94,6 +94,29 @@ describe('T-07 纯函数 reducer', () => {
     expect(() => applyCommand(file.domain, file.presentation, badDep)).toThrow(ValidationError);
   });
 
+  it('project.rename 正确更新项目名称，空名称被拒', () => {
+    const file = createMinimalBranchFile();
+    const result = applyCommand(
+      file.domain,
+      file.presentation,
+      envelope({
+        command: { type: 'project.rename', payload: { title: '新项目分支' } },
+      }),
+    );
+    expect(result.domain.project.title).toBe('新项目分支');
+    expect(file.domain.project.title).not.toBe('新项目分支');
+
+    expect(() =>
+      applyCommand(
+        file.domain,
+        file.presentation,
+        envelope({
+          command: { type: 'project.rename', payload: { title: '   ' } },
+        }),
+      ),
+    ).toThrow(ValidationError);
+  });
+
   it('stateClass 与命令类型不匹配时拒绝', () => {
     const file = createMinimalBranchFile();
     expect(() =>

@@ -36,6 +36,7 @@ export interface ReducerResult {
 }
 
 export const DOMAIN_COMMAND_TYPES = new Set([
+  'project.rename',
   'node.add',
   'node.remove',
   'node.rename',
@@ -594,6 +595,13 @@ export function applyCommand(
       const spine = nextDomain.spines.find((item) => item.id === id);
       if (!spine) throw new ValidationError(`unknown spine id: ${id}`);
       spine.nodeIds = strArray(payload, 'nodeIds');
+      break;
+    }
+    case 'project.rename': {
+      const payload = payloadOf(envelope, ['title']);
+      const title = str(payload, 'title').trim();
+      if (!title) throw new ValidationError('Project title cannot be empty');
+      nextDomain.project.title = title;
       break;
     }
     case 'project.archive': {

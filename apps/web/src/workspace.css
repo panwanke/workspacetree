@@ -100,6 +100,52 @@
   white-space: nowrap;
 }
 
+.wst-project-titles h1.is-editable {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.wst-project-titles h1.is-editable:hover {
+  background: rgba(14, 96, 79, 0.08);
+}
+
+.wst-project-title-edit-hint {
+  opacity: 0;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.15s ease;
+}
+
+.wst-project-titles h1.is-editable:hover .wst-project-title-edit-hint {
+  opacity: 1;
+}
+
+.wst-project-title-form {
+  display: flex;
+  align-items: center;
+}
+
+.wst-project-title-input {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #0f172a;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  min-width: 200px;
+}
+
 .wst-project-meta {
   gap: 14px;
   flex-shrink: 0;

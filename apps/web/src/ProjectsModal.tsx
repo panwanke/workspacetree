@@ -10,6 +10,7 @@ interface ProjectsModalProps {
   onOpenProject: (projectId: string) => Promise<void>;
   onCreateProject: () => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
+  onRenameProject?: (projectId: string, newTitle: string) => Promise<void>;
 }
 
 export default function ProjectsModal({
@@ -20,10 +21,13 @@ export default function ProjectsModal({
   onOpenProject,
   onCreateProject,
   onDeleteProject,
+  onRenameProject,
 }: ProjectsModalProps) {
   const [projects, setProjects] = useState<StoredProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState('');
 
   const loadProjects = useCallback(async () => {
     if (!storage) return;
@@ -73,6 +77,23 @@ export default function ProjectsModal({
     }
     try {
       await onDeleteProject(projectId);
+      await loadProjects();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handleStartRename(projectId: string, currentTitle: string) {
+    setRenamingId(projectId);
+    setRenamingTitle(currentTitle);
+  }
+
+  async function handleCommitRename(projectId: string) {
+    setRenamingId(null);
+    const trimmed = renamingTitle.trim();
+    if (!trimmed) return;
+    try {
+      await onRenameProject?.(projectId, trimmed);
       await loadProjects();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -135,7 +156,45 @@ export default function ProjectsModal({
                   <div key={p.projectId} className={`wst-project-card ${isOpen ? 'is-open' : ''}`}>
                     <div className="wst-project-card-info">
                       <div className="wst-project-card-title-row">
-                        <span className="wst-project-card-title">{p.title}</span>
+                        {renamingId === p.projectId ? (
+                          <input
+                            className="wst-project-rename-input"
+                            value={renamingTitle}
+                            autoFocus
+                            placeholder="项目名称"
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setRenamingTitle(e.target.value)}
+                            onBlur={() => void handleCommitRename(p.projectId)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void handleCommitRename(p.projectId);
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                setRenamingId(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <span
+                              className="wst-project-card-title is-clickable"
+                              title="点击重命名项目分支"
+                              onClick={() => handleStartRename(p.projectId, p.title)}
+                            >
+                              {p.title}
+                            </span>
+                            <button
+                              type="button"
+                              className="wst-project-rename-btn"
+                              title="重命名项目分支"
+                              aria-label={`重命名项目 ${p.title}`}
+                              onClick={() => handleStartRename(p.projectId, p.title)}
+                            >
+                              <WorkspaceIcon name="pencil" size={12} />
+                            </button>
+                          </>
+                        )}
                         {isOpen && <span className="wst-project-badge-open">已在标签页打开</span>}
                       </div>
                       <div className="wst-project-card-meta">

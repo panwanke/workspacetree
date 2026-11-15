@@ -124,11 +124,31 @@ interface ToolbarProps {
   onResetDemo: () => void;
   onOpenSettings?: () => void;
   onOpenProjects?: () => void;
+  onRenameProject?: (title: string) => void;
 }
 
 export default function WorkspaceToolbar(props: ToolbarProps) {
   const { domain, revisions } = props.file;
   const highlighted = props.highlight.paths.length;
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(domain.project.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isEditingTitle) {
+      setTitleDraft(domain.project.title);
+    }
+  }, [domain.project.title, isEditingTitle]);
+
+  function commitProjectTitle() {
+    setIsEditingTitle(false);
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== domain.project.title) {
+      props.onRenameProject?.(trimmed);
+    } else {
+      setTitleDraft(domain.project.title);
+    }
+  }
 
   return (
     <header className="wst-header">
@@ -145,7 +165,54 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
           </span>
           <div className="wst-project-titles">
             <div className="wst-brand-name">WorkspaceTree</div>
-            <h1 title={domain.project.title}>{domain.project.title}</h1>
+            {isEditingTitle ? (
+              <form
+                className="wst-project-title-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  commitProjectTitle();
+                }}
+              >
+                <input
+                  ref={titleInputRef}
+                  className="wst-project-title-input"
+                  value={titleDraft}
+                  autoFocus
+                  placeholder="项目名称"
+                  aria-label="项目名称"
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={commitProjectTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsEditingTitle(false);
+                      setTitleDraft(domain.project.title);
+                    }
+                  }}
+                />
+              </form>
+            ) : (
+              <h1
+                title={
+                  props.readOnly
+                    ? domain.project.title
+                    : `${domain.project.title} (点击重命名项目分支)`
+                }
+                className={!props.readOnly && props.onRenameProject ? 'is-editable' : ''}
+                onClick={() => {
+                  if (!props.readOnly && props.onRenameProject) {
+                    setIsEditingTitle(true);
+                  }
+                }}
+              >
+                <span>{domain.project.title}</span>
+                {!props.readOnly && props.onRenameProject && (
+                  <span className="wst-project-title-edit-hint" aria-hidden="true">
+                    <WorkspaceIcon name="pencil" size={13} />
+                  </span>
+                )}
+              </h1>
+            )}
           </div>
         </div>
         <div className="wst-project-meta">
