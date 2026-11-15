@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   Handle,
   NodeResizer,
@@ -45,9 +45,22 @@ export interface CardNodeData extends Record<string, unknown> {
   resizeMode?: 'box' | 'uniform' | 'branch';
   dragResizeBindings?: DragResizeBindings;
   hasChildren?: boolean;
+  autoSaveEnabled?: boolean;
+  autoSaveInterval?: number;
   onToggleCollapse?: (id: string) => void;
   onStartEdit?: (id: string) => void;
-  onCommitEdit?: (id: string, title: string, note: string, newAssets?: Record<string, AssetRecord>) => void;
+  onCommitEdit?: (
+    id: string,
+    title: string,
+    note: string,
+    newAssets?: Record<string, AssetRecord>,
+  ) => void;
+  onAutoSave?: (
+    id: string,
+    title: string,
+    note: string,
+    newAssets?: Record<string, AssetRecord>,
+  ) => void;
   onCancelEdit?: () => void;
   onResizeBox?: (id: string, width: number, height: number) => void;
   onResizeScale?: (id: string, scale: number, kind: 'node' | 'branch') => void;
@@ -71,12 +84,109 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   });
   const [resizeTooltip, setResizeTooltip] = useState<string | null>(null);
 
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const isCancellingRef = useRef(false);
+  const wasEditingRef = useRef(false);
+  const titleDraftRef = useRef(titleDraft);
+  const noteDraftRef = useRef(noteDraft);
+  const draftAssetsRef = useRef(draftAssets);
+  const lastSavedSnapshotRef = useRef<{
+    title: string;
+    note: string;
+    assets: Record<string, AssetRecord>;
+  }>({
+    title: data.title,
+    note: data.note ?? '',
+    assets: {},
+  });
+
+  titleDraftRef.current = titleDraft;
+  noteDraftRef.current = noteDraft;
+  draftAssetsRef.current = draftAssets;
+
   useEffect(() => {
-    if (data.isEditing) {
+    if (data.isEditing && !wasEditingRef.current) {
       setTitleDraft(data.title);
       setNoteDraft(data.note ?? '');
+      setDraftAssets({});
+      titleDraftRef.current = data.title;
+      noteDraftRef.current = data.note ?? '';
+      draftAssetsRef.current = {};
+      lastSavedSnapshotRef.current = {
+        title: data.title,
+        note: data.note ?? '',
+        assets: {},
+      };
+      isCancellingRef.current = false;
     }
+    wasEditingRef.current = Boolean(data.isEditing);
   }, [data.isEditing, data.title, data.note]);
+
+  // 提交并保存当前草稿
+  const commitCurrentDraft = useCallback(() => {
+    if (isCancellingRef.current) return;
+    const finalTitle = titleDraftRef.current.trim() || data.title;
+    const finalNote = noteDraftRef.current;
+    const finalAssets = draftAssetsRef.current;
+    data.onCommitEdit?.(id, finalTitle, finalNote, finalAssets);
+  }, [data, id]);
+
+  // 离开节点自动保存：在编辑状态下，点击编辑器外部时自动保存并退出编辑
+  useEffect(() => {
+    if (!data.isEditing || !data.autoSaveEnabled) return;
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      if (isCancellingRef.current) return;
+      const container = editorContainerRef.current;
+      if (!container) return;
+
+      if (event.target && !container.contains(event.target as unknown as globalThis.Node)) {
+        commitCurrentDraft();
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDownOutside, true);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDownOutside, true);
+    };
+  }, [data.isEditing, data.autoSaveEnabled, commitCurrentDraft]);
+
+  // 每 5s 自动保存：在编辑过程中持续保存草稿到项目中，且不退出编辑状态
+  useEffect(() => {
+    if (!data.isEditing || !data.autoSaveEnabled) return;
+
+    const intervalMs = data.autoSaveInterval ?? 5000;
+    const timer = setInterval(() => {
+      if (isCancellingRef.current) return;
+      const currentTitle = titleDraftRef.current.trim() || data.title;
+      const currentNote = noteDraftRef.current;
+      const currentAssets = draftAssetsRef.current;
+      const last = lastSavedSnapshotRef.current;
+
+      const hasChanged =
+        currentTitle !== last.title ||
+        currentNote !== last.note ||
+        JSON.stringify(currentAssets) !== JSON.stringify(last.assets);
+
+      if (hasChanged) {
+        lastSavedSnapshotRef.current = {
+          title: currentTitle,
+          note: currentNote,
+          assets: { ...currentAssets },
+        };
+        data.onAutoSave?.(id, currentTitle, currentNote, currentAssets);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [
+    data.isEditing,
+    data.autoSaveEnabled,
+    data.autoSaveInterval,
+    id,
+    data.title,
+    data.onAutoSave,
+  ]);
 
   useEffect(() => {
     if (!selected || data.isEditing || data.readOnly) {
@@ -133,9 +243,9 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
     >
       <NodeResizer
         isVisible={Boolean(selected || data.isEditing) && !data.readOnly}
-        minWidth={data.isEditing ? 360 : (effectiveResize.mode === 'branch' ? 22 : 77)}
+        minWidth={data.isEditing ? 360 : effectiveResize.mode === 'branch' ? 22 : 77}
         maxWidth={data.isEditing ? 1400 : 560}
-        minHeight={data.isEditing ? 200 : (effectiveResize.mode === 'branch' ? 16 : 36)}
+        minHeight={data.isEditing ? 200 : effectiveResize.mode === 'branch' ? 16 : 36}
         maxHeight={data.isEditing ? 1000 : 380}
         keepAspectRatio={!data.isEditing && effectiveResize.isProportional}
         lineClassName="wst-resizer-line"
@@ -239,6 +349,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         )}
       {data.isEditing ? (
         <div
+          ref={editorContainerRef}
           className="wst-card-editor nodrag nopan nowheel"
           onClick={(event) => event.stopPropagation()}
           onDoubleClick={(event) => event.stopPropagation()}
@@ -252,9 +363,10 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                data.onCommitEdit?.(id, titleDraft.trim() || data.title, noteDraft, draftAssets);
+                commitCurrentDraft();
               } else if (event.key === 'Escape') {
                 event.preventDefault();
+                isCancellingRef.current = true;
                 data.onCancelEdit?.();
               }
             }}
@@ -264,37 +376,46 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             assets={data.assets}
             onChange={(val) => setNoteDraft(val)}
             onAssetsChange={(assets) => setDraftAssets(assets)}
-            onSave={(assets) =>
-              data.onCommitEdit?.(
-                id,
-                titleDraft.trim() || data.title,
-                noteDraft,
-                assets ?? draftAssets,
-              )
-            }
-            onCancel={() => data.onCancelEdit?.()}
+            onSave={(assets) => {
+              if (assets) {
+                draftAssetsRef.current = assets;
+                setDraftAssets(assets);
+              }
+              commitCurrentDraft();
+            }}
+            onCancel={() => {
+              isCancellingRef.current = true;
+              data.onCancelEdit?.();
+            }}
             autoFocus={false}
             placeholder="例如 - [ ] 核对招募条件 #招募"
           />
           <div className="wst-card-edit-actions">
+            {data.autoSaveEnabled && (
+              <div
+                className="wst-card-autosave-tip"
+                title="离开节点自动保存；持续编辑期间每5秒自动保存"
+              >
+                <span className="wst-card-autosave-dot" /> 自动保存已开启
+              </div>
+            )}
             <button
               type="button"
               className="wst-card-btn-cancel"
-              onClick={() => data.onCancelEdit?.()}
+              onPointerDown={() => {
+                isCancellingRef.current = true;
+              }}
+              onClick={() => {
+                isCancellingRef.current = true;
+                data.onCancelEdit?.();
+              }}
             >
               取消
             </button>
             <button
               type="button"
               className="wst-card-btn-save"
-              onClick={() =>
-                data.onCommitEdit?.(
-                  id,
-                  titleDraft.trim() || data.title,
-                  noteDraft,
-                  draftAssets,
-                )
-              }
+              onClick={() => commitCurrentDraft()}
             >
               保存
             </button>

@@ -49,6 +49,7 @@ type NodePanelProps = {
   guard: Guard;
   direction?: LayoutDirection;
   onLocate?: (id: string) => void;
+  autoSave?: boolean;
 };
 
 interface InspectorProps {
@@ -69,9 +70,10 @@ interface InspectorProps {
   onScaleApply: (id: string, kind: ScaleKind, value: number) => void;
   onDelete?: () => void;
   onEditOnCanvas?: (id: string) => void;
+  autoSave?: boolean;
 }
 
-function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProps) {
+function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: NodePanelProps) {
   const note = getNodeNote(file.domain, node.id);
   const [titleDraft, setTitleDraft] = useState(node.title);
   const [noteDraft, setNoteDraft] = useState(note);
@@ -85,6 +87,31 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
 
   useEffect(() => setTitleDraft(node.title), [node.title]);
   useEffect(() => setNoteDraft(note), [note]);
+
+  useEffect(() => {
+    if (!editingNote || !autoSave) return;
+    const timer = setInterval(() => {
+      if (noteDraft !== note || Object.keys(draftAssets).length > 0) {
+        guard(async () => {
+          await controller.run(setNodeNoteEntry(file.domain, node.id, noteDraft, draftAssets));
+          if (!controller.getSnapshot().error) {
+            setDraftAssets({});
+          }
+        });
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [
+    editingNote,
+    autoSave,
+    noteDraft,
+    note,
+    draftAssets,
+    file.domain,
+    node.id,
+    controller,
+    guard,
+  ]);
 
   function saveNote(assets?: Record<string, AssetRecord>) {
     const assetsToCommit = assets ?? draftAssets;
@@ -120,6 +147,11 @@ function NodeOverview({ file, node, controller, guard, onLocate }: NodePanelProp
                 data-testid="node-title"
                 value={titleDraft}
                 onChange={(event) => setTitleDraft(event.target.value)}
+                onBlur={() => {
+                  if (autoSave && title && title !== node.title) {
+                    guard(() => controller.run(renameNodeEntry(file.domain, node.id, title)));
+                  }
+                }}
               />
               {title && title !== node.title && (
                 <button className="wst-tool is-accent" type="submit">
@@ -659,6 +691,7 @@ export default function WorkspaceInspector(props: InspectorProps) {
     guard: props.guard,
     direction: props.direction,
     onLocate: props.onLocate,
+    autoSave: props.autoSave,
   };
   const parent = node && file.domain.nodes.find((item) => item.id === node.parentId);
 

@@ -538,6 +538,24 @@ input[type='date'] {
   border-color: #1d4ed8 !important;
 }
 
+.wst-card-autosave-tip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+  margin-right: auto;
+  user-select: none;
+}
+
+.wst-card-autosave-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+}
+
 .wst-card-btn-cancel {
   background: #f8fafc !important;
   border-color: #cbd5e1 !important;
@@ -925,6 +943,126 @@ input[type='date'] {
   padding: 18px 20px;
   overflow-y: auto;
   flex: 1;
+}
+
+.wst-settings-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.wst-settings-tab-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wst-settings-tab-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.wst-settings-tab-btn.is-active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.wst-setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.wst-setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wst-setting-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.wst-setting-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.wst-switch-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wst-switch-status {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.wst-switch-status.is-active {
+  color: #2563eb;
+}
+
+.wst-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #cbd5e1;
+  border-radius: 12px;
+  cursor: pointer;
+  border: none;
+  padding: 2px;
+  transition: background-color 0.2s ease;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.wst-switch:focus-visible {
+  box-shadow: 0 0 0 2px #93c5fd;
+}
+
+.wst-switch.is-checked {
+  background: #2563eb;
+}
+
+.wst-switch-thumb {
+  width: 20px;
+  height: 20px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+  display: block;
+  transform: translateX(0);
+}
+
+.wst-switch.is-checked .wst-switch-thumb {
+  transform: translateX(20px);
 }
 
 .wst-settings-desc {

@@ -33,13 +33,7 @@ import {
   type VisualEdge,
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
-import {
-  FILE_SUFFIX,
-  type AssetRecord,
-  type BranchFile,
-  type Edge,
-  type HierarchyEdgeRole,
-} from '@workspacetree/schema';
+import type { AssetRecord, BranchFile, Edge, HierarchyEdgeRole } from '@workspacetree/schema';
 import { createBrowserStorageAdapter, type IdbJsonStorageAdapter } from '@workspacetree/storage';
 import {
   lazy,
@@ -71,6 +65,7 @@ import { branchSnapshotHash, openBranchFile } from './open-branch-file';
 import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from './branch-editing';
 import { reconnectEdgeEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
+import { loadSettings, type WorkspaceSettings } from './settings';
 import SettingsModal from './SettingsModal';
 import ProjectsModal from './ProjectsModal';
 import SaveProjectModal from './SaveProjectModal';
@@ -246,6 +241,7 @@ export default function App() {
   const [keybindings, setKeybindings] = useState<Record<KeybindingAction, string>>(() =>
     loadKeybindings(),
   );
+  const [settings, setSettings] = useState<WorkspaceSettings>(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -482,6 +478,25 @@ export default function App() {
     [controller, file, guard],
   );
 
+  const handleAutoSave = useCallback(
+    (id: string, nextTitle: string, nextNote: string, nextAssets?: Record<string, AssetRecord>) => {
+      if (!controller || !file) return;
+      const currentNode = file.domain.nodes.find((item) => item.id === id);
+      if (!currentNode) return;
+      const currentNote = getNodeNote(file.domain, id);
+      guard(async () => {
+        if (nextTitle && nextTitle !== currentNode.title) {
+          await controller.run(renameNodeEntry(file.domain, id, nextTitle));
+        }
+        if (nextNote !== currentNote || (nextAssets && Object.keys(nextAssets).length > 0)) {
+          const latest = controller.getSnapshot().file.domain;
+          await controller.run(setNodeNoteEntry(latest, id, nextNote, nextAssets));
+        }
+      });
+    },
+    [controller, file, guard],
+  );
+
   const handleResizeBox = useCallback(
     (id: string, width: number, height: number) => {
       if (!controller || !file) return;
@@ -647,9 +662,12 @@ export default function App() {
           },
           onStartEdit: handleStartEdit,
           onCommitEdit: handleCommitEdit,
+          onAutoSave: handleAutoSave,
           onCancelEdit: handleCancelEdit,
           onResizeBox: handleResizeBox,
           onResizeScale: handleResizeScale,
+          autoSaveEnabled: settings.autoSaveNode,
+          autoSaveInterval: settings.autoSaveInterval,
         },
         selected: selectedSet.has(node.id),
       } satisfies CardNode;
@@ -724,10 +742,13 @@ export default function App() {
     resizeMode,
     handleStartEdit,
     handleCommitEdit,
+    handleAutoSave,
     handleCancelEdit,
     handleResizeBox,
     handleResizeScale,
     keybindings,
+    settings.autoSaveNode,
+    settings.autoSaveInterval,
     controller,
     guard,
   ]);
@@ -2187,6 +2208,7 @@ export default function App() {
             setInspectorOverride(false);
             inspectorToggleRef.current?.focus();
           }}
+          autoSave={settings.autoSaveNode}
           onLocate={locateNode}
           onDelete={
             !readOnly && selectedNode?.id !== file.domain.project.rootNodeId
@@ -2239,8 +2261,10 @@ export default function App() {
 
       <SettingsModal
         open={settingsOpen}
+        settings={settings}
         keybindings={keybindings}
         onClose={() => setSettingsOpen(false)}
+        onChangeSettings={setSettings}
         onChangeKeybindings={setKeybindings}
       />
 

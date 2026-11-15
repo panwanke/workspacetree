@@ -481,7 +481,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                         props.onOpenSettings?.();
                       }}
                     >
-                      ⌨️ 调整快捷键设置
+                      <WorkspaceIcon name="sliders" size={15} /> 设置与快捷键
                     </button>
                   </>
                 )}
@@ -492,11 +492,13 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
             <button
               type="button"
               className="wst-tool"
-              aria-label="快捷键设置"
-              title="调整画布快捷键"
+              aria-label="设置与快捷键"
+              title="偏好设置与画布快捷键"
+              data-testid="toolbar-settings-btn"
               onClick={props.onOpenSettings}
             >
-              ⌨️ <span className="wst-tool-label">快捷键</span>
+              <WorkspaceIcon name="sliders" size={15} />{' '}
+              <span className="wst-tool-label">设置</span>
             </button>
           )}
         </div>

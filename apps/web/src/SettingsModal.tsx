@@ -6,20 +6,28 @@ import {
   saveKeybindings,
   type KeybindingAction,
 } from './keybindings';
+import { DEFAULT_SETTINGS, saveSettings, type WorkspaceSettings } from './settings';
 
-interface SettingsModalProps {
+export interface SettingsModalProps {
   open: boolean;
+  settings?: WorkspaceSettings;
   keybindings: Record<KeybindingAction, string>;
   onClose: () => void;
+  onChangeSettings?: (next: WorkspaceSettings) => void;
   onChangeKeybindings: (next: Record<KeybindingAction, string>) => void;
 }
 
+type SettingsTab = 'all' | 'general' | 'keybindings';
+
 export default function SettingsModal({
   open,
+  settings = DEFAULT_SETTINGS,
   keybindings,
   onClose,
+  onChangeSettings,
   onChangeKeybindings,
 }: SettingsModalProps) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('all');
   const [recordingAction, setRecordingAction] = useState<KeybindingAction | null>(null);
 
   useEffect(() => {
@@ -58,12 +66,25 @@ export default function SettingsModal({
     (act) => DEFAULT_KEYBINDINGS[act].category === 'drag',
   );
 
+  function handleToggleAutoSave() {
+    const next: WorkspaceSettings = {
+      ...settings,
+      autoSaveNode: !settings.autoSaveNode,
+    };
+    onChangeSettings?.(next);
+    saveSettings(next);
+  }
+
   function handleResetAll() {
-    const next = Object.fromEntries(
+    const nextBindings = Object.fromEntries(
       Object.entries(DEFAULT_KEYBINDINGS).map(([k, v]) => [k, v.defaultKey]),
     ) as Record<KeybindingAction, string>;
-    onChangeKeybindings(next);
-    saveKeybindings(next);
+    onChangeKeybindings(nextBindings);
+    saveKeybindings(nextBindings);
+
+    const nextSettings = { ...DEFAULT_SETTINGS };
+    onChangeSettings?.(nextSettings);
+    saveSettings(nextSettings);
   }
 
   function handleResetOne(action: KeybindingAction) {
@@ -131,6 +152,9 @@ export default function SettingsModal({
     );
   };
 
+  const showGeneral = activeTab === 'all' || activeTab === 'general';
+  const showKeybindings = activeTab === 'all' || activeTab === 'keybindings';
+
   return (
     <div
       className="wst-modal-backdrop"
@@ -148,7 +172,7 @@ export default function SettingsModal({
       >
         <div className="wst-modal-header">
           <h2 id="settings-modal-title">
-            <WorkspaceIcon name="sliders" size={18} /> 画布快捷键与修饰键设置
+            <WorkspaceIcon name="sliders" size={18} /> 设置与快捷键
           </h2>
           <button
             type="button"
@@ -161,20 +185,87 @@ export default function SettingsModal({
         </div>
 
         <div className="wst-modal-body">
-          <p className="wst-settings-desc">
-            点击按键框后直接按下键盘新键即可修改，或点击预设修饰键标签快速切换。
-          </p>
-
-          <div className="wst-keybindings-section-title">常用画布快捷键</div>
-          <div className="wst-keybindings-list">{canvasActions.map(renderRow)}</div>
-
-          <div className="wst-keybindings-section-title" style={{ marginTop: 20 }}>
-            节点四角拖拽缩放修饰键
+          <div className="wst-settings-tabs" role="tablist" aria-label="设置类别">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'all'}
+              className={`wst-settings-tab-btn${activeTab === 'all' ? ' is-active' : ''}`}
+              onClick={() => setActiveTab('all')}
+            >
+              全部设置
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'general'}
+              className={`wst-settings-tab-btn${activeTab === 'general' ? ' is-active' : ''}`}
+              onClick={() => setActiveTab('general')}
+            >
+              通用 / 节点编辑
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'keybindings'}
+              className={`wst-settings-tab-btn${activeTab === 'keybindings' ? ' is-active' : ''}`}
+              onClick={() => setActiveTab('keybindings')}
+            >
+              快捷键修改
+            </button>
           </div>
-          <p className="wst-settings-desc" style={{ marginBottom: 10 }}>
-            拖动选中节点的四角调整大小时，按住以下修饰键触发不同的缩放行为。
-          </p>
-          <div className="wst-keybindings-list">{dragActions.map(renderRow)}</div>
+
+          {showGeneral && (
+            <div className="wst-settings-section" style={{ marginBottom: 20 }}>
+              <div className="wst-keybindings-section-title">节点编辑与自动保存</div>
+              <p className="wst-settings-desc">
+                控制卡片节点在编辑过程中的保存策略，开启后无需反复手动点击保存按钮。
+              </p>
+
+              <div className="wst-setting-item">
+                <div className="wst-setting-info">
+                  <span className="wst-setting-title">离开节点自动保存 / 每 5s 自动保存</span>
+                  <span className="wst-setting-desc">
+                    编辑节点时，移出节点或点击画布空白处自动保存；持续编辑期间每 5
+                    秒自动保存草稿以防意外丢失。
+                  </span>
+                </div>
+                <div className="wst-switch-control">
+                  <span className={`wst-switch-status${settings.autoSaveNode ? ' is-active' : ''}`}>
+                    {settings.autoSaveNode ? '已开启' : '已关闭'}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.autoSaveNode}
+                    aria-label="切换离开或每5秒自动保存"
+                    className={`wst-switch${settings.autoSaveNode ? ' is-checked' : ''}`}
+                    onClick={handleToggleAutoSave}
+                  >
+                    <span className="wst-switch-thumb" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showKeybindings && (
+            <div className="wst-settings-section">
+              <div className="wst-keybindings-section-title">常用画布快捷键</div>
+              <p className="wst-settings-desc">
+                点击按键框后直接按下键盘新键即可修改，或点击预设修饰键标签快速切换。
+              </p>
+              <div className="wst-keybindings-list">{canvasActions.map(renderRow)}</div>
+
+              <div className="wst-keybindings-section-title" style={{ marginTop: 20 }}>
+                节点四角拖拽缩放修饰键
+              </div>
+              <p className="wst-settings-desc" style={{ marginBottom: 10 }}>
+                拖动选中节点的四角调整大小时，按住以下修饰键触发不同的缩放行为。
+              </p>
+              <div className="wst-keybindings-list">{dragActions.map(renderRow)}</div>
+            </div>
+          )}
         </div>
 
         <div className="wst-modal-footer">
