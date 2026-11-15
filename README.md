@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/web/public/icon-192.png" width="100" height="100" alt="WorkspaceTree Logo" />
+</p>
+
 # WorkspaceTree
 
 > [中文版](README_zh.md) | [Live demo](https://panwanke.github.io/workspacetree/)
@@ -20,7 +24,7 @@ Both views support horizontal and vertical layouts. Undated parent nodes are pos
 - Create, move, copy, cut, paste and collapse branches, including across project tabs.
 - Real-time Markdown live editing & preview with CodeMirror 6, formatting shortcuts, Callouts and 5-state tasks (`[ ]`, `[x]`, `[-]`, `[~]`, `[?]`).
 - Self-contained image embedding with SHA-256 deduplication, automatic Worker compression (1 MiB / 2048 px threshold) and drag-to-resize relative width (`{width=X%}`).
-- Edit node dates, Markdown notes, tags, tasks, sizes and connections.
+- Edit node dates, Markdown notes, tags, tasks, sizes and connections, with auto-save on blur and 5-second draft backup.
 - Browse tasks by branch and locate nodes using the date directory.
 - Switch between 2D and 3D, highlight paths and export SVG.
 - Import and export .branch.json files. Ctrl+S or ⌘S downloads the current project.

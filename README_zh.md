@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/web/public/icon-192.png" width="100" height="100" alt="WorkspaceTree Logo" />
+</p>
+
 # WorkspaceTree
 
 > [English](README.md) | [在线演示](https://panwanke.github.io/workspacetree/)
@@ -20,7 +24,7 @@ WorkspaceTree 是一个浏览器项目画布，用树状节点组织工作，结
 - 创建、移动、复制、剪切、粘贴和折叠分支，支持跨项目标签页操作。
 - 基于 CodeMirror 6 的 Markdown 实时编辑与预览，支持快捷键格式化、Callout 提示框与 5 态任务体系（`[ ]`、`[x]`、`[-]`、`[~]`、`[?]`）。
 - 项目自包含图片嵌入、SHA-256 去重、Worker 自动压缩（超 1 MiB / 2048 px 触发）与拖拽相对宽度缩放（`{width=X%}`）。
-- 编辑节点日期、Markdown 笔记、标签、任务、尺寸和连线。
+- 编辑节点日期、Markdown 笔记、标签、任务、尺寸和连线，支持失焦/离开节点与 5 秒定时自动保存。
 - 按分支汇总任务，通过日期目录定位节点。
 - 切换 2D 与 3D 视图，高亮主干并导出 SVG。
 - 导入和导出 .branch.json，按 Ctrl+S / ⌘S 下载当前项目文件。
