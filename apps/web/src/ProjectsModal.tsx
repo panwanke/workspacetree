@@ -1,11 +1,13 @@
-import type { IdbJsonStorageAdapter, StoredProjectSummary } from '@workspacetree/storage';
+import type { StoredProjectSummary } from '@workspacetree/storage';
 import { useCallback, useEffect, useState } from 'react';
 import { WorkspaceIcon } from './WorkspaceIcon';
+import type { ProjectStorePort } from './cloud/ports';
 
 interface ProjectsModalProps {
   open: boolean;
   onClose: () => void;
-  storage: IdbJsonStorageAdapter | null;
+  storage: ProjectStorePort | null;
+  scope?: 'local' | 'account';
   openProjectIds: string[];
   onOpenProject: (projectId: string) => Promise<void>;
   onCreateProject: () => Promise<void>;
@@ -17,6 +19,7 @@ export default function ProjectsModal({
   open,
   onClose,
   storage,
+  scope = 'local',
   openProjectIds,
   onOpenProject,
   onCreateProject,
@@ -113,7 +116,8 @@ export default function ProjectsModal({
       <div className="wst-settings-modal wst-projects-modal">
         <div className="wst-modal-header">
           <h2 id="projects-modal-title">
-            <WorkspaceIcon name="folder" size={18} /> 本地项目管理
+            <WorkspaceIcon name="folder" size={18} />{' '}
+            {scope === 'account' ? '账号项目管理' : '本地项目管理'}
           </h2>
           <button
             type="button"
@@ -128,7 +132,9 @@ export default function ProjectsModal({
         <div className="wst-modal-body">
           <div className="wst-projects-toolbar">
             <p className="wst-settings-desc" style={{ margin: 0 }}>
-              浏览并切换已保存在浏览器本地（IndexedDB）中的项目分支。
+              {scope === 'account'
+                ? '浏览并切换保存在当前账号下的项目分支，可按账号跨设备继续。'
+                : '浏览并切换已保存在浏览器本地（IndexedDB）中的项目分支。'}
             </p>
             <button
               type="button"
@@ -145,9 +151,13 @@ export default function ProjectsModal({
           {error && <div className="wst-modal-error">{error}</div>}
 
           {loading ? (
-            <div className="wst-projects-loading">正在读取本地存储项目…</div>
+            <div className="wst-projects-loading">
+              正在读取{scope === 'account' ? '账号云端' : '浏览器本地'}项目…
+            </div>
           ) : projects.length === 0 ? (
-            <div className="wst-projects-empty">本地暂无保存的项目记录</div>
+            <div className="wst-projects-empty">
+              {scope === 'account' ? '当前账号下暂无保存的项目' : '本地暂无保存的项目记录'}
+            </div>
           ) : (
             <div className="wst-projects-list">
               {projects.map((p) => {
@@ -232,7 +242,9 @@ export default function ProjectsModal({
         </div>
 
         <div className="wst-modal-footer">
-          <span className="wst-projects-count">共 {projects.length} 个本地保存项目</span>
+          <span className="wst-projects-count">
+            共 {projects.length} 个{scope === 'account' ? '账号' : '本地'}保存项目
+          </span>
           <button type="button" className="wst-tool is-primary" onClick={onClose}>
             完成
           </button>

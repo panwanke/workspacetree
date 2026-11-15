@@ -34,7 +34,15 @@ import {
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
 import type { AssetRecord, BranchFile, Edge, HierarchyEdgeRole } from '@workspacetree/schema';
-import { createBrowserStorageAdapter, type IdbJsonStorageAdapter } from '@workspacetree/storage';
+import LoginModal from './LoginModal';
+import { createAccountService, type AccountSnapshot } from './cloud/account';
+import type { ProjectStorePort } from './cloud/ports';
+import {
+  createWorkspaceStorage,
+  scopedSessionKey,
+  storageScopeFor,
+  type StorageScope,
+} from './workspace-storage';
 import {
   lazy,
   Suspense,
@@ -183,7 +191,12 @@ export interface WorkspaceTab {
 }
 
 export default function App() {
-  const storageRef = useRef<IdbJsonStorageAdapter | null>(null);
+  const storageRef = useRef<ProjectStorePort | null>(null);
+  const accountService = useMemo(() => createAccountService(), []);
+  const [account, setAccount] = useState<AccountSnapshot>(() => accountService.snapshot());
+  const [storageScope, setStorageScope] = useState<StorageScope>('local');
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [cloudNotice, setCloudNotice] = useState<string | null>(null);
   const flowApiRef = useRef<FlowViewportAPI | null>(null);
   const [tabs, setTabs] = useState<WorkspaceTab[]>([]);
   const tabsRef = useRef(tabs);
@@ -255,24 +268,50 @@ export default function App() {
   const [editingTabTitle, setEditingTabTitle] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const booted = useRef(false);
+  const accountReloadPending = useRef(false);
+
+  /** 登录/登出后刷新：所有 EditorController 都持有 storage 引用，必须重建。 */
+  const handleAccountChanged = useCallback((message?: string) => {
+    if (message) setCloudNotice(message);
+    // SDK 的 SIGNED_OUT 事件与按钮操作可能在同一轮触发，重载只调度一次。
+    if (accountReloadPending.current) return;
+    accountReloadPending.current = true;
+    window.location.reload();
+  }, []);
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
 
   useEffect(() => {
-    if (!booted.current || tabs.length === 0) return;
-    saveWorkspaceSession({
-      tabs: tabs.map((t) => ({
-        id: t.id,
-        projectId: t.projectId,
-        title: t.title,
-        branchName: t.branchName,
-        readOnly: t.controller.isReadOnly,
-      })),
-      activeTabId,
+    // SDK 会回放 INITIAL_SESSION / TOKEN_REFRESHED；只有已登录态被外部（如另一标签页登出）
+    // 撤销时才重载页面，重建持有旧账号 storage 引用的所有控制器。
+    let lastStatus = accountService.snapshot().status;
+    return accountService.subscribe((next) => {
+      setAccount(next);
+      if (booted.current && lastStatus === 'signed-in' && next.status !== 'signed-in') {
+        handleAccountChanged();
+      }
+      lastStatus = next.status;
     });
-  }, [tabs, activeTabId]);
+  }, [accountService, handleAccountChanged]);
+
+  useEffect(() => {
+    if (!booted.current || tabs.length === 0) return;
+    saveWorkspaceSession(
+      {
+        tabs: tabs.map((t) => ({
+          id: t.id,
+          projectId: t.projectId,
+          title: t.title,
+          branchName: t.branchName,
+          readOnly: t.controller.isReadOnly,
+        })),
+        activeTabId,
+      },
+      scopedSessionKey(storageScope),
+    );
+  }, [tabs, activeTabId, storageScope]);
 
   useEffect(() => {
     if (selectedNodeIds.length > 0) {
@@ -297,20 +336,33 @@ export default function App() {
     booted.current = true;
     void (async () => {
       try {
-        const storage = await createBrowserStorageAdapter();
+        // OAuth 回调分发必须在任何登录守卫之前执行，且成功后清理 URL 上一次性参数。
+        const callback = await accountService.handleCallback(window.location.href);
+        if (callback.cleanHref) {
+          window.history.replaceState(null, '', callback.cleanHref);
+        }
+        if (callback.message) setCloudNotice(callback.message);
+        const snapshot = callback.handled
+          ? accountService.snapshot()
+          : await accountService.restoreSession();
+        setAccount(snapshot);
+
+        const scope = storageScopeFor(snapshot);
+        setStorageScope(scope);
+        const storage = await createWorkspaceStorage(scope);
         storageRef.current = storage;
 
-        const session = loadWorkspaceSession();
+        const session = loadWorkspaceSession(scopedSessionKey(scope));
         let loadedTabs: WorkspaceTab[] = [];
 
-        // 清理旧版本演示项目
-        try {
-          if (typeof (storage as any).clear === 'function') {
-            await (storage as any).clear('prj_thesis_demo_v3');
-            await (storage as any).clear('prj_thesis_demo');
+        // 清理旧版本演示项目（只对本地空间执行，云端没有这些历史 id）
+        if (scope === 'local') {
+          try {
+            await storage.clear('prj_thesis_demo_v3');
+            await storage.clear('prj_thesis_demo');
+          } catch (e) {
+            console.warn('Failed to clean legacy demo projects:', e);
           }
-        } catch (e) {
-          console.warn('Failed to clean legacy demo projects:', e);
         }
 
         const validSessionTabs = (session?.tabs || []).filter(
@@ -340,7 +392,12 @@ export default function App() {
         }
 
         if (loadedTabs.length === 0) {
-          const editor = await EditorController.bootstrap(storage, createDemoBranchFile);
+          const editor = await EditorController.bootstrap(
+            storage,
+            scope === 'account'
+              ? () => createEmptyBranchFile('我的项目', 'main')
+              : createDemoBranchFile,
+          );
           const demoTab: WorkspaceTab = {
             id: makeId('tab_'),
             title: editor.getSnapshot().file.domain.project.title || '演示项目',
@@ -1056,7 +1113,12 @@ export default function App() {
       if (openTabsForProject.length > 0) {
         const remainingTabs = tabsRef.current.filter((t) => t.projectId !== projectId);
         if (remainingTabs.length === 0) {
-          const demo = await EditorController.bootstrap(storage, createDemoBranchFile);
+          const demo = await EditorController.bootstrap(
+            storage,
+            storageScope === 'account'
+              ? () => createEmptyBranchFile('我的项目', 'main')
+              : createDemoBranchFile,
+          );
           const demoTab: WorkspaceTab = {
             id: makeId('tab_'),
             title: demo.getSnapshot().file.domain.project.title || '演示项目',
@@ -1076,7 +1138,7 @@ export default function App() {
         }
       }
     },
-    [activeTabId],
+    [activeTabId, storageScope],
   );
 
   function deleteNode(): void {
@@ -1710,11 +1772,25 @@ export default function App() {
         <button
           type="button"
           className="wst-tab-projects-btn"
-          title="管理本地项目"
-          aria-label="管理本地项目"
+          title={storageScope === 'account' ? '管理账号项目' : '管理本地项目'}
+          aria-label={storageScope === 'account' ? '管理账号项目' : '管理本地项目'}
           onClick={() => setProjectsOpen(true)}
         >
           <WorkspaceIcon name="folder" size={14} />
+        </button>
+        <button
+          type="button"
+          className="wst-tab-projects-btn wst-account-btn"
+          title={
+            account.status === 'signed-in'
+              ? `已登录：${account.identity?.label ?? ''}`
+              : '登录账号，项目将保存到账号中'
+          }
+          aria-label="账号与项目空间"
+          onClick={() => setLoginOpen(true)}
+        >
+          <WorkspaceIcon name="panel" size={14} />
+          <span>{account.status === 'signed-in' ? account.identity?.label : '登录'}</span>
         </button>
       </div>
       <WorkspaceToolbar
@@ -2428,6 +2504,14 @@ export default function App() {
             {uiError ?? snapshot.error}
           </span>
         )}
+        {cloudNotice && (
+          <span className="wst-scope-badge" role="status">
+            {cloudNotice}
+          </span>
+        )}
+        <span className="wst-scope-badge" data-testid="storage-scope">
+          {storageScope === 'account' ? '账号云端项目' : '本地浏览器项目'}
+        </span>
       </footer>
 
       <SettingsModal
@@ -2443,6 +2527,7 @@ export default function App() {
         open={projectsOpen}
         onClose={() => setProjectsOpen(false)}
         storage={storageRef.current}
+        scope={storageScope}
         openProjectIds={tabs.map((t) => t.projectId)}
         onOpenProject={handleOpenProjectById}
         onCreateProject={handleNewTab}
@@ -2464,6 +2549,15 @@ export default function App() {
         onClose={() => setSearchOpen(false)}
         domain={file.domain}
         onSelectNode={(nodeId) => locateProjectNode(nodeId, true)}
+      />
+
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        service={accountService}
+        snapshot={account}
+        scope={storageScope}
+        onAccountChanged={handleAccountChanged}
       />
     </div>
   );

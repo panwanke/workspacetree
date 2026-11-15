@@ -24,11 +24,13 @@ function getStorage(): Storage | null {
   return null;
 }
 
-export function loadWorkspaceSession(): SavedWorkspaceSession | null {
+export function loadWorkspaceSession(
+  key: string = WORKSPACE_SESSION_STORAGE_KEY,
+): SavedWorkspaceSession | null {
   const storage = getStorage();
   if (!storage) return null;
   try {
-    const raw = storage.getItem(WORKSPACE_SESSION_STORAGE_KEY);
+    const raw = storage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SavedWorkspaceSession;
     if (
@@ -45,21 +47,24 @@ export function loadWorkspaceSession(): SavedWorkspaceSession | null {
   return null;
 }
 
-export function saveWorkspaceSession(session: SavedWorkspaceSession): void {
+export function saveWorkspaceSession(
+  session: SavedWorkspaceSession,
+  key: string = WORKSPACE_SESSION_STORAGE_KEY,
+): void {
   const storage = getStorage();
   if (!storage) return;
   try {
-    storage.setItem(WORKSPACE_SESSION_STORAGE_KEY, JSON.stringify(session));
+    storage.setItem(key, JSON.stringify(session));
   } catch (error) {
     console.warn('Failed to save workspace session:', error);
   }
 }
 
-export function clearWorkspaceSession(): void {
+export function clearWorkspaceSession(key: string = WORKSPACE_SESSION_STORAGE_KEY): void {
   const storage = getStorage();
   if (!storage) return;
   try {
-    storage.removeItem(WORKSPACE_SESSION_STORAGE_KEY);
+    storage.removeItem(key);
   } catch (error) {
     console.warn('Failed to clear workspace session:', error);
   }

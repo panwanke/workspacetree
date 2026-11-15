@@ -7,3 +7,6 @@ coverage/
 
 apps/web/public/sql-wasm.wasm
 .workbuddy/
+
+# ara/ 为本地治理/目标文档区，整个目录不入库（与代码仓库分离）
+/ara/

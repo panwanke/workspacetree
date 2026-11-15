@@ -8,7 +8,7 @@ import {
 } from '@workspacetree/core';
 import { resolveLayoutDirection } from '@workspacetree/layout';
 import { BranchFileSchema, type BranchFile } from '@workspacetree/schema';
-import type { IdbJsonStorageAdapter } from '@workspacetree/storage';
+import type { ProjectStorePort } from './cloud/ports';
 
 export function branchSnapshotHash(file: BranchFile): string {
   const presentation = {
@@ -28,7 +28,7 @@ export function branchSnapshotHash(file: BranchFile): string {
 
 export async function openBranchFile(
   input: Pick<File, 'name' | 'text'>,
-  storage: Pick<IdbJsonStorageAdapter, 'createIfAbsent'>,
+  storage: Pick<ProjectStorePort, 'createIfAbsent'>,
 ): Promise<{ file: BranchFile; readOnly: boolean; snapshotHash: string }> {
   try {
     if (!input.name.toLowerCase().endsWith('.json'))

@@ -53,6 +53,20 @@ Both views support horizontal and vertical layouts. Undated parent nodes are pos
 - Switch between 2D and 3D, highlight paths and export SVG.
 - Import and export .branch.json files. Ctrl+S or ⌘S downloads the current project.
 - Store project snapshots locally in the browser using IndexedDB.
+- Optional account sign-in (phone OTP / WorkBuddy account / WeChat QR) with per-account cloud projects; without cloud configuration the app stays fully local.
+
+## Accounts & cloud projects (code ready, deployment pending)
+
+The account layer is implemented but **not activated yet**. `apps/web/src/cloud/public-config.ts` is intentionally empty, so every build — including the GitHub Pages demo — keeps using the local IndexedDB guest mode, and the account panel explains that cloud service is not configured. No fake users or fake sessions are created.
+
+To enable it in a later deployment:
+
+1. Activate the WorkBuddy Cloud Service for this app and copy `endpoint`, `oauthRelayBaseUrl` and `publishableKey` into `apps/web/src/cloud/public-config.ts`.
+2. Run [`docs/cloud-schema.sql`](docs/cloud-schema.sql) in the cloud SQL editor to create `public.workspacetree_projects` with row-level security. The client never sends `owner_id`; RLS derives it from `auth.uid()`.
+3. Deploy on the WorkBuddy published HTTPS origin. A `publishableKey` is bound to an exact Origin, so a `github.io` build cannot sign in — keep GitHub Pages as the local/guest demo.
+4. Rebuild, then verify real sign-in, save/read-back and a permission failure path. OAuth callbacks must land on the site root (`BASE_URL`) in the same tab; the WorkBuddy flow carries its PKCE verifier in that tab's `sessionStorage`.
+
+Signed-in users get an account-scoped project store and separate tab-session keys. Signing in or out reloads the page because every `EditorController` holds a storage reference; an external sign-out from another tab also triggers this reload. Existing local projects are **not** migrated automatically — export and re-import `.branch.json` to move them into an account.
 
 ## Quick start
 
@@ -75,7 +89,7 @@ See the [change index](CHANGELOG.md).
 
 ## Technology
 
-React, TypeScript, Vite, React Flow, Three.js, Zod, pnpm workspaces and IndexedDB.
+React, TypeScript, Vite, React Flow, Three.js, Zod, pnpm workspaces, IndexedDB and the WorkBuddy Cloud SDK (Auth + Database with row-level security).
 
 ## License
 

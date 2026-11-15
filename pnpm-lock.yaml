@@ -68,6 +68,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.15
         version: 6.43.15
+      '@tencent-ai/workbuddy-cloud-sdk':
+        specifier: 0.1.4-dev.ca27990.202610161713
+        version: 0.1.4-dev.ca27990.202610161713
       '@workspacetree/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -693,6 +696,10 @@ packages:
 
   '@rolldown/pluginutils@1.1.0':
     resolution: {integrity: sha512-K+NU2HDCEem4sClgHH4ZZXwdJeNFkJo+hRk479DIwdIviAPN2hFJH1KHHwg8CxHQXvi0M5XY4deTXINfIiSG6w==}
+
+  '@tencent-ai/workbuddy-cloud-sdk@0.1.4-dev.ca27990.202610161713':
+    resolution: {integrity: sha512-HyrXFiilbYFxDGF5pvl1MhBYvE9QnK39uJjiiefX07k7ppl2UPKfl6KWaN9yIzD1DtAGycl3fXaYOzHmvlIMpg==}
+    engines: {node: '>=18'}
 
   '@tweenjs/tween.js@23.1.3':
     resolution: {integrity: sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA==}
@@ -1848,6 +1855,8 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.1.0': {}
+
+  '@tencent-ai/workbuddy-cloud-sdk@0.1.4-dev.ca27990.202610161713': {}
 
   '@tweenjs/tween.js@23.1.3': {}
 
