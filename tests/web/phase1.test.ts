@@ -14,6 +14,8 @@ import {
   clearPositionsEntry,
   createNodeEntry,
   createSpineEntry,
+  removeSpineEntry,
+  renameSpineEntry,
   deleteSubtreeEntry,
   DragCoalescer,
   moveEntry,
@@ -178,7 +180,33 @@ describe('T-33 Undo / Redo 反向命令栈', () => {
     expect(editor.getSnapshot().file.domain.spines.some((spine) => spine.id === 'spn_test')).toBe(
       true,
     );
+
+    // 重命名测试与撤销
+    await editor.run(
+      renameSpineEntry(editor.getSnapshot().file.domain, 'spn_test', '改名后的主干'),
+    );
+    expect(
+      editor.getSnapshot().file.domain.spines.find((spine) => spine.id === 'spn_test')?.title,
+    ).toBe('改名后的主干');
     await editor.undo();
+    expect(
+      editor.getSnapshot().file.domain.spines.find((spine) => spine.id === 'spn_test')?.title,
+    ).toBe('测试主干');
+    await editor.redo();
+    expect(
+      editor.getSnapshot().file.domain.spines.find((spine) => spine.id === 'spn_test')?.title,
+    ).toBe('改名后的主干');
+
+    // 删除测试与撤销
+    await editor.run(removeSpineEntry(editor.getSnapshot().file.domain, 'spn_test'));
+    expect(editor.getSnapshot().file.domain.spines.some((spine) => spine.id === 'spn_test')).toBe(
+      false,
+    );
+    await editor.undo();
+    expect(editor.getSnapshot().file.domain.spines.some((spine) => spine.id === 'spn_test')).toBe(
+      true,
+    );
+    await editor.redo();
     expect(editor.getSnapshot().file.domain.spines.some((spine) => spine.id === 'spn_test')).toBe(
       false,
     );

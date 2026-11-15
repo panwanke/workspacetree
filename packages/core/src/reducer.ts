@@ -57,6 +57,7 @@ export const DOMAIN_COMMAND_TYPES = new Set([
   'edge.setNote',
   'spine.add',
   'spine.remove',
+  'spine.rename',
   'spine.setNodes',
   'project.archive',
   'workspace.replace',
@@ -587,6 +588,16 @@ export function applyCommand(
       const payload = payloadOf(envelope, ['id']);
       const id = str(payload, 'id');
       nextDomain.spines = nextDomain.spines.filter((spine) => spine.id !== id);
+      break;
+    }
+    case 'spine.rename': {
+      const payload = payloadOf(envelope, ['id', 'title']);
+      const id = str(payload, 'id');
+      const title = str(payload, 'title').trim();
+      if (!title) throw new ValidationError('Spine title cannot be empty');
+      const spine = nextDomain.spines.find((item) => item.id === id);
+      if (!spine) throw new ValidationError(`unknown spine id: ${id}`);
+      spine.title = title;
       break;
     }
     case 'spine.setNodes': {

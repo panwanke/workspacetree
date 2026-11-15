@@ -371,6 +371,169 @@
   cursor: pointer;
 }
 
+.wst-branch-popover .wst-popover-content {
+  width: min(340px, calc(100vw - 24px));
+}
+
+.wst-tab-bar {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--wash, #f1f5f3);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.wst-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--muted, #64748b);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wst-tab-btn:hover {
+  color: var(--foreground, #1e293b);
+}
+
+.wst-tab-btn.is-active {
+  background: var(--surface, #ffffff);
+  color: var(--accent, #0f766e);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.wst-branch-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wst-branch-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.wst-branch-item:hover {
+  background: var(--wash, #f4f6f5);
+}
+
+.wst-branch-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wst-branch-item-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wst-branch-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.wst-branch-item-sub {
+  font-size: 10px;
+  color: var(--muted, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-branch-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.wst-branch-item:hover .wst-branch-actions {
+  opacity: 1;
+}
+
+.wst-branch-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted, #64748b);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.wst-branch-icon-btn:hover {
+  background: var(--wash, #e2e8e4);
+  color: var(--foreground, #1e293b);
+}
+
+.wst-branch-icon-btn.is-danger:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.wst-branch-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wst-branch-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.wst-branch-badge.is-independent {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.wst-inline-input {
+  width: 100%;
+  font-size: 12px;
+  padding: 2px 5px;
+  border: 1px solid var(--accent, #0f766e);
+  border-radius: 4px;
+  outline: none;
+  background: var(--surface, #ffffff);
+}
+
 .wst-spine-list {
   max-height: 200px;
   overflow: auto;

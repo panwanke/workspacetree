@@ -124,6 +124,64 @@ describe('T-07 纯函数 reducer', () => {
     ).toThrow(ValidationError);
   });
 
+  it('spine.add、spine.rename 与 spine.remove 正确工作', () => {
+    const file = createMinimalBranchFile();
+    const initialCount = file.domain.spines.length;
+    const addResult = applyCommand(
+      file.domain,
+      file.presentation,
+      envelope({
+        command: {
+          type: 'spine.add',
+          payload: { id: 'spn_test', title: '主干 1', nodeIds: ['n_root', 'n_child'] },
+        },
+      }),
+    );
+    expect(addResult.domain.spines).toHaveLength(initialCount + 1);
+    const added = addResult.domain.spines.find((s) => s.id === 'spn_test');
+    expect(added?.title).toBe('主干 1');
+
+    const renameResult = applyCommand(
+      addResult.domain,
+      addResult.presentation,
+      envelope({
+        command: {
+          type: 'spine.rename',
+          payload: { id: 'spn_test', title: '核心发表主线' },
+        },
+      }),
+    );
+    const renamed = renameResult.domain.spines.find((s) => s.id === 'spn_test');
+    expect(renamed?.title).toBe('核心发表主线');
+
+    // 空名称被拒
+    expect(() =>
+      applyCommand(
+        renameResult.domain,
+        renameResult.presentation,
+        envelope({
+          command: {
+            type: 'spine.rename',
+            payload: { id: 'spn_test', title: '   ' },
+          },
+        }),
+      ),
+    ).toThrow(ValidationError);
+
+    const removeResult = applyCommand(
+      renameResult.domain,
+      renameResult.presentation,
+      envelope({
+        command: {
+          type: 'spine.remove',
+          payload: { id: 'spn_test' },
+        },
+      }),
+    );
+    expect(removeResult.domain.spines).toHaveLength(initialCount);
+    expect(removeResult.domain.spines.some((s) => s.id === 'spn_test')).toBe(false);
+  });
+
   it('未知命令被拒', () => {
     const file = createMinimalBranchFile();
     expect(() =>

@@ -358,6 +358,23 @@ export function removeSpineEntry(domain: DomainState, spineId: string): HistoryE
   );
 }
 
+export function renameSpineEntry(
+  domain: DomainState,
+  spineId: string,
+  title: string,
+): HistoryEntry {
+  const spine = domain.spines.find((item) => item.id === spineId);
+  if (!spine) throw new Error(`unknown spine: ${spineId}`);
+  const nextTitle = title.trim();
+  if (!nextTitle) throw new Error('spine title cannot be empty');
+  return entry(
+    '重命名主干',
+    'domain',
+    [cmd('spine.rename', { id: spineId, title: nextTitle })],
+    [cmd('spine.rename', { id: spineId, title: spine.title })],
+  );
+}
+
 function moveCommand(nodeId: string, at: Point, direction: LayoutDirection): Command {
   return cmd('presentation.moveNode', { nodeId, x: at.x, y: at.y, direction });
 }

@@ -1,6 +1,7 @@
 import type { LayoutDirection, LayoutStrategy, MultiSpineHighlight } from '@workspacetree/layout';
 import type { BranchFile } from '@workspacetree/schema';
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import BranchManager from './BranchManager';
 import { WorkspaceIcon, type WorkspaceIconName } from './WorkspaceIcon';
 import appLogo from './assets/logo.svg';
 
@@ -115,6 +116,10 @@ interface ToolbarProps {
   onResetLayout: () => void;
   onFitView: () => void;
   onCreateSpine: () => void;
+  onRenameSpine?: (id: string, title: string) => void;
+  onRemoveSpine?: (id: string) => void;
+  onLocateNode?: (id: string) => void;
+  onCreateSpineForLeaf?: (leafNodeId: string, title: string) => void;
   onToggleSpine: (id: string) => void;
   onClearSpines: () => void;
   onToggleInspector: () => void;
@@ -446,55 +451,26 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
             label={highlighted ? `主干 · ${highlighted}` : '主干'}
             icon="route"
             testId="spine-menu"
+            className="wst-branch-popover"
             active={highlighted > 0}
           >
-            {() => (
-              <>
-                <div className="wst-popover-heading">主干高亮</div>
-                {domain.spines.length > 0 ? (
-                  <div className="wst-spine-list" role="group" aria-label="同时高亮多个主干">
-                    {domain.spines.map((spine) => (
-                      <label key={spine.id} className="wst-spine-option">
-                        <input
-                          type="checkbox"
-                          data-testid={`spine-${spine.id}`}
-                          checked={props.highlightSpineIds.includes(spine.id)}
-                          onChange={() => props.onToggleSpine(spine.id)}
-                        />
-                        <span>{spine.title}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="wst-muted">还没有主干。</p>
-                )}
-                {highlighted > 0 && (
-                  <p className="wst-spine-summary" data-testid="spine-summary">
-                    当前高亮 {highlighted} 条主干 · {props.highlight.nodeIds.length} 个节点 ·{' '}
-                    {props.highlight.edgeIds.length} 条连线
-                  </p>
-                )}
-                <div className="wst-menu-footer">
-                  <button
-                    type="button"
-                    className="wst-tool"
-                    data-testid="create-spine"
-                    disabled={props.readOnly}
-                    onClick={props.onCreateSpine}
-                  >
-                    <WorkspaceIcon name="plus" size={14} /> 创建主干
-                  </button>
-                  <button
-                    type="button"
-                    className="wst-tool"
-                    data-testid="clear-spines"
-                    disabled={!highlighted}
-                    onClick={props.onClearSpines}
-                  >
-                    清除高亮
-                  </button>
-                </div>
-              </>
+            {(close) => (
+              <BranchManager
+                domain={domain}
+                readOnly={props.readOnly}
+                highlightSpineIds={props.highlightSpineIds}
+                highlight={props.highlight}
+                onToggleSpine={props.onToggleSpine}
+                onClearSpines={props.onClearSpines}
+                onCreateSpine={props.onCreateSpine}
+                onRenameSpine={props.onRenameSpine ?? (() => {})}
+                onRemoveSpine={props.onRemoveSpine ?? (() => {})}
+                onLocateNode={(id) => {
+                  props.onLocateNode?.(id);
+                }}
+                onCreateSpineForLeaf={props.onCreateSpineForLeaf ?? (() => {})}
+                onClose={close}
+              />
             )}
           </WorkspacePopover>
           <WorkspacePopover label="画布设置" icon="sliders" testId="view-settings">

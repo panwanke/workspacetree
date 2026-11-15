@@ -77,6 +77,8 @@ import {
   clearPositionsEntry,
   createNodeEntry,
   createSpineEntry,
+  removeSpineEntry,
+  renameSpineEntry,
   deleteSubtreeEntry,
   getNodeNote,
   removeEdgeEntry,
@@ -1070,14 +1072,30 @@ export default function App() {
     setSelectedNodeId(null);
   }
 
-  function createSpine(): void {
-    if (!file) return;
-    const target = selectedNodeId ?? file.domain.project.rootNodeId;
+  function createSpine(targetNodeId?: string, customTitle?: string): void {
+    if (!file || !controller || readOnly) return;
+    const target = targetNodeId ?? selectedNodeId ?? file.domain.project.rootNodeId;
     const nodeIds = pathToRoot(file.domain.nodes, file.domain.edges, target);
     const id = makeId('spn_');
+    const title = customTitle ?? `主干 ${file.domain.spines.length + 1}`;
     guard(async () => {
-      await controller!.run(createSpineEntry(id, `主干 ${file.domain.spines.length + 1}`, nodeIds));
+      await controller.run(createSpineEntry(id, title, nodeIds));
       setHighlightSpineIds((current) => (current.includes(id) ? current : [...current, id]));
+    });
+  }
+
+  function renameSpine(id: string, title: string): void {
+    if (!file || !controller || readOnly) return;
+    guard(async () => {
+      await controller.run(renameSpineEntry(file.domain, id, title));
+    });
+  }
+
+  function removeSpine(id: string): void {
+    if (!file || !controller || readOnly) return;
+    guard(async () => {
+      await controller.run(removeSpineEntry(file.domain, id));
+      setHighlightSpineIds((current) => current.filter((item) => item !== id));
     });
   }
 
@@ -1715,7 +1733,11 @@ export default function App() {
           })
         }
         onFitView={() => setFitTrigger((value) => value + 1)}
-        onCreateSpine={createSpine}
+        onCreateSpine={() => createSpine()}
+        onRenameSpine={renameSpine}
+        onRemoveSpine={removeSpine}
+        onLocateNode={(id) => locateProjectNode(id, false)}
+        onCreateSpineForLeaf={(leafNodeId, title) => createSpine(leafNodeId, title)}
         onToggleSpine={(id) =>
           setHighlightSpineIds((current) =>
             current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
