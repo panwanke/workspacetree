@@ -129,6 +129,8 @@ interface ToolbarProps {
   onResetDemo: () => void;
   onOpenSettings?: () => void;
   onOpenProjects?: () => void;
+  onOpenSearch?: () => void;
+  searchShortcut?: string;
   onRenameProject?: (title: string) => void;
 }
 
@@ -245,6 +247,18 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
             <span data-testid="edge-count">{props.edgeCount} 条连线</span>
             <span data-testid="hidden-count">隐藏关联 {props.hiddenCount}</span>
           </div>
+          <a
+            href="https://github.com/panwanke/workspacetree"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="wst-github-star-badge"
+            title="在 GitHub 上查看源码并点亮 Star 支持我们 ⭐"
+            aria-label="GitHub 仓库与 Star"
+          >
+            <WorkspaceIcon name="github" size={15} />
+            <span className="wst-github-text">GitHub</span>
+            <span className="wst-github-star-tag">⭐ Star</span>
+          </a>
           <WorkspacePopover
             label="项目"
             icon="folder"
@@ -538,6 +552,18 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               </>
             )}
           </WorkspacePopover>
+          {props.onOpenSearch && (
+            <button
+              type="button"
+              className="wst-tool"
+              aria-label="搜索节点"
+              title={`搜索节点 (${props.searchShortcut || 'Ctrl+F'})`}
+              data-testid="toolbar-search-btn"
+              onClick={props.onOpenSearch}
+            >
+              <WorkspaceIcon name="search" size={15} /> <span className="wst-tool-label">搜索</span>
+            </button>
+          )}
           {props.onOpenSettings && (
             <button
               type="button"

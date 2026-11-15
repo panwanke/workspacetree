@@ -52,10 +52,12 @@ describe('keybindings matching & formatting', () => {
     expect(keys.deleteNode).toBe('Delete');
     expect(keys.addRandomBranch).toBe('r');
     expect(keys.saveBranch).toBe('Ctrl+S');
+    expect(keys.searchNodes).toBe('Ctrl+F');
     expect(keys.resizeProportional).toBe('Shift');
     expect(keys.resizeBranch).toBe('Alt');
     expect(keys.resizeNodeScale).toBe('Ctrl');
     expect(isEventMatchingKeybinding({ key: 's', ctrlKey: true }, keys.saveBranch)).toBe(true);
+    expect(isEventMatchingKeybinding({ key: 'f', ctrlKey: true }, keys.searchNodes)).toBe(true);
     saveKeybindings({ ...keys, deleteNode: 'Backspace', resizeBranch: 'Ctrl' });
   });
 });

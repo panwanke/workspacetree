@@ -1507,3 +1507,260 @@ input[type='date'] {
   align-items: center;
   gap: 8px;
 }
+
+/* 节点快速搜索弹窗 (Ctrl+F) */
+.wst-search-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+
+.wst-search-modal {
+  width: 90%;
+  max-width: 620px;
+  max-height: 75vh;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow:
+    0 20px 45px rgba(0, 0, 0, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: wst-search-fade-in 0.15s ease-out;
+}
+
+@keyframes wst-search-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.wst-search-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafcfb;
+}
+
+.wst-search-icon {
+  display: flex;
+  align-items: center;
+  color: #64748b;
+}
+
+.wst-search-input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  font-size: 15px;
+  background: transparent;
+  color: #1e293b;
+}
+
+.wst-search-input::placeholder {
+  color: #94a3b8;
+  font-size: 13.5px;
+}
+
+.wst-search-clear-btn {
+  border: 0;
+  background: #e2e8f0;
+  color: #64748b;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.wst-search-clear-btn:hover {
+  background: #cbd5e1;
+  color: #1e293b;
+}
+
+.wst-search-close {
+  color: #64748b;
+}
+
+.wst-search-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.wst-search-scope-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  color: #334155;
+}
+
+.wst-search-count {
+  font-size: 11.5px;
+}
+
+.wst-search-results {
+  flex: 1;
+  min-height: 120px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 6px 8px;
+}
+
+.wst-search-empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.wst-search-empty-hint {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+  color: #94a3b8;
+}
+
+.wst-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.wst-search-item:hover,
+.wst-search-item.is-selected {
+  background: #edf5f0;
+}
+
+.wst-search-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wst-search-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.wst-search-node-icon {
+  display: flex;
+  align-items: center;
+  color: #10b981;
+}
+
+.wst-search-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-search-snippet {
+  font-size: 11.5px;
+  color: #64748b;
+  padding-left: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-search-snippet-label {
+  color: #059669;
+  font-weight: 500;
+}
+
+.wst-search-mark {
+  background: #fef08a;
+  color: #713f12;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.wst-search-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.wst-search-date-pill {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wst-search-tag-pill {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 4px;
+}
+
+.wst-search-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #fafcfb;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.wst-search-hints {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wst-search-hints kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}

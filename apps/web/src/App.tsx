@@ -69,6 +69,7 @@ import { loadSettings, type WorkspaceSettings } from './settings';
 import SettingsModal from './SettingsModal';
 import ProjectsModal from './ProjectsModal';
 import SaveProjectModal from './SaveProjectModal';
+import SearchModal from './SearchModal';
 import { WorkspaceIcon } from './WorkspaceIcon';
 import { loadWorkspaceSession, saveWorkspaceSession } from './workspace-session';
 import {
@@ -249,6 +250,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingTabTitle, setEditingTabTitle] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
@@ -1411,14 +1413,32 @@ export default function App() {
         !event.defaultPrevented &&
         !isEditing &&
         !settingsOpen &&
+        !projectsOpen &&
+        !saveModalOpen &&
         isEventMatchingKeybinding(event, keybindings.saveBranch)
       ) {
         event.preventDefault();
         exportJson();
         return;
       }
+      if (
+        !event.defaultPrevented &&
+        !isEditing &&
+        !settingsOpen &&
+        !projectsOpen &&
+        !saveModalOpen &&
+        isEventMatchingKeybinding(event, keybindings.searchNodes)
+      ) {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
       if (event.defaultPrevented || isEditing) return;
       if (event.key === 'Escape') {
+        if (searchOpen) {
+          setSearchOpen(false);
+          return;
+        }
         if (settingsOpen) {
           setSettingsOpen(false);
           return;
@@ -1560,6 +1580,9 @@ export default function App() {
     keybindings,
     projectView,
     settingsOpen,
+    projectsOpen,
+    saveModalOpen,
+    searchOpen,
     viewMode,
   ]);
 
@@ -1772,6 +1795,8 @@ export default function App() {
         onResetDemo={resetDemo}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenProjects={() => setProjectsOpen(true)}
+        onOpenSearch={() => setSearchOpen(true)}
+        searchShortcut={keybindings.searchNodes}
       />
       <input ref={importRef} type="file" accept=".json" multiple hidden onChange={importJson} />
 
@@ -1780,6 +1805,7 @@ export default function App() {
           <DateDirectory
             key={`dates-${activeTabId}`}
             nodes={file.domain.nodes}
+            domain={file.domain}
             selectedId={selectedNodeId}
             compact={compactWorkspace}
             onLocate={(id) => locateProjectNode(id, false)}
@@ -2431,6 +2457,13 @@ export default function App() {
         onSaved={(_name) => {
           setUiError(null);
         }}
+      />
+
+      <SearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        domain={file.domain}
+        onSelectNode={(nodeId) => locateProjectNode(nodeId, true)}
       />
     </div>
   );

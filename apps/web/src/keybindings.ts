@@ -6,6 +6,7 @@ export type KeybindingAction =
   | 'addBranchNode'
   | 'addRandomBranch'
   | 'fitView'
+  | 'searchNodes'
   | 'undo'
   | 'redo'
   | 'cutBranch'
@@ -71,6 +72,12 @@ export const DEFAULT_KEYBINDINGS: Record<KeybindingAction, KeybindingMeta> = {
     defaultKey: 'f',
     category: 'canvas',
   },
+  searchNodes: {
+    label: '搜索节点',
+    description: '快速检索节点标题或 Markdown 正文内容',
+    defaultKey: 'Ctrl+F',
+    category: 'canvas',
+  },
   undo: {
     label: '撤销',
     description: '撤销上一次操作',
@@ -115,6 +122,7 @@ export function loadKeybindings(): Record<KeybindingAction, string> {
     addBranchNode: DEFAULT_KEYBINDINGS.addBranchNode.defaultKey,
     addRandomBranch: DEFAULT_KEYBINDINGS.addRandomBranch.defaultKey,
     fitView: DEFAULT_KEYBINDINGS.fitView.defaultKey,
+    searchNodes: DEFAULT_KEYBINDINGS.searchNodes.defaultKey,
     undo: DEFAULT_KEYBINDINGS.undo.defaultKey,
     redo: DEFAULT_KEYBINDINGS.redo.defaultKey,
     cutBranch: DEFAULT_KEYBINDINGS.cutBranch.defaultKey,
