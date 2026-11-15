@@ -10,10 +10,7 @@ import {
   calculateTargetDimensions,
   processImageBytes,
 } from '../../apps/web/src/images/image-processing.worker.js';
-import {
-  isImageUrl,
-  fetchRemoteImageAsAsset,
-} from '../../apps/web/src/images/image-url.js';
+import { isImageUrl, fetchRemoteImageAsAsset } from '../../apps/web/src/images/image-url.js';
 import {
   formatPlaceholder,
   generatePlaceholderToken,
@@ -146,7 +143,11 @@ describe('阶段 3: 图片插入、压缩、URL 与资产处理 (tests/web/image
 
   describe('图片相对尺寸联动与语法往返', () => {
     it('formatImageTag 支持输出 {width=X%} 并限制在 10% 到 100% 范围', () => {
-      const tag100 = formatImageTag({ alt: '全宽图', url: 'https://example.com/img.png', widthPercent: 100 });
+      const tag100 = formatImageTag({
+        alt: '全宽图',
+        url: 'https://example.com/img.png',
+        widthPercent: 100,
+      });
       expect(tag100).toBe('![全宽图](https://example.com/img.png){width=100%}');
 
       const tag60 = formatImageTag({ alt: '缩略图', url: 'asset:sha256_abcd', widthPercent: 60 });

@@ -91,9 +91,7 @@ export interface FetchRemoteAssetResult {
  * 尝试通过 CORS 请求下载远程图片并转为本地嵌入资产。
  * 若遭遇 CORS 限制，返回明确提示，原图片仍可继续通过 URL 显示。
  */
-export async function fetchRemoteImageAsAsset(
-  url: string,
-): Promise<FetchRemoteAssetResult> {
+export async function fetchRemoteImageAsAsset(url: string): Promise<FetchRemoteAssetResult> {
   try {
     const response = await fetch(url, {
       mode: 'cors',

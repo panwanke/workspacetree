@@ -2,13 +2,7 @@ import type { Root, Blockquote } from 'mdast';
 import { visit } from 'unist-util-visit';
 
 export type StandardCalloutType =
-  | 'note'
-  | 'info'
-  | 'tip'
-  | 'warning'
-  | 'question'
-  | 'success'
-  | 'example';
+  'note' | 'info' | 'tip' | 'warning' | 'question' | 'success' | 'example';
 
 export const STANDARD_CALLOUT_TYPES: readonly StandardCalloutType[] = [
   'note',
@@ -57,11 +51,7 @@ export function parseCalloutHeader(text: string): CalloutMeta | null {
 /**
  * 包装为 Callout 语法行：`> [!note] 标题` 或带折叠标志 `> [!note]+ 标题`
  */
-export function formatCalloutHeader(
-  type: string,
-  title?: string,
-  fold?: '+' | '-' | null,
-): string {
+export function formatCalloutHeader(type: string, title?: string, fold?: '+' | '-' | null): string {
   const foldStr = fold ? fold : '';
   const titleStr = title?.trim() ? ` ${title.trim()}` : '';
   return `> [!${type}]${foldStr}${titleStr}`;
@@ -76,7 +66,11 @@ export function remarkCallouts() {
     visit(tree, 'blockquote', (node: Blockquote) => {
       if (!node.children || node.children.length === 0) return;
       const firstChild = node.children[0];
-      if (firstChild?.type !== 'paragraph' || !firstChild.children || firstChild.children.length === 0) {
+      if (
+        firstChild?.type !== 'paragraph' ||
+        !firstChild.children ||
+        firstChild.children.length === 0
+      ) {
         return;
       }
       const firstInline = firstChild.children[0];

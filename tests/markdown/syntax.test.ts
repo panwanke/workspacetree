@@ -29,12 +29,42 @@ describe('Markdown 语法与任务解析 (packages/markdown)', () => {
 
     const tasks = readMarkdownTasks(md);
     expect(tasks).toHaveLength(6);
-    expect(tasks[0]).toMatchObject({ lineIndex: 0, status: 'open', marker: '[ ]', title: '未完成' });
-    expect(tasks[1]).toMatchObject({ lineIndex: 1, status: 'done', marker: '[x]', title: '已完成小写' });
-    expect(tasks[2]).toMatchObject({ lineIndex: 2, status: 'done', marker: '[x]', title: '已完成大写' });
-    expect(tasks[3]).toMatchObject({ lineIndex: 3, status: 'discarded', marker: '[-]', title: '废弃任务' });
-    expect(tasks[4]).toMatchObject({ lineIndex: 4, status: 'paused', marker: '[~]', title: '停用任务' });
-    expect(tasks[5]).toMatchObject({ lineIndex: 5, status: 'pending', marker: '[?]', title: '待定任务' });
+    expect(tasks[0]).toMatchObject({
+      lineIndex: 0,
+      status: 'open',
+      marker: '[ ]',
+      title: '未完成',
+    });
+    expect(tasks[1]).toMatchObject({
+      lineIndex: 1,
+      status: 'done',
+      marker: '[x]',
+      title: '已完成小写',
+    });
+    expect(tasks[2]).toMatchObject({
+      lineIndex: 2,
+      status: 'done',
+      marker: '[x]',
+      title: '已完成大写',
+    });
+    expect(tasks[3]).toMatchObject({
+      lineIndex: 3,
+      status: 'discarded',
+      marker: '[-]',
+      title: '废弃任务',
+    });
+    expect(tasks[4]).toMatchObject({
+      lineIndex: 4,
+      status: 'paused',
+      marker: '[~]',
+      title: '停用任务',
+    });
+    expect(tasks[5]).toMatchObject({
+      lineIndex: 5,
+      status: 'pending',
+      marker: '[?]',
+      title: '待定任务',
+    });
   });
 
   it('支持识别 Callout / 引用块内部的任务', () => {

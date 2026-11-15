@@ -93,11 +93,7 @@ export function parseImageMeta(
 /**
  * 格式化图片 tag
  */
-export function formatImageTag(meta: {
-  alt?: string;
-  url: string;
-  widthPercent?: number;
-}): string {
+export function formatImageTag(meta: { alt?: string; url: string; widthPercent?: number }): string {
   const alt = meta.alt ?? '';
   const widthAttr =
     meta.widthPercent != null && meta.widthPercent >= 10 && meta.widthPercent <= 100
@@ -116,11 +112,7 @@ export function extractAllImages(markdown: string): MarkdownImageMeta[] {
 
   while ((match = regex.exec(markdown)) !== null) {
     const [raw, alt = '', url = '', widthStr] = match;
-    const meta = parseImageMeta(
-      alt,
-      url,
-      widthStr ? `{width=${widthStr}%}` : undefined,
-    );
+    const meta = parseImageMeta(alt, url, widthStr ? `{width=${widthStr}%}` : undefined);
     images.push({ ...meta, raw });
   }
 

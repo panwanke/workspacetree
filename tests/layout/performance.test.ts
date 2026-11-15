@@ -2,7 +2,7 @@ import { performance } from 'node:perf_hooks';
 import { describe, expect, it } from 'vitest';
 import { exportSvg } from '@workspacetree/export';
 import { multiSpineHighlight, resolveVisualGraph } from '@workspacetree/layout';
-import { createDemoDomain } from '../../apps/web/src/demo';
+import { createDemoDomain } from '../fixtures/phase1-demo';
 import { collapseToAtMost, createSyntheticDomain } from '../support/synthetic-project.js';
 
 function presentation(overrides: Record<string, unknown> = {}) {

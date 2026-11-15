@@ -56,7 +56,9 @@ export async function processImageBytes(
   const originalBytes = bytes.byteLength;
 
   if (originalBytes > MAX_INPUT_FILE_BYTES) {
-    throw new Error(`图片文件超出限制（最大允许 20 MiB，当前 ${(originalBytes / (1024 * 1024)).toFixed(1)} MiB）`);
+    throw new Error(
+      `图片文件超出限制（最大允许 20 MiB，当前 ${(originalBytes / (1024 * 1024)).toFixed(1)} MiB）`,
+    );
   }
 
   // 1. 动图 (GIF / APNG) 如果在阈值内，直接保留原始动画
@@ -84,11 +86,11 @@ export async function processImageBytes(
       throw new Error(`图片像素超出限制（最大允许 40 MP）`);
     }
 
-    const { width: targetWidth, height: targetHeight, scaled } = calculateTargetDimensions(
-      origWidth,
-      origHeight,
-      maxDim,
-    );
+    const {
+      width: targetWidth,
+      height: targetHeight,
+      scaled,
+    } = calculateTargetDimensions(origWidth, origHeight, maxDim);
 
     // 如果未超过尺寸且字节数小于 1 MiB，直接采用原图
     if (!scaled && originalBytes <= maxBytes) {
@@ -107,7 +109,8 @@ export async function processImageBytes(
       canvas.height = targetHeight;
     }
 
-    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    const ctx = canvas.getContext('2d') as
+      CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
     ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
     bitmap.close?.();
 

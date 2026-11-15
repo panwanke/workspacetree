@@ -1,17 +1,18 @@
 import type { ReactNode } from 'react';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseCalloutHeader, parseImageMeta, remarkImageDimensionsPlugin } from '@workspacetree/markdown';
+import {
+  parseCalloutHeader,
+  parseImageMeta,
+  remarkImageDimensionsPlugin,
+} from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownImage } from './images/MarkdownImage.js';
+import { PeleDiagram } from './markdown/PeleDiagram.js';
 import './markdown/markdown.css';
 
 export function safeUrlTransform(url: string): string {
-  if (
-    url.startsWith('asset:') ||
-    url.startsWith('data:image/') ||
-    url.startsWith('blob:')
-  ) {
+  if (url.startsWith('asset:') || url.startsWith('data:image/') || url.startsWith('blob:')) {
     return url;
   }
   return defaultUrlTransform(url);
@@ -161,15 +162,34 @@ export function MarkdownPreview({
             }
             return <MarkdownImage meta={meta} assets={assets} interactive={false} />;
           },
+          pre({ children, node, ...props }) {
+            const firstChild = (node?.children as any)?.[0];
+            const className = firstChild?.properties?.className;
+            const classStr = Array.isArray(className)
+              ? className.join(' ')
+              : String(className || '');
+            if (/language-(mermaid|pele)\b/.test(classStr)) {
+              return <>{children}</>;
+            }
+            return <pre {...props}>{children}</pre>;
+          },
+          code({ className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || '');
+            const lang = match ? match[1]?.toLowerCase() : '';
+            if (lang === 'mermaid' || lang === 'pele') {
+              const rawCode = String(children).replace(/\n$/, '');
+              return <PeleDiagram code={rawCode} />;
+            }
+            return (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            );
+          },
           input({ type, checked }) {
             if (type === 'checkbox') {
               return (
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  readOnly
-                  className="wst-md-checkbox"
-                />
+                <input type="checkbox" checked={checked} readOnly className="wst-md-checkbox" />
               );
             }
             return <input type={type} />;

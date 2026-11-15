@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDemoBranchFile } from '../../apps/web/src/demo';
+import { createDemoBranchFile } from '../fixtures/phase1-demo';
 import { extractProjectStructure } from '../../apps/web/src/project-branches';
 import type { DomainState } from '@workspacetree/schema';
 

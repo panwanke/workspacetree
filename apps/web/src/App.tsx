@@ -300,8 +300,22 @@ export default function App() {
         const session = loadWorkspaceSession();
         let loadedTabs: WorkspaceTab[] = [];
 
-        if (session && session.tabs.length > 0) {
-          for (const st of session.tabs) {
+        // 清理旧版本演示项目
+        try {
+          if (typeof (storage as any).clear === 'function') {
+            await (storage as any).clear('prj_thesis_demo_v3');
+            await (storage as any).clear('prj_thesis_demo');
+          }
+        } catch (e) {
+          console.warn('Failed to clean legacy demo projects:', e);
+        }
+
+        const validSessionTabs = (session?.tabs || []).filter(
+          (st) => st.projectId !== 'prj_thesis_demo_v3' && st.projectId !== 'prj_thesis_demo',
+        );
+
+        if (validSessionTabs.length > 0) {
+          for (const st of validSessionTabs) {
             try {
               const file = await storage.load(st.projectId);
               if (file) {

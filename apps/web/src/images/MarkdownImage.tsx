@@ -44,8 +44,7 @@ export function MarkdownImage({
 
       const startX = e.clientX;
       const initialPercent = widthPercent;
-      const parentWidth =
-        containerRef.current?.parentElement?.getBoundingClientRect().width || 400;
+      const parentWidth = containerRef.current?.parentElement?.getBoundingClientRect().width || 400;
 
       setIsDragging(true);
 

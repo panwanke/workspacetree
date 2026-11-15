@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { canonicalize, describeDomainChange, validateDomain } from '@workspacetree/core';
 import { BranchFileSchema } from '@workspacetree/schema';
 import { MemoryStorageAdapter } from '@workspacetree/storage';
-import { createDemoBranchFile } from '../../apps/web/src/demo';
+import { createDemoBranchFile } from '../fixtures/phase1-demo';
 import { EditorController } from '../../apps/web/src/editor';
 import {
   addTaskEntry,

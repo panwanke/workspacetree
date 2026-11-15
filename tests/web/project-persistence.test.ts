@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { createMemoryKeyValueStore, IdbJsonStorageAdapter } from '@workspacetree/storage';
-import { createDemoBranchFile, createEmptyBranchFile } from '../../apps/web/src/demo';
+import { createDemoBranchFile, createEmptyBranchFile } from '../fixtures/phase1-demo';
 import { EditorController } from '../../apps/web/src/editor';
 import { renameProjectEntry } from '../../apps/web/src/history';
 import {

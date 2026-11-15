@@ -23,7 +23,8 @@ describe('阶段 3: 图片资产领域契约与管理 (tests/core/image-assets.t
     byteLength: 1024,
     width: 200,
     height: 150,
-    base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    base64:
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   };
 
   it('asset.put: 向 domain.assets 添加资产，严格校验 schema', () => {
@@ -124,7 +125,8 @@ describe('阶段 3: 图片资产领域契约与管理 (tests/core/image-assets.t
     };
 
     const result = transferBranch(sourceFile, targetFile, childId, 'n_root', 'timeline');
-    const targetPayload = result.receive.forward[0]?.payload as { domain: typeof targetFile.domain } | undefined;
+    const targetPayload = result.receive.forward[0]?.payload as
+      { domain: typeof targetFile.domain } | undefined;
     const targetDomain = targetPayload?.domain;
 
     // 目标项目应只复制被引用的资产，未引用的不复制

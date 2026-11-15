@@ -12,29 +12,29 @@
 
 ## 当前代码与改动原因
 
-| 现状 | 对本方案的影响 |
-| --- | --- |
-| `apps/web/src/CanvasNode.tsx` 和 `WorkspaceInspector.tsx` 各自使用 textarea | 需要同一个 MarkdownEditor 组件、草稿会话和快捷键处理 |
-| `apps/web/src/MarkdownPreview.tsx` 使用逐行判断与正则 | 替换为语法树渲染，支持多行 callout、嵌套列表、带括号的 URL 和代码块 |
-| `blocks[].payload.markdown` 保存纯文本，`node.setNote` 与 `node.editMarkdownBlock` 写入 | 沿用 Markdown 源文本，增加资产和任务语法版本契约 |
-| `markdown-todos.ts` 把 `[*]` 认作完成、`[x]` 认作废弃 | 新标记需要版本迁移，同时更新汇总、筛选、编辑和导入 |
-| IndexedDB 适配器以整个项目 JSON 快照写入，历史记录可包含整域快照 | 嵌入图片会增加序列化、哈希和日志开销，需限制单图并测量整项目负担 |
-| 节点有单节点缩放、分支缩放、自定义尺寸与画布缩放 | 图片尺寸必须从最终内容区计算，拖动时还要换算画布缩放 |
-| 卡片预览最多取 8 行源文本 | 改成按解析后的块和可用高度裁切，避免把图片、代码或 callout 从源码中间切开 |
+| 现状                                                                                    | 对本方案的影响                                                            |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `apps/web/src/CanvasNode.tsx` 和 `WorkspaceInspector.tsx` 各自使用 textarea             | 需要同一个 MarkdownEditor 组件、草稿会话和快捷键处理                      |
+| `apps/web/src/MarkdownPreview.tsx` 使用逐行判断与正则                                   | 替换为语法树渲染，支持多行 callout、嵌套列表、带括号的 URL 和代码块       |
+| `blocks[].payload.markdown` 保存纯文本，`node.setNote` 与 `node.editMarkdownBlock` 写入 | 沿用 Markdown 源文本，增加资产和任务语法版本契约                          |
+| `markdown-todos.ts` 把 `[*]` 认作完成、`[x]` 认作废弃                                   | 新标记需要版本迁移，同时更新汇总、筛选、编辑和导入                        |
+| IndexedDB 适配器以整个项目 JSON 快照写入，历史记录可包含整域快照                        | 嵌入图片会增加序列化、哈希和日志开销，需限制单图并测量整项目负担          |
+| 节点有单节点缩放、分支缩放、自定义尺寸与画布缩放                                        | 图片尺寸必须从最终内容区计算，拖动时还要换算画布缩放                      |
+| 卡片预览最多取 8 行源文本                                                               | 改成按解析后的块和可用高度裁切，避免把图片、代码或 callout 从源码中间切开 |
 
 ## 技术栈与选型
 
-| 层 | 选择 | 作用 |
-| --- | --- | --- |
-| UI | 现有 React、TypeScript、Vite、React Flow | 节点编辑、侧栏、设置、尺寸交互 |
-| 编辑器 | CodeMirror 6，直接使用 `@codemirror/state`、`view`、`commands`、`lang-markdown`、`language`、`autocomplete` | 文档事务、选区、输入法、键位、增量解析与补全 |
-| 实时预览 | CodeMirror Decoration、WidgetType、StateField | 对未编辑语法做样式或替换，呈现 checkbox、图片与 callout |
-| 只读渲染 | react-markdown、remark-gfm，自有少量 remark 扩展 | CommonMark/GFM、扩展任务状态、callout、旧高亮与颜色语法 |
-| 共用语义 | 新建 `packages/markdown`，使用 unified、remark-parse、remark-gfm，保留源码位置 | 编辑、预览、任务汇总及图片引用扫描使用同一套语义规则 |
-| 图片处理 | Web Worker、createImageBitmap、OffscreenCanvas，Canvas.toBlob 回退 | 校验、缩放、压缩、方向纠正和生成图片二进制 |
-| 资源寻址 | 项目资产表、内容 SHA-256、运行时 Blob URL | 同一文件去重、自包含导出、缓存解码结果 |
-| 校验与保存 | 现有 Zod、CommandService、写入队列及恢复协议 | 原子提交图片和笔记、版本迁移、保存失败恢复 |
-| 测试 | 现有 Vitest，浏览器验收使用现有 playwright-core 与可用浏览器 | 语法、状态、数据往返、输入法和缩放交互 |
+| 层         | 选择                                                                                                        | 作用                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| UI         | 现有 React、TypeScript、Vite、React Flow                                                                    | 节点编辑、侧栏、设置、尺寸交互                          |
+| 编辑器     | CodeMirror 6，直接使用 `@codemirror/state`、`view`、`commands`、`lang-markdown`、`language`、`autocomplete` | 文档事务、选区、输入法、键位、增量解析与补全            |
+| 实时预览   | CodeMirror Decoration、WidgetType、StateField                                                               | 对未编辑语法做样式或替换，呈现 checkbox、图片与 callout |
+| 只读渲染   | react-markdown、remark-gfm，自有少量 remark 扩展                                                            | CommonMark/GFM、扩展任务状态、callout、旧高亮与颜色语法 |
+| 共用语义   | 新建 `packages/markdown`，使用 unified、remark-parse、remark-gfm，保留源码位置                              | 编辑、预览、任务汇总及图片引用扫描使用同一套语义规则    |
+| 图片处理   | Web Worker、createImageBitmap、OffscreenCanvas，Canvas.toBlob 回退                                          | 校验、缩放、压缩、方向纠正和生成图片二进制              |
+| 资源寻址   | 项目资产表、内容 SHA-256、运行时 Blob URL                                                                   | 同一文件去重、自包含导出、缓存解码结果                  |
+| 校验与保存 | 现有 Zod、CommandService、写入队列及恢复协议                                                                | 原子提交图片和笔记、版本迁移、保存失败恢复              |
+| 测试       | 现有 Vitest，浏览器验收使用现有 playwright-core 与可用浏览器                                                | 语法、状态、数据往返、输入法和缩放交互                  |
 
 CodeMirror 的 Markdown 语言支持、装饰和自定义 widget 可以组合出所需编辑体验，实时预览扩展需要在项目中实现。Lezer 用于编辑时增量定位，remark 用于语义解析和只读渲染，两者用共用语法样例核对。依赖在实施时锁定经过现有 React/Vite 构建验证的具体版本。[CodeMirror Markdown](https://github.com/codemirror/lang-markdown)、[Decoration 与 Widget 源码](https://raw.githubusercontent.com/codemirror/view/main/src/decoration.ts)
 
@@ -58,20 +58,20 @@ react-markdown 提供 React 渲染入口，remark-gfm 提供表格、删除线�
 
 快捷键仅在编辑器获得焦点时生效，进入现有设置体系并允许改键。画布的 Tab 新建节点、Delete 删除、Ctrl/Cmd+C/X/V 分支操作在编辑器内由文本编辑接管。
 
-| 操作 | 建议默认键或输入规则 |
-| --- | --- |
-| 无序列表 | Ctrl/Cmd+Shift+7，或行首输入 `- ` |
-| 有序列表 | Ctrl/Cmd+Shift+8，或行首输入 `1. ` |
-| Checkbox | Ctrl/Cmd+Shift+9，将当前行或选中行转为 `- [ ] ` |
-| 勾选任务 | Ctrl/Cmd+Shift+Enter 在任务行切换完成状态 |
-| 保存笔记 | Ctrl/Cmd+Enter 提交草稿 |
-| Callout | Ctrl/Cmd+Shift+C，选区包装为 `> [!note]`，选中类型以便替换 |
-| 粗体／斜体／链接 | Ctrl/Cmd+B、Ctrl/Cmd+I、Ctrl/Cmd+K |
-| 缩进／反缩进 | Tab、Shift+Tab，在列表层级内工作 |
-| 连续输入 | Enter 延续列表或引用前缀，空条目再次 Enter 退出当前层级 |
-| 命令补全 | 空行输入 `/` 显示 list、numbered、checkbox、callout、image。代码块中按普通字符输入 |
-| 原样粘贴 | Ctrl/Cmd+Shift+V 走纯文本，跳过 URL 自动转图 |
-| 源码模式 | 编辑器按钮切换，可在设置中绑定快捷键 |
+| 操作             | 建议默认键或输入规则                                                               |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| 无序列表         | Ctrl/Cmd+Shift+7，或行首输入 `- `                                                  |
+| 有序列表         | Ctrl/Cmd+Shift+8，或行首输入 `1. `                                                 |
+| Checkbox         | Ctrl/Cmd+Shift+9，将当前行或选中行转为 `- [ ] `                                    |
+| 勾选任务         | Ctrl/Cmd+Shift+Enter 在任务行切换完成状态                                          |
+| 保存笔记         | Ctrl/Cmd+Enter 提交草稿                                                            |
+| Callout          | Ctrl/Cmd+Shift+C，选区包装为 `> [!note]`，选中类型以便替换                         |
+| 粗体／斜体／链接 | Ctrl/Cmd+B、Ctrl/Cmd+I、Ctrl/Cmd+K                                                 |
+| 缩进／反缩进     | Tab、Shift+Tab，在列表层级内工作                                                   |
+| 连续输入         | Enter 延续列表或引用前缀，空条目再次 Enter 退出当前层级                            |
+| 命令补全         | 空行输入 `/` 显示 list、numbered、checkbox、callout、image。代码块中按普通字符输入 |
+| 原样粘贴         | Ctrl/Cmd+Shift+V 走纯文本，跳过 URL 自动转图                                       |
+| 源码模式         | 编辑器按钮切换，可在设置中绑定快捷键                                               |
 
 键位实施前做浏览器冲突检查，菜单显示当前实际绑定。列表转换保留正文内容、嵌套层级和现有换行，重复执行同一列表命令时取消对应格式。
 
@@ -81,13 +81,13 @@ Callout 首期支持 note、info、tip、warning、question、success、example�
 
 ## 任务状态的新策略
 
-| 标记 | 状态 | 点击及管理行为 |
-| --- | --- | --- |
-| `[ ]` | 未完成 | 点击勾选为已完成 |
-| `[x]` | 已完成 | 点击取消勾选为未完成，大写 X 同义 |
-| `[-]` | 废弃 | 表示放弃这项任务，可在状态菜单恢复 |
-| `[~]` | 停用 | 暂停推进，可在状态菜单恢复为未完成 |
-| `[?]` | 待定 | 尚待决定是否执行 |
+| 标记  | 状态   | 点击及管理行为                     |
+| ----- | ------ | ---------------------------------- |
+| `[ ]` | 未完成 | 点击勾选为已完成                   |
+| `[x]` | 已完成 | 点击取消勾选为未完成，大写 X 同义  |
+| `[-]` | 废弃   | 表示放弃这项任务，可在状态菜单恢复 |
+| `[~]` | 停用   | 暂停推进，可在状态菜单恢复为未完成 |
+| `[?]` | 待定   | 尚待决定是否执行                   |
 
 `[-]`、`[~]`、`[?]` 是本项目扩展状态。其他 Markdown 阅读器可能显示原始标记，项目内由统一解析器渲染。废弃、停用、待定在快捷菜单单独选择，普通勾选只切换未完成与完成。
 
@@ -133,16 +133,16 @@ Callout 首期支持 note、info、tip、warning、question、success、example�
 
 ### 压缩建议值
 
-| 项目 | 默认值和处理 |
-| --- | --- |
-| 自动压缩触发 | 文件超过 1 MiB，或长边超过 2048 px |
-| 目标 | 最终文件不超过 1 MiB、长边不超过 2048 px，宽高同比例 |
-| 输入限制 | 单文件 20 MiB，解码尺寸 40 MP。先探测格式头与像素尺寸，再分配解码资源 |
-| 静态图片 | JPEG、PNG、WebP 为首期主路径，浏览器可解码的 AVIF 可转码 |
-| 压缩方式 | Worker 中先缩尺寸，再迭代有损质量。截图／透明图先试 PNG 或 WebP，照片优先 WebP，编码不支持时检查实际 MIME 并回退 |
-| 质量下限 | 建议 quality 0.65，达不到目标再降低分辨率。仍超限时提供失败原因和手动处理选项 |
-| 动图 | 识别 GIF/APNG/动画 WebP。阈值内保留动画，超限由用户选择静态首帧转换，防止无提示丢动画 |
-| SVG／不可解码格式 | 给出格式提示。首期本地文件支持聚焦于可验证的栅格图，提供转 PNG/WebP 的操作说明 |
+| 项目              | 默认值和处理                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 自动压缩触发      | 文件超过 1 MiB，或长边超过 2048 px                                                                               |
+| 目标              | 最终文件不超过 1 MiB、长边不超过 2048 px，宽高同比例                                                             |
+| 输入限制          | 单文件 20 MiB，解码尺寸 40 MP。先探测格式头与像素尺寸，再分配解码资源                                            |
+| 静态图片          | JPEG、PNG、WebP 为首期主路径，浏览器可解码的 AVIF 可转码                                                         |
+| 压缩方式          | Worker 中先缩尺寸，再迭代有损质量。截图／透明图先试 PNG 或 WebP，照片优先 WebP，编码不支持时检查实际 MIME 并回退 |
+| 质量下限          | 建议 quality 0.65，达不到目标再降低分辨率。仍超限时提供失败原因和手动处理选项                                    |
+| 动图              | 识别 GIF/APNG/动画 WebP。阈值内保留动画，超限由用户选择静态首帧转换，防止无提示丢动画                            |
+| SVG／不可解码格式 | 给出格式提示。首期本地文件支持聚焦于可验证的栅格图，提供转 PNG/WebP 的操作说明                                   |
 
 阈值作为设置项，默认行为是超限压缩。编码结果校验尺寸、字节数、MIME 和透明通道，失败时保留待处理文件以便重试。Worker 超时或取消后释放资源。Canvas 编码的可用 MIME 与跨域条件存在浏览器限制，需要检测结果。[OffscreenCanvas.convertToBlob](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas/convertToBlob)
 

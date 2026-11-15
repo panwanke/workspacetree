@@ -1,4 +1,9 @@
-import { EditorSelection, EditorState, type ChangeSpec, type TransactionSpec } from '@codemirror/state';
+import {
+  EditorSelection,
+  EditorState,
+  type ChangeSpec,
+  type TransactionSpec,
+} from '@codemirror/state';
 
 export interface CommandTarget {
   state: EditorState;
@@ -244,7 +249,7 @@ export function handleListEnter(view: CommandTarget): boolean {
       });
       return true;
     }
-    // 延续前缀，新行默认为未完成 - [ ] 
+    // 延续前缀，新行默认为未完成 - [ ]
     const baseIndent = /^(\s*(?:>[ \t]*)*)/.exec(prefix)?.[1] ?? '';
     const nextPrefix = `${baseIndent}- [ ] `;
     view.dispatch({
@@ -294,4 +299,21 @@ export function handleListEnter(view: CommandTarget): boolean {
   }
 
   return false;
+}
+
+/**
+ * 插入 Pele / Mermaid 流程图代码块模板
+ */
+export function insertPeleDiagram(view: CommandTarget): boolean {
+  const { state } = view;
+  const range = state.selection.main;
+  const line = state.doc.lineAt(range.from);
+  const prefix = line.text.trim().length === 0 ? '' : '\n';
+  const snippet = `${prefix}\`\`\`mermaid\nflowchart TD\n  A[开始] --> B{判定?}\n  B -->|是| C[处理]\n  B -->|否| D[结束]\n  C --> D\n\`\`\`\n`;
+  view.dispatch({
+    changes: { from: range.from, to: range.to, insert: snippet },
+    selection: EditorSelection.cursor(range.from + snippet.length),
+    scrollIntoView: true,
+  });
+  return true;
 }

@@ -8,6 +8,7 @@ import {
   handleListEnter,
   insertCallout,
   insertLink,
+  insertPeleDiagram,
   toggleBold,
   toggleItalic,
   toggleOrderedList,
@@ -349,6 +350,14 @@ export function MarkdownEditor({
             onClick={() => viewRef.current && insertCallout(viewRef.current, 'note')}
           >
             💡
+          </button>
+          <button
+            type="button"
+            className="wst-markdown-toolbar-btn"
+            title="插入 Pele / Mermaid 流程图"
+            onClick={() => viewRef.current && insertPeleDiagram(viewRef.current)}
+          >
+            🌋
           </button>
           <button
             type="button"

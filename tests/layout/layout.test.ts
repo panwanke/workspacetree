@@ -19,7 +19,7 @@ import {
   spineHighlight,
   taskStats,
 } from '@workspacetree/layout';
-import { createDemoDomain } from '../../apps/web/src/demo';
+import { createDemoDomain } from '../fixtures/phase1-demo';
 
 const domain = createDemoDomain();
 

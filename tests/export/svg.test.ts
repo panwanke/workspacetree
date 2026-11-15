@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeTreeLayout, pathForNodes, resolveVisualGraph } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
-import { createDemoDomain } from '../../apps/web/src/demo';
+import { createDemoDomain } from '../fixtures/phase1-demo';
 
 const domain = createDemoDomain();
 const positions = computeTreeLayout(
@@ -127,7 +127,8 @@ describe('T-30 SVG 导出', () => {
       byteLength: 64,
       width: 100,
       height: 100,
-      base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      base64:
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
     };
 
     const blockId = 'blk_svg_test';

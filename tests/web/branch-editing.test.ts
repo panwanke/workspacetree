@@ -12,7 +12,7 @@ import {
   IdbJsonStorageAdapter,
   MemoryStorageAdapter,
 } from '@workspacetree/storage';
-import { createDemoBranchFile, createEmptyBranchFile } from '../../apps/web/src/demo';
+import { createDemoBranchFile, createEmptyBranchFile } from '../fixtures/phase1-demo';
 import { transferBranch } from '../../apps/web/src/branch-editing';
 import { EditorController } from '../../apps/web/src/editor';
 import { clearPositionEntry, clearPositionsEntry } from '../../apps/web/src/history';

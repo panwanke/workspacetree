@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryStorageAdapter } from '@workspacetree/storage';
 import { resolveVisualGraph } from '@workspacetree/layout';
-import { createDemoBranchFile } from '../../apps/web/src/demo';
+import { createDemoBranchFile } from '../fixtures/phase1-demo';
 import { EditorController } from '../../apps/web/src/editor';
 import { reconnectEdgeEntry, setEdgeNoteEntry } from '../../apps/web/src/edge-editing';
 import { addEdgeEntry, removeEdgeEntry } from '../../apps/web/src/history';

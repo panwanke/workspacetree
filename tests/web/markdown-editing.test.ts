@@ -27,11 +27,7 @@ function createTestTarget(
   let state = EditorState.create({
     doc,
     selection: selection ? EditorSelection.single(selection.from, selection.to) : undefined,
-    extensions: [
-      markdown({ base: markdownLanguage }),
-      sourceModeState,
-      livePreviewField,
-    ],
+    extensions: [markdown({ base: markdownLanguage }), sourceModeState, livePreviewField],
   });
   return {
     get state() {

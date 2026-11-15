@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainState } from '@workspacetree/schema';
 import { resolveVisualGraph, visualEdgeAnchors, visualEdgePath } from '@workspacetree/layout';
-import { createDemoDomain } from '../../apps/web/src/demo';
+import { createDemoDomain } from '../fixtures/phase1-demo';
 
 function presentation(overrides: Record<string, unknown> = {}) {
   return {

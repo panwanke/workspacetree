@@ -6,7 +6,14 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
-import { Compartment, EditorState, Facet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import {
+  Compartment,
+  EditorState,
+  Facet,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+} from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import {
   IMAGE_TAG_REGEX,
@@ -16,6 +23,7 @@ import {
   type MarkdownImageMeta,
 } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
+import { render } from 'pele';
 import { assetBlobUrls } from '../images/image-assets.js';
 
 export const setSourceModeEffect = StateEffect.define<boolean>();
@@ -57,9 +65,7 @@ export class CheckboxWidget extends WidgetType {
   }
 
   eq(other: CheckboxWidget): boolean {
-    return (
-      this.status === other.status && this.from === other.from && this.to === other.to
-    );
+    return this.status === other.status && this.from === other.from && this.to === other.to;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -112,11 +118,7 @@ export class CalloutHeaderWidget extends WidgetType {
   }
 
   eq(other: CalloutHeaderWidget): boolean {
-    return (
-      this.type === other.type &&
-      this.title === other.title &&
-      this.fold === other.fold
-    );
+    return this.type === other.type && this.title === other.title && this.fold === other.fold;
   }
 
   toDOM(): HTMLElement {
@@ -212,7 +214,9 @@ export class ImageWidget extends WidgetType {
       const startX = e.clientX;
       const editorEl = (view.dom.querySelector('.cm-content') as HTMLElement) || view.dom;
       const parentWidth =
-        editorEl.getBoundingClientRect().width || wrap.parentElement?.getBoundingClientRect().width || 400;
+        editorEl.getBoundingClientRect().width ||
+        wrap.parentElement?.getBoundingClientRect().width ||
+        400;
       let currentPercent = initialPercent;
       handle.classList.add('is-dragging');
 
@@ -246,6 +250,58 @@ export class ImageWidget extends WidgetType {
 
     wrap.appendChild(img);
     wrap.appendChild(handle);
+    return wrap;
+  }
+
+  ignoreEvent(event: Event): boolean {
+    return event.type !== 'click';
+  }
+}
+
+/**
+ * 实时预览 Pele / Mermaid 代码块 Widget
+ */
+export class PeleWidget extends WidgetType {
+  constructor(
+    public readonly code: string,
+    public readonly from: number,
+    public readonly to: number,
+  ) {
+    super();
+  }
+
+  eq(other: PeleWidget): boolean {
+    return this.code === other.code && this.from === other.from && this.to === other.to;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'wst-pele-live-container nodrag nopan';
+    wrap.contentEditable = 'false';
+
+    try {
+      const res = render(this.code.trim(), {
+        fontFamily:
+          '"Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        responsive: true,
+      });
+      wrap.innerHTML = res.svg;
+    } catch (err: unknown) {
+      wrap.className += ' is-error';
+      const msg = err instanceof Error ? err.message : String(err);
+      wrap.textContent = `⚠️ Pele 语法错误: ${msg}`;
+    }
+
+    // 点击展开源码聚焦
+    wrap.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      view.dispatch({
+        selection: { anchor: this.from },
+      });
+      view.focus();
+    });
+
     return wrap;
   }
 
@@ -376,7 +432,30 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
     }
   }
 
-  // 3. 语法树级解析：粗体、斜体、代码
+  // 3. Pele / Mermaid 流程图代码块实时预览
+  const peleBlockRegex = /^```(?:mermaid|pele)[ \t]*\r?\n([\s\S]*?)\r?\n```$/gm;
+  let peleMatch: RegExpExecArray | null;
+
+  while ((peleMatch = peleBlockRegex.exec(fullText)) !== null) {
+    const from = peleMatch.index;
+    const to = from + peleMatch[0].length;
+    const code = peleMatch[1]!;
+
+    if (!selectionOverlaps(state, from, to)) {
+      items.push({
+        from,
+        to,
+        deco: Decoration.replace({
+          widget: new PeleWidget(code, from, to),
+          inclusive: false,
+          block: true,
+        }),
+      });
+      replacedRanges.push({ from, to });
+    }
+  }
+
+  // 4. 语法树级解析：粗体、斜体、代码
   try {
     const tree = syntaxTree(state);
     tree.iterate({
