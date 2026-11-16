@@ -219,6 +219,8 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   const zoomBoost = zoom < 0.75 ? Math.min(2.6, 0.75 / Math.max(0.18, zoom)) : 1;
   const baseTitlePx = Math.max(13, 14 * Math.min(1.25, Math.max(0.95, data.scale)));
   const titleFontSize = `${Math.round(baseTitlePx * zoomBoost * 10) / 10}px`;
+  const note = data.lod === 'full' && zoom >= 0.42 ? data.note : undefined;
+  const verticalPadding = note ? Math.max(5, 6 * data.scale) : Math.max(7, 10 * data.scale);
 
   const cardStyle = {
     '--wst-card-accent': accent,
@@ -227,7 +229,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
       ? '10px 12px'
       : data.lod === 'summary'
         ? '6px 10px'
-        : `${Math.max(7, 10 * data.scale)}px ${Math.max(9, 12 * data.scale)}px`,
+        : `${verticalPadding}px ${Math.max(9, 12 * data.scale)}px`,
   } as CSSProperties;
 
   const primaryPosition = horizontal ? Position.Right : Position.Bottom;
@@ -433,11 +435,11 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
           {data.tags && (
             <TagList tags={data.tags} label="节点标签" limit={data.lod === 'summary' ? 1 : 2} />
           )}
-          {data.note && data.lod === 'full' && zoom >= 0.42 && (
+          {note && (
             <MarkdownPreview
-              markdown={data.note}
+              markdown={note}
               assets={data.assets}
-              className="wst-card-markdown"
+              className="wst-card-markdown nowheel"
               maxLines={8}
             />
           )}

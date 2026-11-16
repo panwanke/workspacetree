@@ -3,11 +3,13 @@ export interface WorkspaceSettings {
   autoSaveNode: boolean;
   /** 持续编辑时的自动保存间隔（毫秒），默认 5000ms (5秒) */
   autoSaveInterval: number;
+  markdownCss: string;
 }
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   autoSaveNode: true,
   autoSaveInterval: 5000,
+  markdownCss: '',
 };
 
 const SETTINGS_STORAGE_KEY = 'workspacetree_settings_v1';
@@ -24,6 +26,9 @@ export function loadSettings(): WorkspaceSettings {
         }
         if (typeof parsed.autoSaveInterval === 'number' && parsed.autoSaveInterval > 0) {
           result.autoSaveInterval = parsed.autoSaveInterval;
+        }
+        if (typeof parsed.markdownCss === 'string') {
+          result.markdownCss = parsed.markdownCss;
         }
       }
     }

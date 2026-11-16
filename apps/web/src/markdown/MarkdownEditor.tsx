@@ -233,6 +233,7 @@ export function MarkdownEditor({
         history(),
         editorKeymap,
         markdown({ base: markdownLanguage }),
+        EditorState.tabSize.of(2),
         EditorView.lineWrapping,
         sourceModeState.init(() => sourceMode),
         assetsCompartment.of(assetsFacet.of({ ...assets, ...newAssetsRef.current })),

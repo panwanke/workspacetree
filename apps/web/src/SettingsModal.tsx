@@ -7,6 +7,7 @@ import {
   type KeybindingAction,
 } from './keybindings';
 import { DEFAULT_SETTINGS, saveSettings, type WorkspaceSettings } from './settings';
+import { createMarkdownStyleSheet } from './markdown/custom-css';
 
 export interface SettingsModalProps {
   open: boolean;
@@ -29,6 +30,16 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('all');
   const [recordingAction, setRecordingAction] = useState<KeybindingAction | null>(null);
+  const [draftMarkdownCss, setDraftMarkdownCss] = useState<string | null>(null);
+  const [markdownCssError, setMarkdownCssError] = useState(false);
+  const markdownCss = draftMarkdownCss ?? settings.markdownCss;
+
+  useEffect(() => {
+    if (!open) {
+      setDraftMarkdownCss(null);
+      setMarkdownCssError(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!recordingAction) return;
@@ -75,6 +86,21 @@ export default function SettingsModal({
     saveSettings(next);
   }
 
+  function updateMarkdownCss(css: string) {
+    const value = css.trim() ? css : '';
+    try {
+      if (value) createMarkdownStyleSheet(value);
+    } catch {
+      setMarkdownCssError(true);
+      return;
+    }
+    const next = { ...settings, markdownCss: value };
+    onChangeSettings?.(next);
+    saveSettings(next);
+    setDraftMarkdownCss(null);
+    setMarkdownCssError(false);
+  }
+
   function handleResetAll() {
     const nextBindings = Object.fromEntries(
       Object.entries(DEFAULT_KEYBINDINGS).map(([k, v]) => [k, v.defaultKey]),
@@ -85,6 +111,8 @@ export default function SettingsModal({
     const nextSettings = { ...DEFAULT_SETTINGS };
     onChangeSettings?.(nextSettings);
     saveSettings(nextSettings);
+    setDraftMarkdownCss(null);
+    setMarkdownCssError(false);
   }
 
   function handleResetOne(action: KeybindingAction) {
@@ -202,7 +230,7 @@ export default function SettingsModal({
               className={`wst-settings-tab-btn${activeTab === 'general' ? ' is-active' : ''}`}
               onClick={() => setActiveTab('general')}
             >
-              通用 / 节点编辑
+              通用
             </button>
             <button
               type="button"
@@ -243,6 +271,53 @@ export default function SettingsModal({
                     onClick={handleToggleAutoSave}
                   >
                     <span className="wst-switch-thumb" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="wst-markdown-css-setting">
+                <label className="wst-keybindings-section-title" htmlFor="markdown-custom-css">
+                  Markdown 自定义 CSS
+                </label>
+                <p className="wst-settings-desc" id="markdown-custom-css-help">
+                  仅作用于 Markdown 预览和编辑区，保存在当前浏览器。用 <code>:scope</code>{' '}
+                  选中整个区域，用 <code>:scope .cm-content</code> 选中编辑正文。
+                </p>
+                <textarea
+                  id="markdown-custom-css"
+                  className="wst-markdown-css-input"
+                  aria-describedby="markdown-custom-css-help"
+                  aria-invalid={markdownCssError}
+                  spellCheck={false}
+                  rows={5}
+                  placeholder={':scope ul, :scope ol {\n  padding-inline-start: 1.2em;\n}'}
+                  value={markdownCss}
+                  onChange={(event) => {
+                    setDraftMarkdownCss(event.target.value);
+                    setMarkdownCssError(false);
+                  }}
+                />
+                {markdownCssError && (
+                  <p className="wst-settings-css-error" role="alert">
+                    无法应用这段 CSS。请检查规则的大括号，或使用支持 CSS @scope 的浏览器。
+                  </p>
+                )}
+                <div className="wst-section-actions">
+                  <button
+                    type="button"
+                    className="wst-tool is-subtle"
+                    disabled={!markdownCss && !settings.markdownCss}
+                    onClick={() => updateMarkdownCss('')}
+                  >
+                    恢复 Markdown 默认样式
+                  </button>
+                  <button
+                    type="button"
+                    className="wst-tool is-accent"
+                    disabled={markdownCss === settings.markdownCss}
+                    onClick={() => updateMarkdownCss(markdownCss)}
+                  >
+                    应用 CSS
                   </button>
                 </div>
               </div>

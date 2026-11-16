@@ -34,18 +34,26 @@ describe('设置系统 (settings.ts)', () => {
     const settings = loadSettings();
     expect(settings.autoSaveNode).toBe(true);
     expect(settings.autoSaveInterval).toBe(5000);
+    expect(settings.markdownCss).toBe('');
   });
 
   it('正确保存和读取自定义设置', () => {
     const custom: WorkspaceSettings = {
       autoSaveNode: false,
       autoSaveInterval: 3000,
+      markdownCss: ':scope { line-height: 1.6; }\n:scope ul { padding-inline-start: 1em; }',
     };
     saveSettings(custom);
 
     const loaded = loadSettings();
     expect(loaded.autoSaveNode).toBe(false);
     expect(loaded.autoSaveInterval).toBe(3000);
+    expect(loaded.markdownCss).toBe(custom.markdownCss);
+  });
+
+  it('loads older settings with an empty CSS override', () => {
+    globalThis.localStorage.setItem('workspacetree_settings_v1', '{"autoSaveNode":false}');
+    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, autoSaveNode: false, markdownCss: '' });
   });
 
   it('在 localStorage 存储无效数据时能够优雅回退到默认设置', () => {

@@ -442,7 +442,6 @@ input[type='date'] {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  min-width: 440px;
   min-height: 260px;
   background: #ffffff !important;
   border-color: #2563eb !important;
@@ -573,12 +572,12 @@ input[type='date'] {
 
 .wst-card:has(.wst-card-markdown) .wst-card-meta {
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 3px;
 }
 
 .wst-card-markdown {
   margin-top: 4px;
-  padding: 4px 6px;
+  padding: 2px 6px;
   border-radius: 6px;
   background: rgb(248 250 252 / 90%);
   border: 1px solid #e2e8f0;
@@ -1122,6 +1121,37 @@ input[type='date'] {
   margin-top: 0;
   margin-bottom: 16px;
   line-height: 1.5;
+}
+
+.wst-markdown-css-setting {
+  margin-top: 18px;
+}
+
+.wst-markdown-css-input {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: 12px/1.5 'IBM Plex Mono', Consolas, monospace;
+  tab-size: 2;
+  scrollbar-width: thin;
+}
+
+.wst-markdown-css-input:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.wst-settings-css-error {
+  margin: 0 0 8px;
+  color: #b91c1c;
+  font-size: 12px;
 }
 
 .wst-keybindings-list {
