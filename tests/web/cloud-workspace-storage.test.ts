@@ -1,8 +1,11 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { setCloudRuntimeForTests, isCloudEnabled } from '../../apps/web/src/cloud/client';
-import { scopedSessionKey, storageScopeFor } from '../../apps/web/src/workspace-storage';
-import { oauthRedirectTo } from '../../apps/web/src/LoginModal';
-import { WORKSPACE_SESSION_STORAGE_KEY } from '../../apps/web/src/workspace-session';
+import { storageScopeFor } from '../../apps/web/src/cloud/workspace-storage';
+import { oauthRedirectTo } from '../../apps/web/src/cloud/LoginModal';
+import {
+  scopedSessionKey,
+  WORKSPACE_SESSION_STORAGE_KEY,
+} from '../../apps/web/src/workspace-session';
 
 const emptyTable = {
   async list() {

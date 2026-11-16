@@ -1,17 +1,17 @@
 /**
  * 云服务公开配置 —— 唯一注入点。
  *
- * ⚠️ 本轮只完成代码、不部署，因此下方三个值保持空字符串。
- * 部署时把 `workbuddy_cloud_service`(action=activate) 返回的 `publicConfig`
- * 三个字段逐字填入本对象即可；它们是可公开下发给前端的值，不含任何服务端密钥。
+ * 下方三个值逐字来自 `workbuddy_cloud_service`(action=activate) 返回的 `publicConfig`
+ * （应用 WorkspaceTree / wbapp_dH26wsJCg55VpWicSNpTDE，2026-11-15 激活成功）。
+ * 它们是可公开下发给前端的值，不含任何服务端密钥。
  *
  * - endpoint          → publicConfig.endpoint
  * - oauthRelayBaseUrl → publicConfig.oauthRelayBaseUrl
  * - publishableKey    → publicConfig.publishableKey
  *
  * 严禁：从 window.location / 环境变量 / 约定拼接推导 endpoint，或填入猜测的域名。
- * 未配置时 isCloudConfigured() 为 false，应用保持「本地游客模式」，
- * 不创建任何假账号、假会话或本地伪造身份。
+ * endpoint 与发布域名同源；publishableKey 由服务端按 Origin 精确校验，
+ * 因此带账号登录的版本必须部署在该应用保留的 WorkBuddy HTTPS 域名上。
  */
 export interface CloudPublicConfig {
   endpoint: string;
@@ -20,9 +20,9 @@ export interface CloudPublicConfig {
 }
 
 export const publicConfig: CloudPublicConfig = {
-  endpoint: '',
-  oauthRelayBaseUrl: '',
-  publishableKey: '',
+  endpoint: 'https://wbapp-dh26wsjcg55vpwicsnptde.app.workbuddy.host',
+  oauthRelayBaseUrl: 'https://www.workbuddy.cn/v2/as/genie-baas/oauth',
+  publishableKey: 'wbpk_dH26wsJCg55VpWicSNpTDE_go86tDWV7A0GJKNYqCmQcjMFousZoRub',
 };
 
 export const CLOUD_NOT_CONFIGURED_MESSAGE =

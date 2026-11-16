@@ -1,13 +1,14 @@
 import type { StoredProjectSummary } from '@workspacetree/storage';
 import { useCallback, useEffect, useState } from 'react';
 import { WorkspaceIcon } from './WorkspaceIcon';
-import type { ProjectStorePort } from './cloud/ports';
+import type { ProjectStorePort } from './project-store';
+import type { StorageScope } from './workspace-session';
 
 interface ProjectsModalProps {
   open: boolean;
   onClose: () => void;
   storage: ProjectStorePort | null;
-  scope?: 'local' | 'account';
+  scope?: StorageScope;
   openProjectIds: string[];
   onOpenProject: (projectId: string) => Promise<void>;
   onCreateProject: () => Promise<void>;

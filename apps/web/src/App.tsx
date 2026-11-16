@@ -34,15 +34,8 @@ import {
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
 import type { AssetRecord, BranchFile, Edge, HierarchyEdgeRole } from '@workspacetree/schema';
-import LoginModal from './LoginModal';
-import { createAccountService, type AccountSnapshot } from './cloud/account';
-import type { ProjectStorePort } from './cloud/ports';
-import {
-  createWorkspaceStorage,
-  scopedSessionKey,
-  storageScopeFor,
-  type StorageScope,
-} from './workspace-storage';
+import { createBrowserStorageAdapter } from '@workspacetree/storage';
+import type { ProjectStorePort } from './project-store';
 import {
   lazy,
   Suspense,
@@ -53,6 +46,7 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent,
+  type ReactNode,
 } from 'react';
 import CanvasNode, { type CardNode } from './CanvasNode';
 import DateDirectory from './DateDirectory';
@@ -79,7 +73,12 @@ import ProjectsModal from './ProjectsModal';
 import SaveProjectModal from './SaveProjectModal';
 import SearchModal from './SearchModal';
 import { WorkspaceIcon } from './WorkspaceIcon';
-import { loadWorkspaceSession, saveWorkspaceSession } from './workspace-session';
+import {
+  loadWorkspaceSession,
+  saveWorkspaceSession,
+  scopedSessionKey,
+  type StorageScope,
+} from './workspace-session';
 import {
   addEdgeEntry,
   clearPositionEntry,
@@ -190,13 +189,25 @@ export interface WorkspaceTab {
   controller: EditorController;
 }
 
-export default function App() {
+interface WorkspaceAppProps {
+  initializeWorkspace?: () => Promise<{ scope: StorageScope; storage: ProjectStorePort }>;
+  accountControl?: ReactNode;
+  accountDialog?: ReactNode;
+  accountNotice?: string | null;
+}
+
+async function initializeLocalWorkspace() {
+  return { scope: 'local' as const, storage: await createBrowserStorageAdapter() };
+}
+
+export default function App({
+  initializeWorkspace = initializeLocalWorkspace,
+  accountControl,
+  accountDialog,
+  accountNotice,
+}: WorkspaceAppProps) {
   const storageRef = useRef<ProjectStorePort | null>(null);
-  const accountService = useMemo(() => createAccountService(), []);
-  const [account, setAccount] = useState<AccountSnapshot>(() => accountService.snapshot());
   const [storageScope, setStorageScope] = useState<StorageScope>('local');
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [cloudNotice, setCloudNotice] = useState<string | null>(null);
   const flowApiRef = useRef<FlowViewportAPI | null>(null);
   const [tabs, setTabs] = useState<WorkspaceTab[]>([]);
   const tabsRef = useRef(tabs);
@@ -268,33 +279,10 @@ export default function App() {
   const [editingTabTitle, setEditingTabTitle] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const booted = useRef(false);
-  const accountReloadPending = useRef(false);
-
-  /** 登录/登出后刷新：所有 EditorController 都持有 storage 引用，必须重建。 */
-  const handleAccountChanged = useCallback((message?: string) => {
-    if (message) setCloudNotice(message);
-    // SDK 的 SIGNED_OUT 事件与按钮操作可能在同一轮触发，重载只调度一次。
-    if (accountReloadPending.current) return;
-    accountReloadPending.current = true;
-    window.location.reload();
-  }, []);
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
-
-  useEffect(() => {
-    // SDK 会回放 INITIAL_SESSION / TOKEN_REFRESHED；只有已登录态被外部（如另一标签页登出）
-    // 撤销时才重载页面，重建持有旧账号 storage 引用的所有控制器。
-    let lastStatus = accountService.snapshot().status;
-    return accountService.subscribe((next) => {
-      setAccount(next);
-      if (booted.current && lastStatus === 'signed-in' && next.status !== 'signed-in') {
-        handleAccountChanged();
-      }
-      lastStatus = next.status;
-    });
-  }, [accountService, handleAccountChanged]);
 
   useEffect(() => {
     if (!booted.current || tabs.length === 0) return;
@@ -336,20 +324,8 @@ export default function App() {
     booted.current = true;
     void (async () => {
       try {
-        // OAuth 回调分发必须在任何登录守卫之前执行，且成功后清理 URL 上一次性参数。
-        const callback = await accountService.handleCallback(window.location.href);
-        if (callback.cleanHref) {
-          window.history.replaceState(null, '', callback.cleanHref);
-        }
-        if (callback.message) setCloudNotice(callback.message);
-        const snapshot = callback.handled
-          ? accountService.snapshot()
-          : await accountService.restoreSession();
-        setAccount(snapshot);
-
-        const scope = storageScopeFor(snapshot);
+        const { scope, storage } = await initializeWorkspace();
         setStorageScope(scope);
-        const storage = await createWorkspaceStorage(scope);
         storageRef.current = storage;
 
         const session = loadWorkspaceSession(scopedSessionKey(scope));
@@ -423,7 +399,7 @@ export default function App() {
         setBootError(cause instanceof Error ? cause.message : String(cause));
       }
     })();
-  }, []);
+  }, [initializeWorkspace]);
 
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null,
@@ -1778,23 +1754,10 @@ export default function App() {
         >
           <WorkspaceIcon name="folder" size={14} />
         </button>
-        <button
-          type="button"
-          className="wst-tab-projects-btn wst-account-btn"
-          title={
-            account.status === 'signed-in'
-              ? `已登录：${account.identity?.label ?? ''}`
-              : '登录账号，项目将保存到账号中'
-          }
-          aria-label="账号与项目空间"
-          onClick={() => setLoginOpen(true)}
-        >
-          <WorkspaceIcon name="panel" size={14} />
-          <span>{account.status === 'signed-in' ? account.identity?.label : '登录'}</span>
-        </button>
       </div>
       <WorkspaceToolbar
         file={file}
+        accountControl={accountControl}
         readOnly={readOnly}
         onRenameProject={handleRenameProject}
         projectView={projectView}
@@ -2504,9 +2467,9 @@ export default function App() {
             {uiError ?? snapshot.error}
           </span>
         )}
-        {cloudNotice && (
+        {accountNotice && (
           <span className="wst-scope-badge" role="status">
-            {cloudNotice}
+            {accountNotice}
           </span>
         )}
         <span className="wst-scope-badge" data-testid="storage-scope">
@@ -2551,14 +2514,7 @@ export default function App() {
         onSelectNode={(nodeId) => locateProjectNode(nodeId, true)}
       />
 
-      <LoginModal
-        open={loginOpen}
-        onClose={() => setLoginOpen(false)}
-        service={accountService}
-        snapshot={account}
-        scope={storageScope}
-        onAccountChanged={handleAccountChanged}
-      />
+      {accountDialog}
     </div>
   );
 }

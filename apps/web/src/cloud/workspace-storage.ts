@@ -5,12 +5,11 @@
  * - account → 云端数据库（已登录），项目按账号隔离（RLS）。
  */
 import { createBrowserStorageAdapter } from '@workspacetree/storage';
-import { getCloudRuntime, isCloudEnabled } from './cloud/client';
-import { CloudProjectStore, resolveStorageScope, type StorageScope } from './cloud/project-store';
-import type { AccountSnapshot } from './cloud/account';
-import type { ProjectStorePort } from './cloud/ports';
-
-export type { StorageScope };
+import { getCloudRuntime, isCloudEnabled } from './client';
+import { CloudProjectStore, resolveStorageScope } from './project-store';
+import type { AccountSnapshot } from './account';
+import type { ProjectStorePort } from '../project-store';
+import type { StorageScope } from '../workspace-session';
 
 export function storageScopeFor(snapshot: AccountSnapshot): StorageScope {
   return resolveStorageScope(snapshot.status === 'signed-in', isCloudEnabled());
@@ -27,9 +26,4 @@ export function createWorkspaceStorage(
     return new CloudProjectStore({ projects: runtime.projects });
   }
   return createBrowserStorageAdapter();
-}
-
-/** 不同空间用独立的标签页会话键，避免登出后把账号项目 id 带进本地仓储。 */
-export function scopedSessionKey(scope: StorageScope): string {
-  return scope === 'account' ? 'workspacetree_session_v1_account' : 'workspacetree_session_v1';
 }

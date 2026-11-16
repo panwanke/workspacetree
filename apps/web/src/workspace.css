@@ -1491,6 +1491,11 @@
   color: var(--ink);
 }
 
+.wst-scope-badge {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .wst-last-action::before {
   width: 6px;
   height: 6px;

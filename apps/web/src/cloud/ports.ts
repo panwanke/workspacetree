@@ -64,23 +64,6 @@ export interface CloudAuthPort {
   ): () => void;
 }
 
-export interface StoredProjectSummary {
-  projectId: string;
-  title: string;
-  activeBranch: string;
-  nodeCount: number;
-  updatedAt?: string;
-}
-
-/** 项目仓储端口：local(IndexedDB) 与 account(云端数据库) 都实现它。 */
-export interface ProjectStorePort {
-  load(projectId: string): Promise<BranchFile | null>;
-  save(file: BranchFile): Promise<void>;
-  listProjects(): Promise<StoredProjectSummary[]>;
-  createIfAbsent(file: BranchFile): Promise<BranchFile>;
-  clear(projectId: string): Promise<void>;
-}
-
 /** 云端单行记录；owner_id 由数据库 DEFAULT auth.uid() 填充，前端绝不传。 */
 export interface CloudProjectRow {
   project_id: string;

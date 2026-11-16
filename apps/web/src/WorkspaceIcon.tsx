@@ -10,6 +10,9 @@ const paths = {
   route: 'M6 17V7a3 3 0 1 1 3 3h6a3 3 0 1 1 3 3v4M3 17h6v4H3zm12 0h6v4h-6z',
   sliders: 'M4 7h7m4 0h5M4 17h5m4 0h7M11 4v6m2 4v6',
   panel: 'M15 4v16M3 4h18v16H3z',
+  user: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2',
+  message:
+    'M21 10.5a8.5 8.5 0 0 1-8.5 8.5H5l1.5-2.7A8.5 8.5 0 1 1 21 10.5ZM9 11h.01M13 11h.01M17 11h.01',
   close: 'm6 6 12 12M18 6 6 18',
   trash: 'M4 6h16M9 6V3h6v3m3 0-1 15H7L6 6m4 4v7m4-7v7',
   upload: 'M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6',

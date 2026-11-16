@@ -85,6 +85,7 @@ export function WorkspacePopover({
 
 interface ToolbarProps {
   file: BranchFile;
+  accountControl?: ReactNode;
   readOnly: boolean;
   projectView: ProjectView;
   edgeCount: number;
@@ -338,6 +339,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               </>
             )}
           </WorkspacePopover>
+          {props.accountControl}
         </div>
       </div>
 

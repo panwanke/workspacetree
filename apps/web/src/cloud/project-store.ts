@@ -8,6 +8,9 @@
  */
 import { migrateToCurrent } from '@workspacetree/core';
 import { BranchFileSchema, type BranchFile } from '@workspacetree/schema';
+import type { StoredProjectSummary } from '@workspacetree/storage';
+import type { ProjectStorePort } from '../project-store';
+import type { StorageScope } from '../workspace-session';
 import { getCloudRuntime } from './client';
 import { CLOUD_NOT_CONFIGURED_MESSAGE } from './public-config';
 import {
@@ -16,11 +19,7 @@ import {
   type CloudProjectRow,
   type CloudProjectTablePort,
   type CloudSessionLike,
-  type ProjectStorePort,
-  type StoredProjectSummary,
 } from './ports';
-
-export type StorageScope = 'local' | 'account';
 
 export interface CloudProjectStoreOptions {
   projects?: CloudProjectTablePort;

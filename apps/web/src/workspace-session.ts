@@ -1,5 +1,11 @@
 export const WORKSPACE_SESSION_STORAGE_KEY = 'workspacetree_session_v1';
 
+export type StorageScope = 'local' | 'account';
+
+export function scopedSessionKey(scope: StorageScope): string {
+  return scope === 'account' ? 'workspacetree_session_v1_account' : WORKSPACE_SESSION_STORAGE_KEY;
+}
+
 export interface SavedWorkspaceTab {
   id: string;
   projectId: string;
