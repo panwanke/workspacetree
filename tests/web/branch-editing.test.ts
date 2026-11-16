@@ -291,19 +291,30 @@ describe('subtree movement', () => {
     expect(layout(current(), 'horizontal').locked).toContain('n_writing_template_latex');
   });
 
-  it('translates hidden descendants with a folded drag and restores original locks on undo', async () => {
+  it('moves folded descendants and a selected companion in one undoable drag', async () => {
     const { editor, current } = await setup();
     const before = current();
     const direction = 'vertical';
     const graph = resolveVisualGraph(before.domain, before.presentation);
     const visibleRoot = graph.positions[sourceId];
+    const companionId = before.domain.project.rootNodeId;
+    const companionStart = graph.positions[companionId];
+    const companionEnd = { x: companionStart.x + 31, y: companionStart.y - 52 };
     const beforeExpanded = layout(before, direction);
-    editor.dragBegin(sourceId, visibleRoot, direction);
-    editor.dragMove(sourceId, { x: visibleRoot.x + 31, y: visibleRoot.y - 52 }, direction);
+    editor.dragBegin(sourceId, visibleRoot, direction, [
+      { id: companionId, position: companionStart },
+    ]);
+    editor.dragMove(sourceId, { x: visibleRoot.x + 31, y: visibleRoot.y - 52 }, direction, [
+      { id: companionId, position: companionEnd },
+    ]);
     await editor.dragEnd(direction);
 
     const moved = layout(current(), direction);
     expect(moved.positions[sourceId]).toEqual({ x: visibleRoot.x + 31, y: visibleRoot.y - 52 });
+    expect(moved.positions[companionId]).toEqual(companionEnd);
+    expect(current().revisions.presentationRevision).toBe(
+      before.revisions.presentationRevision + 1,
+    );
     for (const id of subtree) {
       expect(moved.positions[id].x - moved.positions[sourceId].x).toBeCloseTo(
         beforeExpanded.positions[id].x - beforeExpanded.positions[sourceId].x,

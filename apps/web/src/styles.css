@@ -592,6 +592,18 @@ input[type='date'] {
   min-height: 0;
 }
 
+.wst-drag-guides {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+  stroke: #1673d1;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+}
+
 .wst-md-heading {
   font-weight: 700;
   color: #0f172a;

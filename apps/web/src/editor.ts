@@ -15,10 +15,11 @@ import {
   DragCoalescer,
   replaceDomainEntry,
   replacePresentationEntry,
+  type DraggedNodePosition,
   type HistoryEntry,
   type Point,
 } from './history';
-import { translateBranchEntry } from './branch-editing';
+import { translateBranchPositions } from './branch-editing';
 
 export interface EditorStats {
   persistedBatches: number;
@@ -369,16 +370,26 @@ export class EditorController {
     });
   }
 
-  dragBegin(nodeId: string, at: Point, direction: LayoutDirection = 'horizontal'): void {
+  dragBegin(
+    nodeId: string,
+    at: Point,
+    direction: LayoutDirection = 'horizontal',
+    companions?: readonly DraggedNodePosition[],
+  ): void {
     if (this.isReadOnly) return;
     this.dragDirection = direction;
-    this.drag.begin(nodeId, at, direction);
+    this.drag.begin(nodeId, at, direction, companions);
   }
 
-  dragMove(nodeId: string, at: Point, direction?: LayoutDirection): void {
+  dragMove(
+    nodeId: string,
+    at: Point,
+    direction?: LayoutDirection,
+    companions?: readonly DraggedNodePosition[],
+  ): void {
     if (this.isReadOnly) return;
     if (direction) this.dragDirection = direction;
-    this.drag.move(nodeId, at, direction);
+    this.drag.move(nodeId, at, direction, companions);
   }
 
   get dragFrames(): number {
@@ -393,24 +404,47 @@ export class EditorController {
     if (!batch) return;
     this.stats.lastDragFrames = batch.frames;
     await this.safely(async () => {
-      const moved = batch.entry.forward[0].payload as { nodeId: string; x: number; y: number };
-      const folded = this.file.presentation.collapsedByDefault.includes(moved.nodeId);
-      const positions =
-        direction === 'vertical'
-          ? this.file.presentation.verticalNodePositions
-          : this.file.presentation.nodePositions;
-      const dragEdit = folded
-        ? translateBranchEntry(this.file, moved.nodeId, direction, moved, strategy)
-        : {
-            ...batch.entry,
-            inverse: batch.entry.forward.map((command): Command => {
-              const { nodeId } = command.payload as { nodeId: string };
-              const previous = positions?.[nodeId];
-              return previous
-                ? { type: 'presentation.moveNode', payload: { nodeId, direction, ...previous } }
-                : { type: 'presentation.clearManualPosition', payload: { nodeId, direction } };
-            }),
-          };
+      const presentation = this.file.presentation;
+      const positionKey = direction === 'vertical' ? 'verticalNodePositions' : 'nodePositions';
+      const positions = presentation[positionKey];
+      const collapsed = new Set(presentation.collapsedByDefault);
+      const moves = batch.entry.forward.map(
+        (command) => command.payload as Point & { nodeId: string },
+      );
+      const folded = moves.some(({ nodeId }) => collapsed.has(nodeId));
+      let dragEdit: HistoryEntry;
+
+      if (folded) {
+        const nextPositions = { ...positions };
+        for (const { nodeId, x, y } of moves) {
+          if (collapsed.has(nodeId)) {
+            Object.assign(
+              nextPositions,
+              translateBranchPositions(this.file, nodeId, direction, { x, y }, strategy),
+            );
+          } else {
+            nextPositions[nodeId] = { x, y };
+          }
+        }
+        dragEdit = {
+          ...replacePresentationEntry(presentation, {
+            ...presentation,
+            [positionKey]: nextPositions,
+          }),
+          label: '拖动折叠分支',
+          actorKind: 'human',
+        };
+      } else {
+        dragEdit = {
+          ...batch.entry,
+          inverse: moves.map(({ nodeId }): Command => {
+            const previous = positions?.[nodeId];
+            return previous
+              ? { type: 'presentation.moveNode', payload: { nodeId, direction, ...previous } }
+              : { type: 'presentation.clearManualPosition', payload: { nodeId, direction } };
+          }),
+        };
+      }
       await this.applyEntry(dragEdit, 'forward');
       this.undoStack.push(dragEdit);
       this.redoStack.length = 0;

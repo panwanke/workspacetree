@@ -603,6 +603,11 @@ export interface DragBatch {
   mergedCommands: number;
 }
 
+export interface DraggedNodePosition {
+  id: string;
+  position: Point;
+}
+
 /**
  * 100 次连续拖动 → 1 个持久化批次、1 条历史记录、N 条合并后的命令（N = 被拖节点数）。
  * 不在此处调用任何 service，因此绝不产生帧级历史记录或语义 Commit。
@@ -613,20 +618,34 @@ export class DragCoalescer {
   private readonly start = new Map<string, Point>();
   private readonly latest = new Map<string, Point>();
 
-  begin(nodeId: string, at: Point, direction: LayoutDirection = 'horizontal'): void {
+  begin(
+    nodeId: string,
+    at: Point,
+    direction: LayoutDirection = 'horizontal',
+    companions: readonly DraggedNodePosition[] = [],
+  ): void {
     this.frames = 0;
     this.direction = direction;
     this.start.clear();
     this.latest.clear();
-    this.start.set(nodeId, { ...at });
-    this.latest.set(nodeId, { ...at });
+    for (const { id, position } of [{ id: nodeId, position: at }, ...companions]) {
+      this.start.set(id, { ...position });
+      this.latest.set(id, { ...position });
+    }
   }
 
-  move(nodeId: string, at: Point, direction?: LayoutDirection): void {
+  move(
+    nodeId: string,
+    at: Point,
+    direction?: LayoutDirection,
+    companions: readonly DraggedNodePosition[] = [],
+  ): void {
     this.frames += 1;
     if (direction) this.direction = direction;
-    if (!this.start.has(nodeId)) this.start.set(nodeId, { ...at });
-    this.latest.set(nodeId, { ...at });
+    for (const { id, position } of [{ id: nodeId, position: at }, ...companions]) {
+      if (!this.start.has(id)) this.start.set(id, { ...position });
+      this.latest.set(id, { ...position });
+    }
   }
 
   get frameCount(): number {

@@ -431,24 +431,17 @@ export function reparentBranchEntry(
   };
 }
 
-export function translateBranchEntry(
+export function translateBranchPositions(
   file: BranchFile,
   nodeId: string,
   direction: LayoutDirection,
   to: Point,
   strategy: LayoutStrategy = 'timeline',
-): HistoryEntry {
+): Record<string, Point> {
   const { children } = buildHierarchy(file.domain.nodes, file.domain.edges);
   const ids = subtreeIds(children, nodeId);
   const graph = expandedGraph(file, direction, strategy);
-  const key = positionKey(direction);
-  return presentationEdit('拖动折叠分支', file.presentation, {
-    ...file.presentation,
-    [key]: {
-      ...file.presentation[key],
-      ...translatedPositions(ids, graph.positions, graph.positions[nodeId], to),
-    },
-  });
+  return translatedPositions(ids, graph.positions, graph.positions[nodeId], to);
 }
 
 export function restoreBranchLayoutEntry(
