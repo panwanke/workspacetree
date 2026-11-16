@@ -1,6 +1,9 @@
 node_modules/
 dist/
+dist-static/
 coverage/
+# WorkBuddy 发布用的生成型静态产物（由 scripts/prepare-release.mjs 产出）
+release/
 ara/
 .workbuddy/
 pnpm-lock.yaml

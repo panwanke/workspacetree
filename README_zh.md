@@ -55,15 +55,15 @@ WorkspaceTree 不只是一个简单的脑图绘制或任务看板工具，更是
 - 使用浏览器 IndexedDB 本地保存项目快照。
 - 可选的账号登录（手机号验证码 / WorkBuddy 账号 / 微信扫码）与按账号隔离的云端项目空间；未配置云服务时完全保持本地模式。
 
-## 账号与云端项目（代码已完成，待部署）
+## 账号与云端项目
 
-账号层代码已完成，但**尚未激活云服务**。`apps/web/src/cloud/public-config.ts` 故意留空，因此当前所有构建（包括 GitHub Pages 演示站）仍走浏览器 IndexedDB 的本地游客模式，账号面板会明确提示「云服务尚未配置」。不会创建任何假账号、假会话或 localStorage 用户。
+GitHub Pages 演示站使用独立的 `pnpm --filter @workspacetree/web build:static` 构建，项目存入浏览器 IndexedDB。构建会拒绝账号模块和云端 SDK，CI 会在发布前用浏览器验证产物。
 
-后续部署启用步骤：
+在 WorkBuddy 部署中启用账号：
 
 1. 为应用激活 WorkBuddy Cloud Service，把 `endpoint`、`oauthRelayBaseUrl`、`publishableKey` 填入 `apps/web/src/cloud/public-config.ts`。
 2. 在云端 SQL 编辑器执行 [`docs/cloud-schema.sql`](docs/cloud-schema.sql)，创建 `public.workspacetree_projects` 表与 RLS 策略。前端从不发送 `owner_id`，由 `auth.uid()` 填充并按账号隔离。
-3. 使用 WorkBuddy 发布的 HTTPS 域名部署。`publishableKey` 与 Origin 精确匹配，`github.io` 下的构建无法登录，GitHub Pages 保留为本地 / 游客演示站。
+3. 执行 `pnpm --filter @workspacetree/web build` 后，将产物部署到 `publishableKey` 授权的 WorkBuddy HTTPS 域名。
 4. 重新构建后，实测登录、保存读回以及权限失败路径。OAuth 回调必须落在站点根路径（`BASE_URL`）且在同一标签页完成，WorkBuddy 登录的 PKCE 证明存在该标签页的 `sessionStorage`。
 
 登录后使用账号项目空间与独立的标签页会话 key；由于 `EditorController` 持有 storage 引用，登录 / 登出会重载页面以重建控制器，其他标签页登出同样会触发重载。本地已有项目**不会自动迁移**，需导出并重新导入 `.branch.json`。

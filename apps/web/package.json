@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "build": "vite build"
+    "build": "vite build",
+    "build:static": "vite build --config vite.static.config.ts",
+    "smoke:static": "node scripts/smoke-web.mjs static",
+    "smoke:account": "node scripts/smoke-web.mjs account"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",

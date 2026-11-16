@@ -17,7 +17,8 @@
     "generate:json-schema": "tsx packages/schema/scripts/generate-json-schema.ts",
     "generate:golden": "tsx tests/support/generate-golden.ts",
     "capture:screenshot": "node scripts/capture-demo-screenshot.mjs",
-    "validate:all": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+    "validate:all": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "release:prepare": "node scripts/prepare-release.mjs"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.11.1",
