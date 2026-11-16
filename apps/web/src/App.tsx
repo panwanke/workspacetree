@@ -6,8 +6,10 @@ import {
   MiniMap,
   ReactFlow,
   SelectionMode,
+  ViewportPortal,
   applyNodeChanges,
   useReactFlow,
+  useStore,
   Position,
   type NodeChange,
   type Edge as FlowEdge,
@@ -49,6 +51,7 @@ import {
   type ReactNode,
 } from 'react';
 import CanvasNode, { type CardNode } from './CanvasNode';
+import { useCanvasNodeDrag } from './useCanvasNodeDrag';
 import DateDirectory from './DateDirectory';
 import RelationEdge from './RelationEdge';
 import TimelineAxis from './TimelineAxis';
@@ -68,6 +71,7 @@ import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from '.
 import { reconnectEdgeEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
 import { loadSettings, type WorkspaceSettings } from './settings';
+import { useMarkdownCss } from './markdown/custom-css';
 import SettingsModal from './SettingsModal';
 import ProjectsModal from './ProjectsModal';
 import SaveProjectModal from './SaveProjectModal';
@@ -134,17 +138,38 @@ interface FlowViewportAPI {
 function FlowViewportController({
   fitTrigger,
   focusNodeId,
+  editingNodeId,
   onFocused,
   direction,
   apiRef,
 }: {
   fitTrigger: number;
   focusNodeId: string | null;
+  editingNodeId: string | null;
   onFocused: () => void;
   direction: LayoutDirection;
   apiRef?: React.MutableRefObject<FlowViewportAPI | null>;
 }) {
   const reactFlow = useReactFlow();
+  const editorViewport = useStore((state) => {
+    if (!editingNodeId) return null;
+    const node = state.nodeLookup.get(editingNodeId);
+    if (!node?.data.isEditing || !state.width || !state.height) return null;
+    const { width, height } = node.measured;
+    if (!width || !height) return null;
+    const { x, y } = node.internals.positionAbsolute;
+    const [tx, ty, zoom] = state.transform;
+    const left = x * zoom + tx;
+    const top = y * zoom + ty;
+    const fits =
+      zoom >= 0.8 &&
+      left >= 12 &&
+      top >= 12 &&
+      left + width * zoom <= state.width - 12 &&
+      top + height * zoom <= state.height - 12;
+    return fits ? 'visible' : 'clipped';
+  });
+  const lastFittedEditor = useRef<string | null>(null);
 
   useEffect(() => {
     if (apiRef) {
@@ -170,6 +195,22 @@ function FlowViewportController({
     const timer = window.setTimeout(() => onFocused(), 30);
     return () => window.clearTimeout(timer);
   }, [focusNodeId, reactFlow, onFocused]);
+
+  useEffect(() => {
+    if (!editingNodeId) {
+      lastFittedEditor.current = null;
+      return;
+    }
+    if (!editorViewport || lastFittedEditor.current === editingNodeId) return;
+    lastFittedEditor.current = editingNodeId;
+    if (editorViewport === 'visible') return;
+    void reactFlow.fitView({
+      nodes: [{ id: editingNodeId }],
+      padding: { top: '48px', right: '24px', bottom: '32px', left: '44px' },
+      maxZoom: 1.15,
+      duration: 160,
+    });
+  }, [editingNodeId, editorViewport, reactFlow]);
 
   return null;
 }
@@ -271,6 +312,7 @@ export default function App({
     loadKeybindings(),
   );
   const [settings, setSettings] = useState<WorkspaceSettings>(() => loadSettings());
+  useMarkdownCss(settings.markdownCss);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -445,6 +487,16 @@ export default function App({
   const file: BranchFile | null = snapshot?.file ?? null;
   const readOnly = controller?.isReadOnly ?? false;
   const layoutDirection = file ? resolveLayoutDirection(file.presentation) : 'vertical';
+  const getCanvasZoom = useCallback(() => flowApiRef.current?.getViewport().zoom ?? 1, []);
+  const { guides, ...nodeDragHandlers } = useCanvasNodeDrag({
+    editor: controller,
+    direction: layoutDirection,
+    strategy: layoutStrategy,
+    enabled: projectView === 'canvas' && viewMode === '2d' && !readOnly,
+    nodes,
+    setNodes,
+    getZoom: getCanvasZoom,
+  });
   const visibleTypes = showRelations ? ALL_EDGE_TYPES : DEFAULT_VISIBLE_EDGE_TYPES;
   const visualGraph = useMemo(() => {
     if (!file) return null;
@@ -717,7 +769,8 @@ export default function App({
       const node = nodeMap.get(visual.id)!;
       const hasChildren = (childHierarchyMap.get(visual.id) ?? []).length > 0 || visual.collapsed;
       const isEditing = editingNodeId === visual.id;
-      const width = isEditing ? Math.max(480, visual.size.width) : visual.size.width;
+      const editorWidth = compactWorkspace ? 320 : 640;
+      const width = isEditing ? Math.max(editorWidth, visual.size.width) : visual.size.width;
       const height = isEditing ? Math.max(280, visual.size.height) : visual.size.height;
       return {
         id: visual.id,
@@ -848,6 +901,7 @@ export default function App({
     highlightSpineIds,
     selectedNodeIds,
     editingNodeId,
+    compactWorkspace,
     selectedEdgeId,
     cutBranchId,
     readOnly,
@@ -873,11 +927,14 @@ export default function App({
       const byId = new Map(previous.map((node) => [node.id, node]));
       return derived.flowNodes.map((node) => {
         const prior = byId.get(node.id);
-        return prior?.measured &&
-          prior.style?.width === node.style?.width &&
-          prior.style?.height === node.style?.height
-          ? { ...node, measured: prior.measured }
-          : node;
+        if (!prior) return node;
+        const sameSize =
+          prior.style?.width === node.style?.width && prior.style?.height === node.style?.height;
+        return {
+          ...node,
+          measured: sameSize ? prior.measured : undefined,
+          ...(prior.dragging ? { position: prior.position, dragging: true } : {}),
+        };
       });
     });
   }, [derived.flowNodes]);
@@ -1962,18 +2019,14 @@ export default function App({
               connectionMode={ConnectionMode.Loose}
               connectionRadius={24}
               connectOnClick={false}
-              onNodeDragStart={(_, node) =>
-                controller.dragBegin(node.id, node.position, layoutDirection)
-              }
-              onNodeDrag={(_, node) => controller.dragMove(node.id, node.position, layoutDirection)}
-              onNodeDragStop={() => void controller.dragEnd(layoutDirection, layoutStrategy)}
+              {...nodeDragHandlers}
               nodesConnectable={!readOnly}
               nodesDraggable={!readOnly}
               deleteKeyCode={null}
               selectionOnDrag
               selectionMode={SelectionMode.Partial}
               panOnDrag={[1, 2]}
-              multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
+              multiSelectionKeyCode={['Shift', 'Meta']}
               fitView
               fitViewOptions={{ padding: FIT_PADDING[layoutDirection] }}
               minZoom={0.1}
@@ -1983,6 +2036,7 @@ export default function App({
               <FlowViewportController
                 fitTrigger={fitTrigger}
                 focusNodeId={focusNodeId}
+                editingNodeId={editingNodeId}
                 onFocused={clearFocus}
                 direction={layoutDirection}
                 apiRef={flowApiRef}
@@ -1995,6 +2049,19 @@ export default function App({
                 />
               )}
               <Background gap={20} size={1} />
+              {guides.length > 0 && (
+                <ViewportPortal>
+                  <svg className="wst-drag-guides" aria-hidden="true">
+                    {guides.map((guide) => (
+                      <line
+                        key={guide.x1 === guide.x2 ? 'vertical' : 'horizontal'}
+                        {...guide}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
+                  </svg>
+                </ViewportPortal>
+              )}
               <Controls />
               <MiniMap pannable zoomable style={{ width: 150, height: 108 }} />
             </ReactFlow>
@@ -2012,6 +2079,12 @@ export default function App({
                   ) : (
                     <>
                       <li>左键拖动框选，中键或右键平移</li>
+                      <li>
+                        拖动节点时按住 <kbd>Ctrl</kbd> 对齐附近节点
+                      </li>
+                      <li>
+                        按住 <kbd>Shift</kbd> 点击可多选节点
+                      </li>
                       <li>悬停节点圆点拖拽连线，双击卡片编辑</li>
                       <li>
                         拖动四角调整尺寸（
