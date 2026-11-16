@@ -59,6 +59,7 @@ const DEMO_NOTES: Record<string, string> = {
     '### **多维画布渲染管道**',
     '> [!TIP]',
     '> 画布支持 **2D 平面流转** 与 **3D 空间主干透视** 自由切换，结合 LOD 视觉分级优化，万级视口下保持 60 FPS 流畅交互。',
+    '> **艺术之韵**：2D/3D 与 LOD 分级不是性能炫技，而是让主干纵览与细节浸润共用一块画布，视线有起有落。',
     '',
     `![交互渲染流水线](${ARCH_FLOW_SVG})`,
   ].join('\n'),
@@ -181,6 +182,13 @@ const DEMO_NOTES: Record<string, string> = {
     '### **本地优先（Local-First）数据架构**',
     '> [!NOTE]',
     '> 遵循 Local-First 原则：数据优先保存在本地浏览器 IndexedDB，离线可用、秒级加载、数据资产完全私有。',
+    '> **工程之骨**：离线可用、哈希隔离与自包含资产，是「错落」敢反复调整而不失控的地基。',
+  ].join('\n'),
+
+  n_branch_ecosystem: [
+    '### **生态交付与开放格式**',
+    '> [!IMPORTANT]',
+    '> **哲学之序**：克制分叉、及时收敛。SVG 与 .branch.json 把拓扑交还给用户，让宏观透视有始有终。',
   ].join('\n'),
 
   n_storage_hashes: [
@@ -878,26 +886,30 @@ export function createDemoBranchFile(): BranchFile {
       savedSpineDisplay: 'spn_canvas_ux',
       layoutDirection: 'vertical',
       nodeSizes: {
-        n_root: { width: 330, height: 195 },
+        // 自定义尺寸只乘 branchScale，因此战略锚点与战术重音在这里同步放大画幅，
+        // 让 nodeScales 的数值真正体现为视觉体量，而不只是字号与内边距。
+        n_root: { width: 400, height: 238 },
         n_branch_ui: { width: 260, height: 160 },
         n_branch_layout: { width: 270, height: 165 },
         n_branch_storage: { width: 260, height: 160 },
         n_branch_ecosystem: { width: 260, height: 160 },
-        n_layout_philosophy: { width: 340, height: 280 },
-        n_editor_diagrams: { width: 310, height: 230 },
+        n_layout_philosophy: { width: 400, height: 330 },
+        n_editor_diagrams: { width: 350, height: 260 },
         n_editor_tasks: { width: 280, height: 180 },
         n_editor_callouts: { width: 280, height: 175 },
-        n_layout_timetree: { width: 290, height: 180 },
+        n_layout_timetree: { width: 325, height: 202 },
         n_geom_spines: { width: 270, height: 165 },
         n_storage_hashes: { width: 270, height: 165 },
         n_eco_svg: { width: 280, height: 175 },
-        n_mile_beta: { width: 280, height: 175 },
+        n_mile_beta: { width: 330, height: 207 },
       },
       nodeScales: {
         n_root: 1.22,
         n_branch_ui: 1.06,
-        n_branch_layout: 1.1,
-        n_branch_storage: 1.04,
+        // branchScales × nodeScales 才是最终倍率；这两个值使四根支柱落在 1.05~1.10：
+        // layout 1.05×1.04=1.092、storage 0.98×1.08=1.058（ui 1.081、ecosystem 1.061）。
+        n_branch_layout: 1.04,
+        n_branch_storage: 1.08,
         n_branch_ecosystem: 1.04,
         n_layout_philosophy: 1.18,
         n_editor_diagrams: 1.14,
