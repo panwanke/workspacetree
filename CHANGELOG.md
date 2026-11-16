@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-16
+
+- **认证错误中文化**：新增 `apps/web/src/cloud/auth-errors.ts`（`describeAuthError`）。发码/验码失败不再把上游英文原文直接抛给用户——腾讯云短信会以 `send error code FailedOperation.PhoneNumberInBlacklist msg number on the blacklist` 这种形态回传，现在统一翻译成「该手机号收不到短信验证码…请换一个手机号登录」这类可操作文案，并保留原始错误码作为 `ActionResult.detail` 小字（`.wst-login-error-code`）供报障。已覆盖黑名单、号码格式、三档限流、短信签名/模板配置类错误，以及 SDK 的 `rate-limited / network / backend-unavailable / unauthenticated / permission-denied / not-found / invalid-request`。
+- 登录面板的兜底文案由「操作失败，请检查网络连接后重试」改为中性的「操作失败，请稍后重试」：`service` 已把可预期错误转成 `ActionResult`，走到 `catch` 的是未预期异常，再暗示网络问题会把「号码进黑名单」误诊成断网。OAuth 启动/回调错误保留原文（多为配置类原因，对定位有用）。
+- 新增 `tests/web/cloud-auth-errors.test.ts`（7 例）与「发码黑名单不透英文」回归用例；`pnpm validate:all` 全绿（46 文件 / 338 用例）。
+
 ## 2026-11-15
 
 - **账号登录与按账号保存项目（代码完成，待部署）**：新增 WorkBuddy Cloud SDK 接入层、手机号验证码登录/注册、WorkBuddy 账号与微信扫码 OAuth（回调落在站点根路径、同标签页跳转）、云端项目仓储与 RLS 隔离方案（`docs/cloud-schema.sql`）、本地/账号双项目空间与登录面板。`publicConfig` 留空时保持原有本地游客模式，不创建假账号；登录、登出与其他标签页登出都会重载页面以重建控制器。

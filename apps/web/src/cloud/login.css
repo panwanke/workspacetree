@@ -333,6 +333,17 @@
   margin-top: 12px;
 }
 
+/* 原始错误码：只在主文案之外提供报障线索，不参与阅读。 */
+.wst-login-error-code {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.72;
+  user-select: all;
+}
+
 .wst-login-notice {
   color: var(--accent);
 }

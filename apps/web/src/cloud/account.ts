@@ -6,6 +6,7 @@
  * - OTP 的 challenge 保存在 service 实例（组件外），发码与验码是两个独立动作。
  * - 回调分发在启动时、任何登录守卫之前执行；成功只认真实 session。
  */
+import { describeAuthError } from './auth-errors';
 import { getCloudRuntime, isCloudEnabled, type CloudRuntime } from './client';
 import { CLOUD_NOT_CONFIGURED_MESSAGE } from './public-config';
 import type {
@@ -26,6 +27,8 @@ export interface AccountSnapshot {
 export interface ActionResult {
   ok: boolean;
   message: string;
+  /** 原始错误码（如 FailedOperation.PhoneNumberInBlacklist），仅供报障展示。 */
+  detail?: string;
 }
 
 export interface CallbackResult {
@@ -127,6 +130,8 @@ export function createAccountService(
         provider === 'wechat'
           ? '微信登录暂不可用，请改用验证码登录。'
           : 'WorkBuddy 账号登录暂不可用，请改用验证码登录。';
+      // OAuth 失败多为配置类原因（如缺少 PKCE verifier、回调未登记），原文对定位问题有用，
+      // 因此这里不套用验证码那套「不暴露原文」的映射；真正的用户兜底由 fallback 承担。
       return { url: null, message: error?.message || fallback };
     }
     return { url: data.url, message: '' };
@@ -233,7 +238,8 @@ export function createAccountService(
       const credentials = channel === 'phone' ? { phone: trimmed } : { email: trimmed };
       const { data, error } = await auth.sendOtp(credentials);
       if (error || !data) {
-        return { ok: false, message: error?.message || '验证码发送失败，请稍后再试。' };
+        // 不直接透出上游英文原文：号码进黑名单这类错误必须给出可行动的中文建议。
+        return { ok: false, ...describeAuthError(error, '验证码发送失败，请稍后再试。') };
       }
       // 只有一次成功的发码才能替换 challenge；验码失败不清空，便于重试。
       pending = {
@@ -261,7 +267,7 @@ export function createAccountService(
         ...(channel === 'phone' ? { phone: pending.value } : { email: pending.value }),
       });
       if (error || !session) {
-        return { ok: false, message: error?.message || '验证码不正确，请重试。' };
+        return { ok: false, ...describeAuthError(error, '验证码不正确，请重试。') };
       }
       pending = null;
       emit({ status: 'signed-in', identity: toIdentity(session) });

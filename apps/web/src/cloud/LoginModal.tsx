@@ -42,6 +42,7 @@ export default function LoginModal({
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [errorDetail, setErrorDetail] = useState('');
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -62,10 +63,13 @@ export default function LoginModal({
     setPending(action);
     setNotice('');
     setError('');
+    setErrorDetail('');
     try {
       await run();
     } catch {
-      setError('操作失败，请检查网络连接后重试。');
+      // 走到这里说明是未预期的异常（service 自身已把可预期错误转成 ActionResult），
+      // 因此不再暗示「网络问题」，避免把账号/通道错误误诊成断网。
+      setError('操作失败，请稍后重试。');
     } finally {
       setPending(null);
     }
@@ -82,6 +86,7 @@ export default function LoginModal({
       const result = await service.sendCode('phone', phone);
       if (!result.ok) {
         setError(result.message);
+        setErrorDetail(result.detail ?? '');
         return;
       }
       setCodeSent(true);
@@ -95,6 +100,7 @@ export default function LoginModal({
       const result = await service.verifyCode('phone', phone, token);
       if (!result.ok) {
         setError(result.message);
+        setErrorDetail(result.detail ?? '');
         return;
       }
       onAccountChanged();
@@ -226,6 +232,7 @@ export default function LoginModal({
                       setCodeSent(false);
                       setNotice('');
                       setError('');
+                      setErrorDetail('');
                     }}
                   />
                 </label>
@@ -297,6 +304,7 @@ export default function LoginModal({
               {error && (
                 <p className="wst-login-error wst-login-action-error" role="alert">
                   {error}
+                  {errorDetail && <span className="wst-login-error-code">{errorDetail}</span>}
                 </p>
               )}
             </>

@@ -244,6 +244,25 @@ describe('account service (configured)', () => {
     expect(state.verifyCalls).toHaveLength(0);
   });
 
+  it('turns a provider blacklist error into actionable Chinese, not raw provider text', async () => {
+    // 线上真实返回：genie-baas 把腾讯云短信 errcode 直接拼进 message。
+    state.sendResult = {
+      data: null,
+      error: {
+        message:
+          'send error code FailedOperation.PhoneNumberInBlacklist msg number on the blacklist',
+      },
+    };
+    const service = createAccountService();
+    const result = await service.sendCode('phone', '13800138000');
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('换一个手机号');
+    expect(result.message).not.toContain('FailedOperation');
+    expect(result.message).not.toContain('blacklist');
+    expect(result.detail).toBe('FailedOperation.PhoneNumberInBlacklist');
+    expect(state.verifyCalls).toHaveLength(0);
+  });
+
   it('clears local state on sign out even when the server reports an error', async () => {
     const service = createAccountService();
     state.session = signedInSession;
