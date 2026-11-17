@@ -349,8 +349,7 @@
   gap: 7px;
   padding: 6px 14px;
   border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0 0 8px 8px;
+  border-radius: 8px 8px 0 0;
   background: var(--surface);
   color: var(--accent);
   font-weight: 600;
@@ -363,8 +362,8 @@
 
 .wst-todo-inline-row {
   padding: 11px 14px;
-  border-top: 1px solid var(--line);
   border-inline-start: 3px solid var(--focus);
+  border-radius: 8px 8px 0 0;
   background: var(--wash);
 }
 

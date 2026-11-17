@@ -18,6 +18,8 @@ interface TodoFields {
   todoTags: readonly string[];
   scheduledAt?: string;
   completedAt?: string;
+  /** 原挂在根节点上的 TODO：视图上归入“待分配”，但仍保留真实 nodeId 以便编辑/删除。 */
+  projectLevel?: boolean;
 }
 
 export type ProjectTodo = TodoFields &
@@ -37,6 +39,7 @@ function taskTodo(
   nodeTitle: string,
   nodeTags: readonly string[],
   isLeaf: boolean,
+  projectLevel = false,
 ): ProjectTodo {
   return {
     id: task.id,
@@ -50,6 +53,7 @@ function taskTodo(
     todoTags: task.tags ?? [],
     scheduledAt: task.scheduledAt,
     completedAt: task.done ? task.completedAt : undefined,
+    ...(projectLevel ? { projectLevel: true } : {}),
     task,
   };
 }
@@ -63,7 +67,7 @@ export function collectProjectTodos(
   const nodes = new Map(domain.nodes.map((node) => [node.id, node]));
   const { byNode, inbox } = indexWorkspaceTasks(domain);
 
-  function collectNode(nodeId: string): ProjectTodo[] {
+  function collectNode(nodeId: string, projectLevel = false): ProjectTodo[] {
     const node = nodes.get(nodeId);
     if (!node) return [];
     const context = {
@@ -74,7 +78,13 @@ export function collectProjectTodos(
     };
     return (byNode.get(nodeId) ?? []).map((item) => {
       if (item.source === 'task') {
-        return taskTodo(item.task, context.nodeTitle, context.nodeTags, context.isLeaf);
+        return taskTodo(
+          item.task,
+          context.nodeTitle,
+          context.nodeTags,
+          context.isLeaf,
+          projectLevel,
+        );
       }
       const { task, blockId, markdown } = item;
       return {
@@ -89,12 +99,13 @@ export function collectProjectTodos(
         blockId,
         lineIndex: task.lineIndex,
         markdown,
+        ...(projectLevel ? { projectLevel: true } : {}),
       };
     });
   }
 
   const topics = [...(children.get(rootNodeId) ?? []), ...roots.filter((id) => id !== rootNodeId)];
-  const groups = [{ id: rootNodeId, title: '项目级', items: collectNode(rootNodeId) }];
+  const groups: TodoGroup[] = [];
   for (const topicId of topics) {
     const items: ProjectTodo[] = [];
     const remaining = [topicId];
@@ -111,7 +122,10 @@ export function collectProjectTodos(
   groups.unshift({
     id: '',
     title: '待分配',
-    items: inbox.map(({ task }) => taskTodo(task, '待分配', [], false)),
+    items: [
+      ...inbox.map(({ task }) => taskTodo(task, '待分配', [], false)),
+      ...collectNode(rootNodeId, true).map((item) => ({ ...item, nodeTitle: '待分配' })),
+    ],
   });
   return includeEmpty ? groups : groups.filter((group) => group.items.length > 0);
 }
@@ -141,7 +155,10 @@ export function filterProjectTodos(
       ...group,
       items: group.items.filter(
         (item) =>
-          (scope === 'all' || (scope === 'inbox' ? item.nodeId === null : item.isLeaf)) &&
+          (scope === 'all' ||
+            (scope === 'inbox'
+              ? item.nodeId === null || item.projectLevel === true
+              : item.isLeaf)) &&
           (status === 'all' || item.status === status) &&
           (!tags.nodeTag || item.nodeTags.includes(tags.nodeTag)) &&
           (!tags.todoTag || item.todoTags.includes(tags.todoTag)),

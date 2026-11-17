@@ -327,8 +327,13 @@ export function toggleTaskEntry(domain: DomainState, taskId: string): HistoryEnt
   );
 }
 
-export function addTaskEntry(task: Task): HistoryEntry {
-  return entry('新增任务', 'domain', [taskAddCommand(task)], [cmd('task.remove', { id: task.id })]);
+export function addTaskEntry(task: Task, index?: number): HistoryEntry {
+  return entry(
+    '新增任务',
+    'domain',
+    [taskAddCommand(task, index)],
+    [cmd('task.remove', { id: task.id })],
+  );
 }
 
 export function removeTaskEntry(task: Task, index: number): HistoryEntry {

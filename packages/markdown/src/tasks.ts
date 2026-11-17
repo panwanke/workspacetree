@@ -363,6 +363,13 @@ export function removeMarkdownTask(markdown: string, task: MarkdownTaskItem): st
   return lines.join('');
 }
 
+export function prependMarkdownTask(markdown: string, line: string): string {
+  if (!markdown) return line;
+  const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
+  // 空行隔离，避免新任务行与原内容（列表延续、代码块、段落）相互吞并。
+  return line + newline + newline + markdown;
+}
+
 export function appendMarkdownTask(markdown: string, line: string): string {
   const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
   const separator = markdown && !markdown.endsWith('\n') ? newline : '';

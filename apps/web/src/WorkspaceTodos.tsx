@@ -1,7 +1,7 @@
 import { buildHierarchy } from '@workspacetree/layout';
 import { decodeTaskTitle } from '@workspacetree/markdown';
 import type { DomainState } from '@workspacetree/schema';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderInlineMarkdown } from './MarkdownPreview';
 import { TODO_STATUS } from './markdown-todos';
 import { TagList } from './TagList';
@@ -17,6 +17,7 @@ import {
   type TodoStatusFilter,
 } from './project-todos';
 import type { TodoDraft } from './todo-editing';
+import { loadTodoViewState, saveTodoViewState, type TodoViewState } from './todo-view-state';
 import { WorkspaceIcon } from './WorkspaceIcon';
 
 const scopes = [
@@ -57,11 +58,16 @@ export default function WorkspaceTodos({
   onUndo: () => void;
   onRedo: () => void;
 }) {
-  const [scope, setScope] = useState<TodoScope>('all');
-  const [status, setStatus] = useState<TodoStatusFilter>('all');
-  const [grouping, setGrouping] = useState<TodoGrouping>('branch');
-  const [nodeTag, setNodeTag] = useState('');
-  const [todoTag, setTodoTag] = useState('');
+  const [view, setView] = useState<TodoViewState>(loadTodoViewState);
+  const { scope, status, grouping, nodeTag, todoTag } = view;
+  useEffect(() => {
+    saveTodoViewState(view);
+  }, [view]);
+  const setScope = (scope: TodoScope) => setView((current) => ({ ...current, scope }));
+  const setStatus = (status: TodoStatusFilter) => setView((current) => ({ ...current, status }));
+  const setGrouping = (grouping: TodoGrouping) => setView((current) => ({ ...current, grouping }));
+  const setNodeTag = (nodeTag: string) => setView((current) => ({ ...current, nodeTag }));
+  const setTodoTag = (todoTag: string) => setView((current) => ({ ...current, todoTag }));
   const [editing, setEditing] = useState<Editing | null>(null);
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const pendingRows = useRef(new Set<string>());
@@ -126,7 +132,9 @@ export default function WorkspaceTodos({
         ? target.nodeId
         : null
       : (source?.nodeId ?? null);
-    const unassigned = target ? target.mode === 'inbox' : source?.nodeId === null;
+    const unassigned = target
+      ? target.mode === 'inbox'
+      : source?.nodeId === null || source?.projectLevel === true;
     const isLeaf =
       target?.mode === 'new' ||
       (destination !== null &&
@@ -289,6 +297,27 @@ export default function WorkspaceTodos({
               <h3>{group.title}</h3>
               <span>{group.items.length} 项</span>
             </div>
+            {editing?.groupId === group.id && editing.source === null ? (
+              <div className="wst-todo-inline-row">{addEditor(group.id)}</div>
+            ) : (
+              !readOnly &&
+              (branchView || grouping === 'todoTag') && (
+                <button
+                  type="button"
+                  className="wst-todo-add"
+                  disabled={editLocked}
+                  aria-label={'添加 TODO 到 ' + group.title}
+                  onClick={(event) =>
+                    beginEdit(
+                      { groupId: group.id, groupTitle: group.title, source: null, field: 'title' },
+                      event.currentTarget,
+                    )
+                  }
+                >
+                  <WorkspaceIcon name="plus" size={16} /> 添加 TODO
+                </button>
+              )
+            )}
             {group.items.length > 0 && (
               <ul className="wst-todo-list">
                 {group.items.map((row) => {
@@ -416,7 +445,7 @@ export default function WorkspaceTodos({
                       <div className="wst-todo-origin">
                         {cell('target') || (
                           <div className="wst-todo-row-actions">
-                            {nodeId !== null && (
+                            {nodeId !== null && !item.projectLevel && (
                               <button
                                 type="button"
                                 className="wst-todo-source"
@@ -467,27 +496,6 @@ export default function WorkspaceTodos({
                   );
                 })}
               </ul>
-            )}
-            {editing?.groupId === group.id && editing.source === null ? (
-              <div className="wst-todo-inline-row">{addEditor(group.id)}</div>
-            ) : (
-              !readOnly &&
-              (branchView || grouping === 'todoTag') && (
-                <button
-                  type="button"
-                  className="wst-todo-add"
-                  disabled={editLocked}
-                  aria-label={'添加 TODO 到 ' + group.title}
-                  onClick={(event) =>
-                    beginEdit(
-                      { groupId: group.id, groupTitle: group.title, source: null, field: 'title' },
-                      event.currentTarget,
-                    )
-                  }
-                >
-                  <WorkspaceIcon name="plus" size={16} /> 添加 TODO
-                </button>
-              )
             )}
           </section>
         ))}

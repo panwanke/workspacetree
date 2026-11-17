@@ -177,7 +177,7 @@ async function verifyProjectTodos(page, touch = false) {
   const openTodos = () => activate(page.getByRole('button', { name: 'TODO', exact: true }));
   await openTodos();
   const todos = page.getByRole('main', { name: '项目 TODO' });
-  await activate(todos.getByRole('button', { name: '添加 TODO 到 项目级', exact: true }));
+  await activate(todos.getByRole('button', { name: '添加 TODO 到 待分配', exact: true }));
   const form = todos.getByRole('form', { name: '添加 TODO', exact: true });
   await form.getByRole('textbox', { name: '标题', exact: true }).fill(original);
   await form.getByLabel('计划日期').fill('2027-01-05');
@@ -211,8 +211,10 @@ async function verifyProjectTodos(page, touch = false) {
     await inbox.getByRole('button', { name: '编辑 TODO ' + renamed, exact: true }).waitFor();
     await assign.click();
     await mode.selectOption('existing');
-    await todos.getByRole('combobox', { name: '目标节点', exact: true }).selectOption('n_root');
-    const assigned = todos.getByRole('region', { name: '项目级', exact: true });
+    await todos
+      .getByRole('combobox', { name: '目标节点', exact: true })
+      .selectOption('n_branch_ui');
+    const assigned = todos.getByRole('region', { name: '交互与渲染系统', exact: true });
     await assigned.getByRole('button', { name: '编辑 TODO ' + renamed, exact: true }).waitFor();
   }
 

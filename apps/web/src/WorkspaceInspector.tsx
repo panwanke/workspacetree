@@ -1,6 +1,6 @@
 import { buildHierarchy, type LayoutDirection } from '@workspacetree/layout';
 import {
-  appendMarkdownTask,
+  prependMarkdownTask,
   indexWorkspaceTasks,
   localToday,
   workspaceTaskCounts,
@@ -428,11 +428,11 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
               try {
                 if (editingNote) {
                   const line = '- [ ] ' + taskTitle;
-                  const next = appendMarkdownTask(noteDraft, line);
+                  const next = prependMarkdownTask(noteDraft, line);
                   await persistNote(next, draftAssets);
                   setNoteDraft((current) => {
                     if (current === next || current === noteDraft) return next;
-                    return appendMarkdownTask(current, line);
+                    return prependMarkdownTask(current, line);
                   });
                 } else {
                   await controller.runFromLatest((latest) =>

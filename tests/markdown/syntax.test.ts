@@ -4,6 +4,7 @@ import {
   toggleTaskOnLine,
   setTaskStatusOnLine,
   removeMarkdownTask,
+  prependMarkdownTask,
   parseCalloutHeader,
   formatCalloutHeader,
   countMarkdownCallouts,
@@ -190,6 +191,14 @@ describe('Markdown 语法与任务解析 (packages/markdown)', () => {
       completedAt: '2026-11-17',
     });
     expect(toggleTaskOnLine(checked, 0, '2026-11-18')).toBe(before.replace('[?]', '[ ]'));
+  });
+
+  it('prepends a task ahead of existing notes without merging lines', () => {
+    const note = '- [ ] Old\r\n  detail\r\n\n## Heading';
+    const next = prependMarkdownTask(note, '- [x] New');
+    expect(next).toBe('- [x] New\r\n\r\n' + note);
+    expect(readMarkdownTasks(next).map((item) => item.title)).toEqual(['New', 'Old']);
+    expect(prependMarkdownTask('', '- [ ] Only')).toBe('- [ ] Only');
   });
 
   it('keeps checkbox-like text in a demoted parent as ordinary Markdown', () => {

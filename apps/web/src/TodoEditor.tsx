@@ -25,24 +25,21 @@ function destinations(domain: DomainState) {
   const rootId = domain.project.rootNodeId;
   const branchIds = [...(children.get(rootId) ?? []), ...roots.filter((id) => id !== rootId)];
   const label = (id: string) => nodes.get(id)?.title || '未命名节点';
-  return [
-    { id: rootId, label: '项目级', options: [{ id: rootId, label: label(rootId) }] },
-    ...branchIds.map((id) => {
-      const options: { id: string; label: string }[] = [];
-      const pending = [{ id, label: label(id) }];
-      while (pending.length > 0) {
-        const current = pending.pop()!;
-        options.push(current);
-        const childIds = children.get(current.id) ?? [];
-        for (const childId of [...childIds].reverse()) {
-          if (childId !== rootId) {
-            pending.push({ id: childId, label: current.label + ' / ' + label(childId) });
-          }
+  return branchIds.map((id) => {
+    const options: { id: string; label: string }[] = [];
+    const pending = [{ id, label: label(id) }];
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      options.push(current);
+      const childIds = children.get(current.id) ?? [];
+      for (const childId of [...childIds].reverse()) {
+        if (childId !== rootId) {
+          pending.push({ id: childId, label: current.label + ' / ' + label(childId) });
         }
       }
-      return { id, label: label(id), options };
-    }),
-  ];
+    }
+    return { id, label: label(id), options };
+  });
 }
 
 export function TodoEditor({
@@ -245,8 +242,9 @@ export function TodoFieldEditor({
         ? (item.scheduledAt ?? '')
         : item.todoTags.map((tag) => '#' + tag).join(' '),
   );
-  const [mode, setMode] = useState<TodoTarget['mode']>(item.nodeId ? 'existing' : 'inbox');
-  const [destination, setDestination] = useState(item.nodeId ?? '');
+  const assigned = !item.projectLevel && item.nodeId !== null;
+  const [mode, setMode] = useState<TodoTarget['mode']>(assigned ? 'existing' : 'inbox');
+  const [destination, setDestination] = useState(assigned ? item.nodeId! : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const pending = useRef(false);

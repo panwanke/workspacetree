@@ -108,7 +108,6 @@ describe('project TODOs', () => {
       projectTodoSections(groups, [], 'all', 'branch').map((group) => [group.id, group.title]),
     ).toEqual([
       ['', '待分配'],
-      ['n_root', '项目级'],
       ['n_a', 'Writing'],
       ['n_b', 'Experiment'],
     ]);
@@ -125,7 +124,7 @@ describe('project TODOs', () => {
         items.map(({ title, status, source }) => [title, status, source]),
       ]),
     ).toEqual([
-      ['项目级', [['Project planning', 'open', 'task']]],
+      ['待分配', [['Project planning', 'open', 'task']]],
       [
         'Writing',
         [

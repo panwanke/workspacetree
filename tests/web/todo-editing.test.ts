@@ -144,8 +144,9 @@ describe('TODO editor', () => {
       }),
     );
     expect(getNodeNote(file().domain, sourceId)).toBe('Keep this\r\n## Keep this too');
+    const separator = targetBefore.includes('\r\n') ? '\r\n\r\n' : '\n\n';
     expect(getNodeNote(file().domain, targetId)).toBe(
-      targetBefore + '\n- [x] Check more data #质控 📅 2026-11-21 ✅ 2026-11-17',
+      '- [x] Check more data #质控 📅 2026-11-21 ✅ 2026-11-17' + separator + targetBefore,
     );
     await editor.undo();
     expect(getNodeNote(file().domain, sourceId)).toBe(updated);
@@ -295,16 +296,45 @@ describe('TODO editor', () => {
     await editor.run(
       updateTodoEntry(file(), inbox, { target: { mode: 'existing', nodeId: 'n_root' } }),
     );
-    const assigned = collectProjectTodos(file().domain)
-      .find((group) => group.id === 'n_root')!
-      .items.at(-1)!;
+    const assigned = collectProjectTodos(file().domain)[0].items.find((item) =>
+      item.todoTags.includes('study'),
+    )!;
     expect(assigned).toMatchObject({
       source: 'markdown',
       todoTags: ['study'],
       scheduledAt: undefined,
     });
     await editor.run(updateTodoEntry(file(), assigned, { target: { mode: 'inbox' } }));
-    expect(collectProjectTodos(file().domain)[0].items.at(-1)?.title).toBe(title);
+    expect(collectProjectTodos(file().domain)[0].items.at(0)?.title).toBe(title);
+  });
+
+  it('places newly added TODOs at the top of their note and the inbox', async () => {
+    const { editor, file } = await setup();
+    const nodeId = 'n_init';
+    await editor.run(setNodeNoteEntry(file().domain, nodeId, '- [ ] Existing'));
+    await editor.run(
+      saveTodoEntry(file(), null, {
+        title: 'Fresh note item',
+        status: 'open',
+        tags: [],
+        scheduledAt: null,
+        target: { mode: 'existing', nodeId },
+      }),
+    );
+    expect(getNodeNote(file().domain, nodeId)).toBe('- [ ] Fresh note item\n\n- [ ] Existing');
+    await editor.run(
+      saveTodoEntry(file(), null, {
+        title: 'Fresh inbox item',
+        status: 'open',
+        tags: [],
+        scheduledAt: null,
+        target: { mode: 'inbox' },
+      }),
+    );
+    expect(file().domain.tasks[0]).toMatchObject({ title: 'Fresh inbox item' });
+    expect(collectProjectTodos(file().domain)[0].items[0]).toMatchObject({
+      title: 'Fresh inbox item',
+    });
   });
 
   it('can undo a successful deletion even when a subsequent storage read would fail', async () => {

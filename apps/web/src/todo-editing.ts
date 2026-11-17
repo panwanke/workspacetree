@@ -1,10 +1,10 @@
 import { canonicalize, makeId, newNodeId } from '@workspacetree/core';
 import {
-  appendMarkdownTask,
   decodeTaskTitle,
   editMarkdownTaskLine,
   escapeTaskTitle,
   localToday,
+  prependMarkdownTask,
   readMarkdownBlocks,
   readMarkdownTasks,
   removeMarkdownTask,
@@ -258,7 +258,7 @@ function buildTodoEntry(
       ]
         .filter(Boolean)
         .join(' ') || '未命名 TODO';
-    const markdown = appendMarkdownTask(
+    const markdown = prependMarkdownTask(
       destination?.markdown ?? '',
       '- ' + TASK_STATUS_CONFIG[status].marker + ' ' + content,
     );
@@ -281,6 +281,6 @@ function buildTodoEntry(
     ...(completedAt ? { completedAt } : {}),
     ...(tags.length ? { tags } : {}),
   };
-  append(original?.source === 'task' ? editTaskEntry(original.task, task) : addTaskEntry(task));
+  append(original?.source === 'task' ? editTaskEntry(original.task, task) : addTaskEntry(task, 0));
   return result;
 }
