@@ -22,6 +22,8 @@ import {
 import { translateBranchPositions } from './branch-editing';
 import { LinkedFileChangedError } from './linked-branch-file';
 
+type EditorStorage = StorageAdapter & { saveCurrent?(file: BranchFile): Promise<BranchFile> };
+
 export interface EditorStats {
   persistedBatches: number;
   presentationBatches: number;
@@ -67,7 +69,7 @@ export class EditorController {
   private fileReloads = 0;
 
   constructor(
-    private readonly storage: StorageAdapter,
+    private readonly storage: EditorStorage,
     file: BranchFile,
     service?: CommandService,
     readonly isReadOnly = false,
@@ -135,16 +137,30 @@ export class EditorController {
     const refresh = this.pendingEdit.then(async () => {
       const file = await read();
       if (!file) return;
-      this.file = file;
-      this.fileReloads++;
-      this.undoStack.length = 0;
-      this.redoStack.length = 0;
-      this.error = null;
+      this.acceptFileSnapshot(file);
       this.lastAction = '已从本地文件更新';
       this.emit();
     });
     this.pendingEdit = refresh.catch(() => {});
     return refresh;
+  }
+
+  saveCurrent(): Promise<void> {
+    return this.safely(async () => {
+      if (this.storage.saveCurrent) {
+        const saved = await this.storage.saveCurrent(this.file);
+        if (saved !== this.file) this.acceptFileSnapshot(saved);
+      }
+      this.lastAction = '已保存项目';
+    });
+  }
+
+  private acceptFileSnapshot(file: BranchFile): void {
+    this.file = file;
+    this.fileReloads++;
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.error = null;
   }
 
   private emit(): void {

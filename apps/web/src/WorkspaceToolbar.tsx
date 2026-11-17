@@ -129,7 +129,7 @@ interface ToolbarProps {
   onToggleInspector: () => void;
   onToggleDirectory: () => void;
   onImport: () => void;
-  onLinkLocalFile?: () => void;
+  syncImport?: boolean;
   linkedFile?: boolean;
   onExportJson: () => void;
   onExportSvg: () => void;
@@ -379,18 +379,6 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                     <WorkspaceIcon name="folder" /> 全部项目...
                   </button>
                 )}
-                {props.onLinkLocalFile && (
-                  <button
-                    type="button"
-                    className="wst-menu-action"
-                    onClick={() => {
-                      close();
-                      props.onLinkLocalFile?.();
-                    }}
-                  >
-                    <WorkspaceIcon name="folder" /> 打开并同步 .branch.json
-                  </button>
-                )}
                 <button
                   type="button"
                   className="wst-menu-action"
@@ -399,7 +387,8 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                     props.onImport();
                   }}
                 >
-                  <WorkspaceIcon name="upload" /> 导入 .branch.json
+                  <WorkspaceIcon name="upload" />
+                  {props.syncImport ? ' 导入并同步 .branch.json' : ' 导入 .branch.json'}
                 </button>
                 <button
                   type="button"
@@ -410,8 +399,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                     props.onExportJson();
                   }}
                 >
-                  <WorkspaceIcon name="download" />
-                  {props.linkedFile ? ' 另存为副本...' : ' 保存 / 另存为...'}
+                  <WorkspaceIcon name="download" /> 另存为...
                 </button>
                 <button
                   type="button"

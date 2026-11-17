@@ -93,7 +93,7 @@ export default function SaveProjectModal({ open, onClose, file, onSaved }: SaveP
       <div className="wst-settings-modal wst-save-modal">
         <div className="wst-modal-header">
           <h2 id="save-modal-title">
-            <WorkspaceIcon name="download" size={18} /> 保存 / 另存为分支项目文件
+            <WorkspaceIcon name="download" size={18} /> 另存为分支项目文件
           </h2>
           <button
             type="button"

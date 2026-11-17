@@ -1,10 +1,11 @@
 import { idbGet, idbWrite } from '@workspacetree/storage/browser';
+import type { BranchFile } from '@workspacetree/schema';
 import { LinkedBranchFile, LinkedFileChangedError } from './linked-branch-file';
 
 const permission = { mode: 'readwrite' } as const;
 const store = 'handles';
 
-type LocalFileHandle = FileSystemFileHandle & {
+export type LocalFileHandle = FileSystemFileHandle & {
   queryPermission(options: typeof permission): Promise<PermissionState>;
   requestPermission(options: typeof permission): Promise<PermissionState>;
 };
@@ -16,9 +17,16 @@ type PickerWindow = Window & {
   }) => Promise<LocalFileHandle[]>;
 };
 
-export interface LocalFileConnection {
+export interface LinkedProjectTab {
+  handle?: LocalFileHandle;
+  file?: BranchFile;
+  storage?: LinkedBranchFile;
+  issue?: string;
+}
+
+interface SavedLinkedProject {
   handle: LocalFileHandle;
-  storage: LinkedBranchFile;
+  file: BranchFile;
 }
 
 export function supportsLocalFileSync(): boolean {
@@ -36,13 +44,10 @@ export async function pickLocalProjectFile(): Promise<LocalFileHandle | undefine
   return handles?.[0];
 }
 
-export async function connectLocalProjectFile(
-  handle: LocalFileHandle,
-): Promise<LocalFileConnection> {
+export async function requestLocalProjectPermission(handle: LocalFileHandle): Promise<void> {
   if ((await handle.requestPermission(permission)) !== 'granted') {
     throw new DOMException('File read and write permission was denied.', 'NotAllowedError');
   }
-  return { handle, storage: await LinkedBranchFile.open(handle) };
 }
 
 async function withHandleStore<T>(action: (db: IDBDatabase) => Promise<T>): Promise<T> {
@@ -59,20 +64,56 @@ async function withHandleStore<T>(action: (db: IDBDatabase) => Promise<T>): Prom
   }
 }
 
-export async function rememberLocalProjectFile(id: string, handle: LocalFileHandle): Promise<void> {
-  await withHandleStore((db) => idbWrite(db, [{ store, mode: 'put', key: id, value: handle }]));
-}
-
-export async function forgetLocalProjectFile(id: string): Promise<void> {
-  await withHandleStore((db) => idbWrite(db, [{ store, mode: 'delete', key: id }]));
-}
-
-export async function restoreLocalProjectFile(id: string): Promise<LocalFileConnection> {
-  const handle = await withHandleStore((db) => idbGet<LocalFileHandle>(db, store, id));
-  if (!handle || (await handle.queryPermission(permission)) !== 'granted') {
-    throw new DOMException('File read and write permission is required.', 'NotAllowedError');
+export async function connectLocalProjectFile(
+  id: string,
+  handle: LocalFileHandle,
+  expectedProjectId?: string,
+): Promise<{ handle: LocalFileHandle; file: BranchFile; storage: LinkedBranchFile }> {
+  const saveBackup = (file: BranchFile) =>
+    withHandleStore((db) =>
+      idbWrite(db, [{ store, mode: 'put', key: id, value: { handle, file } }]),
+    );
+  const storage = await LinkedBranchFile.open(handle, saveBackup);
+  const file = storage.snapshot;
+  if (expectedProjectId && file.projectId !== expectedProjectId) {
+    throw new Error('The selected file contains a different project.');
   }
-  return { handle, storage: await LinkedBranchFile.open(handle) };
+  await saveBackup(file);
+  return { handle, file, storage };
+}
+
+export async function restoreLocalProjectFile(
+  id: string,
+  projectId: string,
+): Promise<LinkedProjectTab> {
+  const saved = await withHandleStore((db) =>
+    idbGet<SavedLinkedProject | LocalFileHandle>(db, store, id),
+  );
+  if (!saved) return { issue: '请选择原文件以恢复同步。' };
+  const handle = 'handle' in saved ? saved.handle : saved;
+  const cached = 'file' in saved && saved.file.projectId === projectId ? saved.file : undefined;
+  try {
+    if ((await handle.queryPermission(permission)) === 'granted') {
+      return await connectLocalProjectFile(id, handle, projectId);
+    }
+    // A legacy link may still have read permission, but has no cached snapshot yet.
+    const recovered =
+      cached ?? (await connectLocalProjectFile(id, handle, projectId).catch(() => null))?.file;
+    return { handle, file: recovered, issue: '请重新授权以恢复本地文件同步。' };
+  } catch (cause) {
+    return { handle, file: cached, issue: localFileSyncMessage(cause) };
+  }
+}
+
+export async function getDroppedProjectFile(
+  transfer: DataTransfer,
+): Promise<LocalFileHandle | undefined> {
+  type FileItem = DataTransferItem & {
+    getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
+  };
+  const items = [...transfer.items].filter((item) => item.kind === 'file');
+  const handle = items.length === 1 ? await (items[0] as FileItem).getAsFileSystemHandle?.() : null;
+  return handle?.kind === 'file' ? (handle as LocalFileHandle) : undefined;
 }
 
 export function localFileSyncMessage(cause: unknown): string {
@@ -80,10 +121,10 @@ export function localFileSyncMessage(cause: unknown): string {
     return '磁盘文件已更改。请结束当前编辑，等画布更新后再保存。';
   }
   if (cause instanceof DOMException && cause.name === 'NotAllowedError') {
-    return '本地文件的读写权限不可用，请通过「打开并同步」重新授权。';
+    return '本地文件的读写权限不可用，请重新授权。';
   }
   if (cause instanceof DOMException && cause.name === 'NotFoundError') {
-    return '找不到本地文件，请通过「打开并同步」重新选择。';
+    return '找不到本地文件，请通过「导入并同步」重新选择。';
   }
   return `本地文件同步失败。${cause instanceof Error ? cause.message : String(cause)}`;
 }

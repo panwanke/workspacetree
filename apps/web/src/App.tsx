@@ -77,13 +77,14 @@ import { EditorController, type EditorSnapshot } from './editor';
 import { branchSnapshotHash, openBranchFile } from './open-branch-file';
 import {
   connectLocalProjectFile,
-  forgetLocalProjectFile,
+  getDroppedProjectFile,
   localFileSyncMessage,
   pickLocalProjectFile,
-  rememberLocalProjectFile,
+  requestLocalProjectPermission,
   restoreLocalProjectFile,
   supportsLocalFileSync,
-  type LocalFileConnection,
+  type LinkedProjectTab,
+  type LocalFileHandle,
 } from './local-file-access';
 import { useLocalFileSync } from './use-local-file-sync';
 import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from './branch-editing';
@@ -267,7 +268,7 @@ export interface WorkspaceTab {
   projectId: string;
   branchName: string;
   controller: EditorController;
-  localFile?: LocalFileConnection;
+  localFile?: LinkedProjectTab;
 }
 
 interface WorkspaceAppProps {
@@ -474,29 +475,29 @@ export default function App({
         if (validSessionTabs.length > 0) {
           for (const st of validSessionTabs) {
             try {
-              if (st.linkedFile && !canLinkFiles) continue;
-              const localFile = st.linkedFile ? await restoreLocalProjectFile(st.id) : undefined;
+              if (st.linkedFile && !enableLocalFileSync) continue;
+              const localFile = st.linkedFile
+                ? await restoreLocalProjectFile(st.id, st.projectId).catch(
+                    (cause: unknown): LinkedProjectTab => ({ issue: localFileSyncMessage(cause) }),
+                  )
+                : undefined;
               const file = localFile
-                ? localFile.storage.snapshot
+                ? (localFile.file ?? createEmptyBranchFile(st.title, st.branchName))
                 : await storage.load(st.projectId);
-              if (localFile && file?.projectId !== st.projectId) {
-                throw new Error('The linked file now contains a different project.');
-              }
               if (file) {
-                const controller = st.readOnly
+                const controller = (localFile ? !localFile.storage : st.readOnly)
                   ? EditorController.preview(file)
                   : new EditorController(localFile?.storage ?? storage, file);
                 loadedTabs.push({
                   id: st.id,
                   title: file.domain.project.title || st.title,
-                  projectId: file.projectId,
+                  projectId: st.projectId,
                   branchName: file.activeBranch,
                   controller,
                   localFile,
                 });
               }
             } catch (err) {
-              if (st.linkedFile) setUiError(`${st.title}：${localFileSyncMessage(err)}`);
               console.warn(`Failed to restore tab for project ${st.projectId}:`, err);
             }
           }
@@ -534,7 +535,7 @@ export default function App({
         setBootError(cause instanceof Error ? cause.message : String(cause));
       }
     })();
-  }, [canLinkFiles, initializeWorkspace]);
+  }, [enableLocalFileSync, initializeWorkspace]);
 
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null,
@@ -543,7 +544,7 @@ export default function App({
   const tabController = activeTab?.controller;
   const localFileIssue = useLocalFileSync(
     tabController,
-    activeTab?.localFile,
+    activeTab?.localFile?.storage,
     Boolean(editingNodeId || editingEdge || editingTabId || connectionRequest),
   );
 
@@ -586,6 +587,7 @@ export default function App({
 
   const canvasRef = useRef<HTMLElement>(null);
   const file: BranchFile | null = snapshot?.file ?? null;
+  const missingFileSnapshot = Boolean(activeTab?.localFile && !activeTab.localFile.file);
   const readOnly = controller?.isReadOnly ?? false;
   const layoutDirection = file ? resolveLayoutDirection(file.presentation) : 'vertical';
   const getCanvasZoom = useCallback(() => flowApiRef.current?.getViewport().zoom ?? 1, []);
@@ -1226,7 +1228,6 @@ export default function App({
       event.stopPropagation();
       const closing = tabsRef.current.find((tab) => tab.id === tabId);
       if (closing && tabsRef.current.length > 1) {
-        if (closing.localFile) void forgetLocalProjectFile(tabId).catch(console.warn);
         setBranchClipboard((current) =>
           current && !current.copy && current.source === closing.controller ? null : current,
         );
@@ -1346,7 +1347,7 @@ export default function App({
   }
 
   function exportSvgFile(): void {
-    if (!file) return;
+    if (!file || missingFileSnapshot) return;
     const result = exportSvg({
       nodes: file.domain.nodes,
       edges: file.domain.edges,
@@ -1366,56 +1367,80 @@ export default function App({
   }
 
   function exportJson(): void {
-    if (!file) return;
+    if (!file || missingFileSnapshot) return;
     setSaveModalOpen(true);
   }
 
-  async function openLinkedFile(): Promise<void> {
+  async function openLinkedFile(
+    picked: Promise<LocalFileHandle | undefined>,
+    reconnecting?: WorkspaceTab,
+  ): Promise<void> {
     try {
-      const handle = await pickLocalProjectFile();
+      const handle = await picked;
       if (!handle) return;
-      const localFile = await connectLocalProjectFile(handle);
-      openQueue.current = openQueue.current.then(async () => {
-        try {
-          const file = localFile.storage.snapshot;
-          let existing: WorkspaceTab | undefined;
-          for (const tab of tabsRef.current) {
-            if (tab.localFile && (await handle.isSameEntry(tab.localFile.handle))) {
-              existing = tab;
-              break;
+      await requestLocalProjectPermission(handle);
+      openQueue.current = openQueue.current
+        .then(async () => {
+          let existing = reconnecting;
+          if (!existing) {
+            for (const tab of tabsRef.current) {
+              if (tab.localFile?.handle && (await handle.isSameEntry(tab.localFile.handle))) {
+                existing = tab;
+                break;
+              }
             }
           }
           setUiError(null);
-          if (existing?.projectId === file.projectId) {
+          if (existing?.localFile?.storage && !reconnecting) {
             setActiveTabId(existing.id);
             setProjectView('canvas');
             return;
           }
+          const id = existing?.id ?? makeId('tab_');
+          const localFile = await connectLocalProjectFile(id, handle, existing?.projectId);
+          const file = localFile.file;
           const tab: WorkspaceTab = {
-            id: existing?.id ?? makeId('tab_'),
+            id,
             title: file.domain.project.title || handle.name,
             projectId: file.projectId,
             branchName: file.activeBranch,
             controller: new EditorController(localFile.storage, file),
             localFile,
           };
-          await rememberLocalProjectFile(tab.id, handle).catch((cause: unknown) => {
-            console.warn('Failed to remember a linked file:', cause);
-            setUiError('本地文件已连接，刷新页面后需要重新打开。');
-          });
-          const nextTabs = tabsRef.current.filter((entry) => entry.id !== tab.id).concat(tab);
+          const nextTabs = existing
+            ? tabsRef.current.map((entry) => (entry.id === id ? tab : entry))
+            : [...tabsRef.current, tab];
           tabsRef.current = nextTabs;
           setTabs(nextTabs);
           setProjectView('canvas');
           setActiveTabId(tab.id);
-        } catch (cause) {
-          setUiError(localFileSyncMessage(cause));
-        }
-      });
+        })
+        .catch((cause: unknown) => setUiError(localFileSyncMessage(cause)));
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === 'AbortError') return;
       setUiError(localFileSyncMessage(cause));
     }
+  }
+
+  function importProject(): void {
+    if (!enableLocalFileSync) {
+      importRef.current?.click();
+      return;
+    }
+    if (!canLinkFiles) {
+      setUiError('导入并同步需要支持本地文件读写的桌面浏览器，例如 Chrome 或 Edge。');
+      return;
+    }
+    void openLinkedFile(pickLocalProjectFile());
+  }
+
+  function resumeLocalFile(tab: WorkspaceTab): void {
+    const handle = tab.localFile?.handle;
+    if (!handle && !canLinkFiles) {
+      importProject();
+      return;
+    }
+    void openLinkedFile(handle ? Promise.resolve(handle) : pickLocalProjectFile(), tab);
   }
 
   function openFiles(files: readonly File[]): void {
@@ -1685,14 +1710,14 @@ export default function App({
         Boolean(elementTarget?.closest('.cm-editor'));
       if (
         !event.defaultPrevented &&
-        !isEditing &&
         !settingsOpen &&
         !projectsOpen &&
         !saveModalOpen &&
         isEventMatchingKeybinding(event, keybindings.saveBranch)
       ) {
         event.preventDefault();
-        exportJson();
+        if (activeTab?.localFile && !activeTab.localFile.storage) resumeLocalFile(activeTab);
+        else if (!readOnly) guard(() => controller?.saveCurrent());
         return;
       }
       if (
@@ -1843,6 +1868,8 @@ export default function App({
   }, [
     controller,
     file,
+    activeTab,
+    canLinkFiles,
     guard,
     selectedNodeId,
     addChildWithInheritedStyle,
@@ -1897,26 +1924,35 @@ export default function App({
       onDragOver={(event) => {
         if (!event.dataTransfer.types.includes('Files')) return;
         event.preventDefault();
-        event.dataTransfer.dropEffect = 'copy';
+        event.dataTransfer.dropEffect = enableLocalFileSync ? 'link' : 'copy';
       }}
       onDrop={(event) => {
         if (!event.dataTransfer.types.includes('Files')) return;
         event.preventDefault();
         fileDragDepth.current = 0;
         setFileDragOver(false);
-        openFiles(Array.from(event.dataTransfer.files));
+        if (enableLocalFileSync) {
+          void openLinkedFile(
+            getDroppedProjectFile(event.dataTransfer).then((handle) => {
+              if (!handle) setUiError('请拖入一个本地 JSON 文件，或从「导入并同步」选择原文件。');
+              return handle;
+            }),
+          );
+        } else {
+          openFiles(Array.from(event.dataTransfer.files));
+        }
       }}
     >
       {fileDragOver && (
         <div className="wst-file-drop" role="status">
-          松开以打开分支文件
+          {enableLocalFileSync ? '松开以导入并同步分支文件' : '松开以打开分支文件'}
         </div>
       )}
       <div
         className="wst-tab-bar"
         role="tablist"
         aria-label="打开的分支文件"
-        hidden={compactWorkspace && tabs.length === 1}
+        hidden={compactWorkspace && tabs.length === 1 && !activeTab?.localFile}
       >
         {tabs.map((tab) => (
           <div
@@ -2088,8 +2124,8 @@ export default function App({
           if (compactWorkspace) setMobilePanel(inspectorOpen ? null : 'inspector');
           else setInspectorOverride(!inspectorOpen);
         }}
-        onImport={() => importRef.current?.click()}
-        onLinkLocalFile={canLinkFiles ? () => void openLinkedFile() : undefined}
+        onImport={importProject}
+        syncImport={enableLocalFileSync}
         linkedFile={Boolean(activeTab?.localFile)}
         onExportJson={exportJson}
         onExportSvg={exportSvgFile}
@@ -2106,9 +2142,16 @@ export default function App({
         }}
         searchShortcut={keybindings.searchNodes}
       />
-      <input ref={importRef} type="file" accept=".json" multiple hidden onChange={importJson} />
+      {!enableLocalFileSync && (
+        <input ref={importRef} type="file" accept=".json" multiple hidden onChange={importJson} />
+      )}
+      {missingFileSnapshot && <main className="wst-loading">恢复同步后即可查看此项目。</main>}
 
-      <div className="wst-body" onClick={() => setContextMenu(null)}>
+      <div
+        className="wst-body"
+        style={missingFileSnapshot ? { display: 'none' } : undefined}
+        onClick={() => setContextMenu(null)}
+      >
         {projectView === 'canvas' && (
           <DateDirectory
             key={`dates-${activeTabId}`}
@@ -2902,9 +2945,9 @@ export default function App({
         <span data-testid="semantic-commits">语义 Commit {stats.semanticCommits}</span>
         <span data-testid="presentation-batches">呈现批次 {stats.presentationBatches}</span>
         <span data-testid="svg-meta">SVG {svgMeta}</span>
-        {(localFileIssue || uiError || snapshot.error) && (
+        {(localFileIssue || uiError || snapshot.error || activeTab?.localFile?.issue) && (
           <span className="wst-error" role="alert">
-            {localFileIssue ?? uiError ?? snapshot.error}
+            {localFileIssue ?? uiError ?? snapshot.error ?? activeTab?.localFile?.issue}
           </span>
         )}
         {accountNotice && (
@@ -2913,12 +2956,19 @@ export default function App({
           </span>
         )}
         <span className="wst-scope-badge" data-testid="storage-scope">
-          {activeTab?.localFile
-            ? `同步文件 · ${activeTab.localFile.handle.name}`
-            : storageScope === 'account'
-              ? '账号云端项目'
-              : '本地浏览器项目'}
+          {activeTab?.localFile?.storage
+            ? `同步文件 · ${activeTab.localFile.handle?.name}`
+            : activeTab?.localFile
+              ? '本地文件同步已暂停'
+              : storageScope === 'account'
+                ? '账号云端项目'
+                : '本地浏览器项目'}
         </span>
+        {activeTab?.localFile && !activeTab.localFile.storage && (
+          <button type="button" className="wst-tool" onClick={() => resumeLocalFile(activeTab)}>
+            恢复同步
+          </button>
+        )}
       </footer>
 
       <SettingsModal

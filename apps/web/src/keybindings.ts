@@ -26,8 +26,8 @@ export interface KeybindingMeta {
 
 export const DEFAULT_KEYBINDINGS: Record<KeybindingAction, KeybindingMeta> = {
   saveBranch: {
-    label: '导出项目文件',
-    description: '下载当前项目的 .branch.json 文件',
+    label: '保存项目',
+    description: '保存到当前项目的存储位置，已同步的项目会写回原文件',
     defaultKey: 'Ctrl+S',
     category: 'canvas',
   },

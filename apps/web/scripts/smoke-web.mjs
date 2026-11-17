@@ -13,10 +13,9 @@ const server = await preview({
   preview: { host: '127.0.0.1', port: 0 },
 });
 
-async function verifyLinkedProjectFile(page, fixture) {
-  const filename = 'linked-project.branch.json';
+async function importLinkedFixture(page, fixture, filename, title) {
   const project = JSON.parse(await readFile(fixture, 'utf8'));
-  project.domain.project.title = 'Linked fixture';
+  project.domain.project.title = title;
   await page.evaluate(
     async ({ filename, project }) => {
       const root = await navigator.storage.getDirectory();
@@ -24,18 +23,29 @@ async function verifyLinkedProjectFile(page, fixture) {
       const writable = await handle.createWritable();
       await writable.write(JSON.stringify(project));
       await writable.close();
-      // Substitute only the OS picker. Keep the native file handle and IndexedDB behavior.
-      window.showOpenFilePicker = async () => [handle];
+      sessionStorage.setItem('smoke-picker-file', filename);
     },
     { filename, project },
   );
 
   await page.getByTestId('project-menu').click();
-  await page.getByRole('button', { name: '打开并同步 .branch.json' }).click();
-  await page.getByRole('heading', { name: 'Linked fixture', exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole('button', { name: '导入 .branch.json', exact: true }).count(),
+    0,
+  );
+  await page.getByRole('button', { name: '导入并同步 .branch.json', exact: true }).click();
+  await page.getByRole('heading', { name: title, exact: true }).waitFor();
   assert.equal(await page.getByTestId('storage-scope').textContent(), `同步文件 · ${filename}`);
+}
+
+async function verifyLinkedProjectFile(page, fixture) {
+  const filename = 'linked-project.branch.json';
+  await importLinkedFixture(page, fixture, filename, 'Linked fixture');
   await page.getByTestId('add-node').click();
   await page.getByTestId('node-count').getByText('3 个节点').waitFor();
+  await page.keyboard.press('Control+s');
+  await page.getByTestId('last-action').getByText('已保存项目').waitFor();
+  assert.equal(await page.getByRole('dialog', { name: /另存为/ }).count(), 0);
 
   const persisted = await page.evaluate(async (filename) => {
     const root = await navigator.storage.getDirectory();
@@ -55,6 +65,19 @@ async function verifyLinkedProjectFile(page, fixture) {
   });
   await externalTitle.waitFor();
   assert.equal(await page.getByTestId('undo-depth').textContent(), '可撤销 0');
+
+  // Simulate a browser that retained the handle but revoked permission on reload.
+  await page.evaluate(() => sessionStorage.setItem('smoke-deny-file-permission', '1'));
+  await page.reload();
+  await externalTitle.waitFor();
+  await page.getByRole('tab', { name: /Updated outside the canvas/ }).waitFor();
+  await page.getByTestId('node-count').getByText('3 个节点').waitFor();
+  assert.equal(await page.getByTestId('storage-scope').textContent(), '本地文件同步已暂停');
+  await page.getByRole('button', { name: '恢复同步', exact: true }).click();
+  await page.getByTestId('storage-scope').getByText(`同步文件 · ${filename}`).waitFor();
+  await page.keyboard.press('Control+s');
+  await page.getByTestId('last-action').getByText('已保存项目').waitFor();
+
   await page.reload();
   await externalTitle.waitFor();
   assert.equal(await page.getByTestId('storage-scope').textContent(), `同步文件 · ${filename}`);
@@ -391,6 +414,26 @@ try {
     const page = await context.newPage();
     page.setDefaultTimeout(8_000);
     page.on('pageerror', (error) => pageErrors.push(error.message));
+    if (mode === 'static') {
+      await page.addInitScript(() => {
+        // Use a native handle while substituting the OS picker and permission prompt.
+        window.showOpenFilePicker = async () => {
+          const root = await navigator.storage.getDirectory();
+          return [await root.getFileHandle(sessionStorage.getItem('smoke-picker-file'))];
+        };
+        const query = FileSystemHandle.prototype.queryPermission;
+        const request = FileSystemHandle.prototype.requestPermission;
+        FileSystemHandle.prototype.queryPermission = function (options) {
+          if (sessionStorage.getItem('smoke-deny-file-permission'))
+            return Promise.resolve('prompt');
+          return query.call(this, options);
+        };
+        FileSystemHandle.prototype.requestPermission = function (options) {
+          sessionStorage.removeItem('smoke-deny-file-permission');
+          return request.call(this, options);
+        };
+      });
+    }
     await page.goto(`${origin}${base}`);
     const title = page.locator('.wst-project-bar h1');
     await title.waitFor();
@@ -402,11 +445,7 @@ try {
       const fixture = fileURLToPath(
         new URL('../../../tests/fixtures/minimal.branch.json', import.meta.url),
       );
-      const chooser = page.waitForEvent('filechooser');
-      await page.getByTestId('project-menu').click();
-      await page.getByRole('button', { name: '导入 .branch.json' }).click();
-      await (await chooser).setFiles(fixture);
-      await page.getByRole('heading', { name: 'Minimal fixture', exact: true }).waitFor();
+      await importLinkedFixture(page, fixture, 'minimal.branch.json', 'Minimal fixture');
       await page.getByTestId('add-node').click();
       await page.getByTestId('node-count').getByText('3 个节点').waitFor();
 
@@ -435,7 +474,7 @@ try {
       await root.getByText('Root', { exact: true }).dblclick();
       const note = '开头的 Markdown 预览\n\n> [!warning] 核对来源\n> Callout 正文';
       await root.locator('.cm-content').fill(note);
-      await root.getByRole('button', { name: '保存', exact: true }).click();
+      await root.locator('.cm-content').press('Control+s');
       const preview = root.locator('.wst-card-markdown');
       await preview.getByText('开头的 Markdown 预览', { exact: true }).waitFor();
       assert.ok((await root.evaluate((element) => element.clientHeight)) > initialHeight);
@@ -454,6 +493,7 @@ try {
 
       await page.getByTestId('project-menu').click();
       await page.getByTestId('export-json').click();
+      await page.getByRole('dialog', { name: '另存为分支项目文件' }).waitFor();
       const projectDownload = page.waitForEvent('download');
       await page.getByRole('button', { name: '直接下载' }).click();
       const project = await projectDownload;
@@ -498,7 +538,7 @@ try {
       await verifyLinkedProjectFile(page, fixture);
     } else {
       await page.getByTestId('project-menu').click();
-      assert.equal(await page.getByRole('button', { name: '打开并同步 .branch.json' }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: '导入并同步 .branch.json' }).count(), 0);
       await page.keyboard.press('Escape');
       const login = page
         .locator('.wst-project-bar')

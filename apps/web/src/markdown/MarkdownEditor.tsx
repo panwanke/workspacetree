@@ -157,6 +157,14 @@ export function MarkdownEditor({
 
     const editorKeymap = keymap.of([
       {
+        key: 'Mod-s',
+        run: () => {
+          if (!onSave) return false;
+          onSave(newAssetsRef.current);
+          return true;
+        },
+      },
+      {
         key: 'Mod-Enter',
         run: () => {
           onSave?.(newAssetsRef.current);

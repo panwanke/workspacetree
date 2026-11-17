@@ -51,7 +51,7 @@ Both views support horizontal and vertical layouts. Undated parent nodes are pos
 - Edit node dates, Markdown notes, tags, tasks, sizes and connections, with auto-save on blur and 5-second draft backup.
 - Browse tasks by branch and locate nodes using the date directory.
 - Switch between 2D and 3D, highlight paths and export SVG.
-- Import and export .branch.json files. Ctrl+S or ⌘S downloads the current project.
+- Import .branch.json files. Press Ctrl+S or ⌘S to save, or choose **Project → Save as** to export a copy.
 - Store project snapshots locally in the browser using IndexedDB.
 - Optional account sign-in (phone OTP / WorkBuddy account / WeChat QR) with per-account cloud projects; without cloud configuration the app stays fully local.
 
@@ -66,7 +66,7 @@ WorkspaceTree maintains a strict architectural separation between two deployment
 
 ### Local Development & Testing Notes
 
-In the static edition on desktop Chrome or Edge, choose **Project → Open and sync .branch.json** and grant read and write access. Saved edits go straight to the original file. The page checks for disk changes while it is in the foreground and waits for you to exit an open editor before applying an external change. If the browser revokes file access, use the same menu item to reopen it. Import and drag-and-drop still open a browser copy.
+In the static edition on desktop Chrome or Edge, choose **Project → Import and sync .branch.json** or drop in the original file, then grant read and write access. Saving updates the original JSON and the browser's IndexedDB. The page checks for disk changes in the foreground and applies them after you exit an open editor. If file access expires on reload, the tab shows the last saved snapshot. Choose **Resume sync** to continue editing.
 
 - **Why does local `pnpm dev` display the account login?**  
   Running `pnpm dev` defaults to the full-featured root entry (`apps/web/index.html` → `src/main.tsx`, the **Cloud Account** variant). When public development configuration parameters are present, the account service panel is enabled. If left unconfigured, it gracefully falls back to local guest mode.
@@ -90,7 +90,7 @@ Visit the [live demo](https://panwanke.github.io/workspacetree/) or run locally 
     pnpm install --frozen-lockfile
     pnpm dev
 
-Open the local URL printed by Vite. Use **Project → Import .branch.json** or drag a file into the application. Use **Project → Export .branch.json** or Ctrl+S to download a snapshot.
+Open the local URL printed by Vite. Import a file from the **Project** menu, press Ctrl+S or ⌘S to save, or choose **Project → Save as** to download a snapshot.
 
 ## Development
 

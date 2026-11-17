@@ -409,7 +409,10 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             placeholder="节点标题"
             onChange={(event) => setTitleDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (
+                (event.key === 'Enter' && !event.shiftKey) ||
+                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's')
+              ) {
                 event.preventDefault();
                 commitCurrentDraft();
               } else if (event.key === 'Escape') {

@@ -681,49 +681,9 @@
   font-size: 14px;
 }
 
-.wst-date-view-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
-  background: #edf3f0;
-  padding: 2px;
-  border-radius: 6px;
-}
-
-.wst-date-view-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.wst-date-view-tab input {
-  flex: none;
-  margin: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.wst-date-view-tab span[aria-hidden] {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wst-date-view-tab:hover {
-  color: var(--foreground);
-}
-
-.wst-date-view-tab:has(input:checked) {
-  background: var(--surface);
-  color: var(--accent);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+.wst-directory-view-select,
+.wst-directory-view-select select {
+  width: 100%;
 }
 
 .wst-directory-callouts {

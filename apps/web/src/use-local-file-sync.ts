@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import type { EditorController } from './editor';
-import { localFileSyncMessage, type LocalFileConnection } from './local-file-access';
+import { localFileSyncMessage } from './local-file-access';
+import type { LinkedBranchFile } from './linked-branch-file';
 
 export function useLocalFileSync(
   editor: EditorController | undefined,
-  connection: LocalFileConnection | undefined,
+  storage: LinkedBranchFile | undefined,
   editing: boolean,
 ): string | null {
   const [failure, setFailure] = useState<{
-    connection: LocalFileConnection;
+    storage: LinkedBranchFile;
     message: string;
   } | null>(null);
 
   useEffect(() => {
-    if (!connection || !editor) return;
+    if (!storage || !editor) return;
     let cancelled = false;
     let pending = false;
     const canApply = () => {
@@ -28,15 +29,15 @@ export function useLocalFileSync(
       if (document.hidden || pending) return;
       pending = true;
       try {
-        await editor.refreshFromFile(() => connection.storage.refresh(canApply));
+        await editor.refreshFromFile(() => storage.refresh(canApply));
         if (!cancelled) setFailure(null);
       } catch (cause) {
         if (!cancelled) {
           const message = localFileSyncMessage(cause);
           setFailure((current) =>
-            current?.connection === connection && current.message === message
+            current?.storage === storage && current.message === message
               ? current
-              : { connection, message },
+              : { storage, message },
           );
         }
       } finally {
@@ -53,7 +54,7 @@ export function useLocalFileSync(
       window.removeEventListener('focus', check);
       document.removeEventListener('visibilitychange', check);
     };
-  }, [connection, editor, editing]);
+  }, [storage, editor, editing]);
 
-  return failure && failure.connection === connection ? failure.message : null;
+  return failure && failure.storage === storage ? failure.message : null;
 }

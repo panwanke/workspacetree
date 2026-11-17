@@ -235,23 +235,24 @@ export default function DateDirectory({
         </div>
 
         {open && (
-          <div className="wst-date-view-tabs" role="radiogroup" aria-label="目录视图">
-            {directoryViews.map(([id, label]) => {
-              const count = id === 'images' ? images.length : id === 'todos' ? allTodos.length : 0;
-              return (
-                <label key={id} className="wst-date-view-tab">
-                  <input
-                    type="radio"
-                    name="directory-view"
-                    value={id}
-                    checked={viewMode === id}
-                    onChange={() => switchView(id)}
-                  />
-                  <span>{label}</span>
-                  {count > 0 && <span aria-hidden="true">({count})</span>}
-                </label>
-              );
-            })}
+          <div className="wst-view-select wst-directory-view-select">
+            <select
+              aria-label="大纲视图"
+              data-testid="directory-view"
+              value={viewMode}
+              onChange={(event) => switchView(event.target.value as DateDirectoryViewMode)}
+            >
+              {directoryViews.map(([id, label]) => {
+                const count = id === 'images' ? images.length : id === 'todos' ? allTodos.length : 0;
+                return (
+                  <option key={id} value={id}>
+                    {label}
+                    {count > 0 ? ` (${count})` : ''}
+                  </option>
+                );
+              })}
+            </select>
+            <WorkspaceIcon name="chevron" size={12} />
           </div>
         )}
       </div>

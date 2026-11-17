@@ -236,7 +236,12 @@
   font-size: 15px;
 }
 
-.is-compact :is(.wst-date-view-tab, .wst-date-directory-entry, .wst-tabs button) {
+.is-compact :is(.wst-date-directory-entry, .wst-tabs button) {
+  min-height: var(--touch-target);
+  font-size: 13px;
+}
+
+.is-compact .wst-directory-view-select select {
   min-height: var(--touch-target);
   font-size: 13px;
 }
