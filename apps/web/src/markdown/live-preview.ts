@@ -20,11 +20,14 @@ import {
   formatImageTag,
   parseCalloutHeader,
   parseImageMeta,
+  TASK_STATUS_CONFIG,
+  type MarkdownTaskStatus,
   type MarkdownImageMeta,
 } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { render } from 'pele';
 import { assetBlobUrls } from '../images/image-assets.js';
+import { editorTasks, toggleTaskAtLine } from './commands';
 
 export const setSourceModeEffect = StateEffect.define<boolean>();
 
@@ -57,7 +60,7 @@ export const assetsCompartment = new Compartment();
  */
 export class CheckboxWidget extends WidgetType {
   constructor(
-    public readonly status: 'open' | 'done' | 'discarded' | 'paused' | 'pending',
+    public readonly status: MarkdownTaskStatus,
     public readonly from: number,
     public readonly to: number,
   ) {
@@ -77,6 +80,7 @@ export class CheckboxWidget extends WidgetType {
     input.type = 'checkbox';
     input.checked = this.status === 'done';
     input.tabIndex = -1;
+    input.setAttribute('aria-label', TASK_STATUS_CONFIG[this.status].label);
 
     // 状态标记提示
     const badge = document.createElement('span');
@@ -91,10 +95,7 @@ export class CheckboxWidget extends WidgetType {
     wrap.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const nextMarker = this.status === 'done' ? '[ ]' : '[x]';
-      view.dispatch({
-        changes: { from: this.from, to: this.to, insert: nextMarker },
-      });
+      toggleTaskAtLine(view, view.state.doc.lineAt(this.from).number);
     });
 
     return wrap;
@@ -342,6 +343,7 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
   const doc = state.doc;
   const lineCount = doc.lines;
   const assets = state.facet(assetsFacet);
+  const tasks = editorTasks(doc);
 
   // 1. 行级解析：标题样式与任务复选框
   for (let l = 1; l <= lineCount; l++) {
@@ -360,26 +362,18 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
     }
 
     // 任务复选框
-    const taskMatch = /^(\s*(?:>[ \t]*)*(?:[-+*]|\d+[.)])[ \t]+)\[([ xX\-~?])\]/.exec(text);
-    if (taskMatch) {
-      const prefix = taskMatch[1]!;
-      const markerChar = taskMatch[2]!;
-      const markerFrom = line.from + prefix.length;
+    const task = tasks.get(l);
+    if (task) {
+      const markerFrom = line.from + task.prefix.length;
       const markerTo = markerFrom + 3; // `[x]` 长度为 3
 
       // 若光标不在 `[x]` 内部，用 CheckboxWidget 替换显示
       if (!selectionOverlaps(state, markerFrom, markerTo)) {
-        let status: 'open' | 'done' | 'discarded' | 'paused' | 'pending' = 'open';
-        if (markerChar === 'x' || markerChar === 'X') status = 'done';
-        else if (markerChar === '-') status = 'discarded';
-        else if (markerChar === '~') status = 'paused';
-        else if (markerChar === '?') status = 'pending';
-
         items.push({
           from: markerFrom,
           to: markerTo,
           deco: Decoration.replace({
-            widget: new CheckboxWidget(status, markerFrom, markerTo),
+            widget: new CheckboxWidget(task.status, markerFrom, markerTo),
             inclusive: false,
           }),
         });

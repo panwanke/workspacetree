@@ -17,6 +17,53 @@ function presentation(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Phase 2 统一视觉几何', () => {
+  it('counts Markdown and legacy tasks on nodes and in collapsed branches', () => {
+    const domain = createDemoDomain();
+    const nodeId = 'n_exp_program';
+    const node = domain.nodes.find((item) => item.id === nodeId)!;
+    const ownTasks = domain.tasks.filter((item) => item.nodeId === nodeId);
+    const childBlock = 'blk_extra_tasks';
+    const root = resolveVisualGraph(domain, presentation({ collapsedByDefault: ['n_exp'] }));
+    node.blockIds.push(childBlock, childBlock);
+    domain.blocks.push({
+      id: childBlock,
+      kind: 'checklist',
+      payload: {
+        markdown: '- [x] Done\n- [~] Paused\n\n~~~md\n- [ ] Example\n~~~',
+      },
+    });
+    const expanded = resolveVisualGraph(domain, presentation());
+    expect(expanded.nodeById[nodeId]).toMatchObject({
+      taskDone: ownTasks.filter((item) => item.done).length + 1,
+      taskTotal: ownTasks.length + 2,
+    });
+    const folded = resolveVisualGraph(domain, presentation({ collapsedByDefault: ['n_exp'] }));
+    const before = root.nodeById.n_exp;
+    expect(folded.nodeById.n_exp.taskDone).toBe(before.taskDone + 1);
+    expect(folded.nodeById.n_exp.taskTotal).toBe(before.taskTotal + 2);
+  });
+  it('reserves Markdown preview space for existing compact boxes and restores their size when the note is removed', () => {
+    const domain = createDemoDomain();
+    const root = domain.nodes.find((node) => node.id === domain.project.rootNodeId)!;
+    const blockId = `blk_note_${root.id}`;
+    domain.blocks = domain.blocks.filter((block) => block.id !== blockId);
+    root.blockIds = root.blockIds.filter((id) => id !== blockId);
+    const saved = { ...presentation(), nodeSizes: { [root.id]: { width: 200, height: 60 } } };
+    const size = () => resolveVisualGraph(domain, saved).sizes[root.id];
+    expect(size()).toEqual({ width: 200, height: 60 });
+
+    root.blockIds.push(blockId);
+    domain.blocks.push({ id: blockId, kind: 'text', payload: { markdown: 'A **note**.' } });
+    expect(size()).toEqual({ width: 200, height: 124 });
+    expect(saved.nodeSizes[root.id]).toEqual({ width: 200, height: 60 });
+    const larger = presentation({ nodeSizes: { [root.id]: { width: 250, height: 180 } } });
+    expect(resolveVisualGraph(domain, larger).sizes[root.id]).toEqual({ width: 250, height: 180 });
+
+    domain.blocks.pop();
+    root.blockIds.pop();
+    expect(size()).toEqual({ width: 200, height: 60 });
+  });
+
   it.each(['date-constrained', 'date-priority'] as const)(
     'places an undated parent near its earliest dated descendant in %s',
     (strategy) => {
@@ -308,7 +355,7 @@ describe('Phase 2 统一视觉几何', () => {
       presentation({ collapsedByDefault: ['n_writing_init', 'n_analysis'] }),
     );
     expect(collapsed.nodeById.n_writing_init.collapsedCount).toBe(13);
-    expect(collapsed.nodeById.n_writing_init.taskTotal).toBe(7);
+    expect(collapsed.nodeById.n_writing_init.taskTotal).toBe(8);
     expect(collapsed.nodeById.n_writing_init.externalConnectionCount).toBeGreaterThan(0);
     expect(collapsed.positions.n_writing_template).toBeUndefined();
     expect(collapsed.hiddenNodeIds).toContain('n_writing_template_latex');

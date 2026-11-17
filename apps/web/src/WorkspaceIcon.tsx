@@ -3,6 +3,7 @@ const paths = {
   chevron: 'm6 9 6 6 6-6',
   folder: 'M3 6h7l2 2h9v12H3z',
   plus: 'M12 5v14M5 12h14',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   undo: 'm9 5-5 5 5 5M4 10h10a5 5 0 0 1 0 10h-1',
   redo: 'm15 5 5 5-5 5m5-5H10a5 5 0 0 0 0 10h1',
   fit: 'M8 4H4v4m12-4h4v4m0 8v4h-4M4 16v4h4m1-8h6m-3-3v6',

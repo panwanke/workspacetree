@@ -169,6 +169,9 @@ importers:
 
   packages/layout:
     dependencies:
+      '@workspacetree/markdown':
+        specifier: workspace:*
+        version: link:../markdown
       '@workspacetree/schema':
         specifier: workspace:*
         version: link:../schema

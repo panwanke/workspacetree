@@ -17,7 +17,10 @@ import type {
 } from '@workspacetree/schema';
 import { replaceDomainEntry, type HistoryEntry } from './history';
 
-function subtreeIds(children: ReadonlyMap<string, readonly string[]>, rootId: string): string[] {
+export function subtreeIds(
+  children: ReadonlyMap<string, readonly string[]>,
+  rootId: string,
+): string[] {
   const ids = [rootId];
   for (let index = 0; index < ids.length; index++) ids.push(...(children.get(ids[index]) ?? []));
   return ids;
@@ -179,7 +182,10 @@ export function transferBranch(
       .filter((edge) => edge.type === 'hierarchy')
       .map((edge) => [edge.toNodeId, edge.role]),
   );
-  const blockMap = new Map([...blocks].map((id) => [id, makeId('b_')]));
+  const primaryNotes = new Map(
+    nodes.map((node) => ['blk_note_' + node.id, 'blk_note_' + mapped(node.id)]),
+  );
+  const blockMap = new Map([...blocks].map((id) => [id, primaryNotes.get(id) ?? makeId('b_')]));
   const next = structuredClone(target.domain);
   next.nodes.push(
     ...nodes.map((node) => ({
@@ -343,6 +349,7 @@ export function reparentBranchEntry(
   nodeId: string,
   parentId: string | null,
   strategy: LayoutStrategy = 'timeline',
+  keepPosition = false,
 ): HistoryEntry | null {
   const { domain, presentation } = file;
   const edgeId = makeId('e_');
@@ -390,7 +397,7 @@ export function reparentBranchEntry(
     const graph = expandedGraph(file, direction, strategy);
     const origin = graph.positions[nodeId];
     const target =
-      parentId === null
+      keepPosition || parentId === null
         ? origin
         : branchDestination(
             graph,

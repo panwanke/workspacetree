@@ -326,6 +326,29 @@ input[type='date'] {
   stroke-width: 2px;
 }
 
+.react-flow__edge.selected .react-flow__edgeupdater:hover {
+  fill: #dbeafe;
+  cursor: grab;
+}
+
+.wst-reconnect-status {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 30;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  max-width: calc(100% - 24px);
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
 .react-flow__handle.connectingto,
 .react-flow__handle.valid {
   background: #2563eb !important;
@@ -568,6 +591,14 @@ input[type='date'] {
 
 .wst-card:has(.wst-card-markdown) {
   justify-content: flex-start;
+}
+
+.wst-card:has(.wst-card-markdown) .wst-card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .wst-card:has(.wst-card-markdown) .wst-card-meta {
@@ -969,6 +1000,65 @@ input[type='date'] {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.wst-connection-dialog {
+  padding: 0;
+  margin: auto;
+}
+
+.wst-connection-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.wst-connection-dialog > form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.wst-connection-dialog .wst-modal-body {
+  display: grid;
+  gap: 12px;
+  overscroll-behavior: contain;
+}
+
+.wst-connection-dialog .wst-field {
+  margin: 0;
+}
+
+.wst-connection-picker {
+  display: grid;
+  gap: 5px;
+}
+
+.wst-connection-picker select {
+  min-width: 0;
+  padding: 6px 8px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #1e293b;
+  font: inherit;
+}
+
+.wst-connection-actions,
+.wst-connection-position {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wst-connection-preview {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .wst-modal-header {

@@ -28,7 +28,6 @@
   z-index: 20;
   flex: none;
   background: var(--surface);
-  border-bottom: 1px solid #d4e0da;
 }
 
 .wst-project-bar,
@@ -221,8 +220,12 @@
 }
 
 .wst-toolbar {
+  position: relative;
+  z-index: 19;
+  flex: none;
   min-height: 49px;
   gap: 12px;
+  border-bottom: 1px solid #d4e0da;
   background: #fbfcfb;
 }
 
@@ -657,12 +660,6 @@
   user-select: none;
 }
 
-.wst-date-directory[data-open='false'] {
-  flex: 0 0 auto !important;
-  width: auto !important;
-  align-self: flex-start;
-}
-
 .wst-date-directory-header {
   display: flex;
   flex-direction: column;
@@ -672,15 +669,21 @@
   border-bottom: 1px solid var(--line);
 }
 
-.wst-date-directory-toggle {
-  width: 100%;
-  justify-content: flex-start;
-  gap: 6px;
-  font-weight: 500;
+.wst-directory-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 4px 0;
+}
+
+.wst-directory-panel-heading h2 {
+  margin: 0;
+  font-size: 14px;
 }
 
 .wst-date-view-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3px;
   background: #edf3f0;
   padding: 2px;
@@ -688,31 +691,57 @@
 }
 
 .wst-date-view-tab {
-  flex: 1;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 4px 4px;
-  border: 0;
+  gap: 4px;
+  padding: 4px;
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+}
+
+.wst-date-view-tab input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.wst-date-view-tab span[aria-hidden] {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .wst-date-view-tab:hover {
   color: var(--foreground);
 }
 
-.wst-date-view-tab.is-active {
+.wst-date-view-tab:has(input:checked) {
   background: var(--surface);
   color: var(--accent);
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.wst-directory-callouts {
+  display: grid;
+  gap: 10px;
+  padding: 2px;
+  font-size: 12px;
+}
+
+.wst-directory-callouts section {
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wst-directory-callouts .wst-date-directory-entry {
+  margin-bottom: 4px;
+  font-weight: 600;
 }
 
 .wst-date-directory-content {
@@ -924,7 +953,6 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
-  cursor: pointer;
   transition: all 0.15s ease;
 }
 
@@ -978,6 +1006,15 @@
   word-break: break-word;
 }
 
+button.wst-date-todo-title {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
 .wst-date-todo-title.is-done {
   text-decoration: line-through;
   color: var(--muted);
@@ -1016,23 +1053,6 @@
   font-size: 11px;
   margin-top: 4px;
   color: #8c9b94;
-}
-
-@media (max-width: 760px) {
-  .wst-date-directory {
-    position: absolute;
-    z-index: 7;
-    top: 8px;
-    left: 8px;
-    max-height: calc(100% - 80px);
-    width: 144px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-  }
-
-  .wst-date-directory[data-open='false'] {
-    width: auto;
-  }
 }
 
 .wst-canvas .react-flow__background {
@@ -1507,123 +1527,6 @@
 
 @media (max-width: 900px) {
   .wst-header-stats {
-    display: none;
-  }
-}
-
-@media (max-width: 760px) {
-  .wst-project-bar,
-  .wst-toolbar,
-  .wst-status {
-    padding-inline: 10px;
-  }
-
-  .wst-toolbar {
-    gap: 6px;
-  }
-
-  .wst-toolbar-group {
-    gap: 3px;
-  }
-
-  .wst-view-tools {
-    padding-inline-start: 6px;
-  }
-
-  .wst-view-tools .wst-tool-label,
-  .wst-view-tools .wst-popover > .wst-tool svg:last-child,
-  .wst-inspector-toggle .wst-tool-label {
-    display: none;
-  }
-
-  .wst-view-tools .wst-popover {
-    position: static;
-  }
-
-  .wst-view-tools .wst-popover-content {
-    top: calc(100% + 5px);
-    inset-inline-end: 10px;
-  }
-
-  .wst-inspector {
-    position: absolute;
-    inset: 0 0 0 auto;
-    width: min(350px, calc(100% - 36px));
-    box-shadow: -8px 0 24px rgb(28 57 47 / 11%);
-  }
-
-  .wst-canvas .wst-timeline-axis.is-vertical {
-    width: 57px;
-  }
-
-  .wst-canvas .wst-flow-vertical .react-flow__controls {
-    margin-left: 64px;
-  }
-
-  .wst-canvas:has(.wst-flow-vertical) .wst-view-help {
-    left: 103px;
-  }
-
-  .wst-view-help .wst-popover-content {
-    width: min(270px, calc(100vw - 115px));
-  }
-
-  .wst-canvas .react-flow__minimap,
-  .wst-status [data-testid='semantic-commits'],
-  .wst-status [data-testid='presentation-batches'],
-  .wst-status [data-testid='svg-meta'] {
-    display: none;
-  }
-}
-
-@media (max-width: 460px) {
-  .wst-project-bar {
-    min-height: 54px;
-    gap: 6px;
-  }
-
-  .wst-project-meta {
-    gap: 4px;
-  }
-
-  .wst-brand-mark {
-    flex-basis: 30px;
-    height: 30px;
-  }
-
-  .wst-project-identity {
-    gap: 7px;
-  }
-
-  .wst-project-titles h1 {
-    font-size: 13px;
-  }
-
-  .wst-project-menu > .wst-tool > svg:first-child,
-  .wst-app .wst-toolbar-delete {
-    display: none;
-  }
-
-  .wst-inspector-delete {
-    display: block;
-  }
-
-  .wst-app .wst-toolbar .wst-tool {
-    padding-inline: 6px;
-  }
-
-  .wst-app .wst-toolbar .wst-tool.is-icon {
-    width: 29px;
-    padding: 0;
-  }
-
-  .wst-history-tools {
-    margin-inline-start: 0;
-  }
-}
-
-@media (max-width: 350px) {
-  .wst-app .wst-toolbar .wst-tool.is-primary span {
     display: none;
   }
 }

@@ -1,13 +1,19 @@
-import { makeId } from '@workspacetree/core';
-import type { LayoutDirection } from '@workspacetree/layout';
-import type { AssetRecord, BranchFile, EdgeType, Node } from '@workspacetree/schema';
-import { useEffect, useRef, useState } from 'react';
+import { buildHierarchy, type LayoutDirection } from '@workspacetree/layout';
+import {
+  appendMarkdownTask,
+  indexWorkspaceTasks,
+  localToday,
+  workspaceTaskCounts,
+  type WorkspaceTask,
+} from '@workspacetree/markdown';
+import type { AssetRecord, BranchFile, Node } from '@workspacetree/schema';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { relationDescription, relationLabels, type ConnectionRequest } from './ConnectionDialog';
 import type { EditorController } from './editor';
 import {
-  addEdgeEntry,
-  addTaskEntry,
   clearPositionEntry,
   getNodeNote,
+  getNodeNoteBlock,
   removeEdgeEntry,
   renameNodeEntry,
   setBranchScaleEntry,
@@ -17,14 +23,13 @@ import {
   setNodeSizeEntry,
   setNodeTagsEntry,
   setStartAtEntry,
-  setTaskTagsEntry,
-  toggleTaskEntry,
 } from './history';
 import { MarkdownPreview } from './MarkdownPreview';
 import { MarkdownEditor } from './markdown/MarkdownEditor';
 import { TODO_STATUS } from './markdown-todos';
 import { TagEditor } from './TagEditor';
 import { TagList } from './TagList';
+import { saveTodoEntry, updateTodoEntry, type TodoDraft, type TodoSource } from './todo-editing';
 import { WorkspaceIcon } from './WorkspaceIcon';
 
 const tabs = [
@@ -32,13 +37,6 @@ const tabs = [
   ['layout', '布局'],
   ['relations', '关联'],
 ] as const;
-
-const relationLabels = {
-  hierarchy: '层级',
-  dependency: '依赖',
-  reference: '引用',
-  custom: '自定义',
-} satisfies Record<EdgeType, string>;
 
 type Guard = (action: () => void | Promise<void>) => void;
 export type ScaleKind = 'node' | 'branch';
@@ -65,6 +63,8 @@ interface InspectorProps {
   controller: EditorController;
   guard: Guard;
   onClose: () => void;
+  onConnection: (request: ConnectionRequest) => void;
+  onDetach: (id: string) => void;
   onLocate: (id: string) => void;
   onScalePreview: (id: string, kind: ScaleKind, value: number | null) => void;
   onScaleApply: (id: string, kind: ScaleKind, value: number) => void;
@@ -74,29 +74,60 @@ interface InspectorProps {
 }
 
 function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: NodePanelProps) {
-  const note = getNodeNote(file.domain, node.id);
+  const noteBlock = getNodeNoteBlock(file.domain, node.id);
+  const note = noteBlock?.markdown ?? '';
   const [titleDraft, setTitleDraft] = useState(node.title);
   const [noteDraft, setNoteDraft] = useState(note);
   const [editingNote, setEditingNote] = useState(false);
   const [taskDraft, setTaskDraft] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [editingTaskTags, setEditingTaskTags] = useState<string | null>(null);
   const [draftAssets, setDraftAssets] = useState<Record<string, AssetRecord>>({});
-  const tasks = file.domain.tasks.filter((task) => task.nodeId === node.id);
-  const done = tasks.filter((task) => task.done).length;
+  const noteBase = useRef(note);
+  const noteWrites = useRef(Promise.resolve());
+  const draftVersion = useRef(0);
+  const tasks = useMemo(
+    () => indexWorkspaceTasks(file.domain).byNode.get(node.id) ?? [],
+    [file.domain, node.id],
+  );
+  const { total, done } = workspaceTaskCounts(tasks);
+  const otherTasks = tasks.filter(
+    (item) => item.source === 'task' || item.blockId !== noteBlock?.id,
+  );
   const title = titleDraft.trim();
 
   useEffect(() => setTitleDraft(node.title), [node.title]);
-  useEffect(() => setNoteDraft(note), [note]);
+  useEffect(() => {
+    if (editingNote && noteDraft !== noteBase.current) return;
+    noteBase.current = note;
+    setNoteDraft(note);
+  }, [note, editingNote, noteDraft]);
+
+  function persistNote(markdown: string, assets: Record<string, AssetRecord>) {
+    const write = noteWrites.current.then(async () => {
+      const base = noteBase.current;
+      await controller.runFromLatest(({ domain }) => {
+        const latest = getNodeNote(domain, node.id);
+        if (latest !== base && latest !== markdown) {
+          throw new Error('笔记已变化，编辑内容仍在草稿中。');
+        }
+        if (latest === markdown && !Object.keys(assets).length) return;
+        return setNodeNoteEntry(domain, node.id, markdown, assets);
+      });
+      noteBase.current = markdown;
+      setDraftAssets((current) => (current === assets ? {} : current));
+    });
+    noteWrites.current = write.catch(() => {});
+    return write;
+  }
 
   useEffect(() => {
-    if (!editingNote || !autoSave) return;
+    if (!editingNote || !autoSave || savingNote || addingTask) return;
     const timer = setInterval(() => {
       if (noteDraft !== note || Object.keys(draftAssets).length > 0) {
         guard(async () => {
-          await controller.run(setNodeNoteEntry(file.domain, node.id, noteDraft, draftAssets));
-          if (!controller.getSnapshot().error) {
-            setDraftAssets({});
-          }
+          await persistNote(noteDraft, draftAssets);
         });
       }
     }, 5000);
@@ -104,6 +135,8 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
   }, [
     editingNote,
     autoSave,
+    savingNote,
+    addingTask,
     noteDraft,
     note,
     draftAssets,
@@ -114,18 +147,46 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
   ]);
 
   function saveNote(assets?: Record<string, AssetRecord>) {
+    if (savingNote || addingTask) return;
     const assetsToCommit = assets ?? draftAssets;
     if (noteDraft === note && Object.keys(assetsToCommit).length === 0) {
       setEditingNote(false);
       return;
     }
+    const version = draftVersion.current;
+    setSavingNote(true);
     guard(async () => {
-      await controller.run(setNodeNoteEntry(file.domain, node.id, noteDraft, assetsToCommit));
-      if (!controller.getSnapshot().error) {
-        setDraftAssets({});
-        setEditingNote(false);
+      try {
+        await persistNote(noteDraft, assetsToCommit);
+        if (version === draftVersion.current) setEditingNote(false);
+      } finally {
+        setSavingNote(false);
       }
     });
+  }
+
+  function cancelNote() {
+    if (savingNote || addingTask) return;
+    setNoteDraft(note);
+    setDraftAssets({});
+    setEditingNote(false);
+  }
+
+  function sourceFor(item: WorkspaceTask): TodoSource {
+    return item.source === 'task'
+      ? { source: 'task', id: item.task.id, task: item.task }
+      : {
+          source: 'markdown',
+          nodeId: node.id,
+          blockId: item.blockId,
+          lineIndex: item.task.lineIndex,
+          markdown: item.markdown,
+        };
+  }
+
+  function updateTask(source: TodoSource, changes: Partial<TodoDraft>) {
+    const day = localToday();
+    return controller.runFromLatest((latest) => updateTodoEntry(latest, source, changes, day));
   }
 
   return (
@@ -199,6 +260,11 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
       <section className="wst-inspector-section" aria-label="Markdown 笔记">
         <div className="wst-section-heading">
           <h3>笔记</h3>
+          {total > 0 && (
+            <span className="wst-count">
+              {done} / {total} 完成
+            </span>
+          )}
           {!editingNote && (
             <button
               type="button"
@@ -214,14 +280,16 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
             <MarkdownEditor
               value={noteDraft}
               assets={file.domain.assets}
-              onChange={(val) => setNoteDraft(val)}
-              onAssetsChange={setDraftAssets}
-              onSave={saveNote}
-              onCancel={() => {
-                setNoteDraft(note);
-                setDraftAssets({});
-                setEditingNote(false);
+              onChange={(val) => {
+                draftVersion.current++;
+                setNoteDraft(val);
               }}
+              onAssetsChange={(assets) => {
+                draftVersion.current++;
+                setDraftAssets(assets);
+              }}
+              onSave={saveNote}
+              onCancel={cancelNote}
               autoFocus
               placeholder="例如 - [ ] 核对招募条件 #招募"
             />
@@ -229,15 +297,17 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
               <button
                 type="button"
                 className="wst-tool"
-                onClick={() => {
-                  setNoteDraft(note);
-                  setDraftAssets({});
-                  setEditingNote(false);
-                }}
+                disabled={savingNote || addingTask}
+                onClick={cancelNote}
               >
                 取消
               </button>
-              <button type="button" className="wst-tool is-accent" onClick={() => saveNote()}>
+              <button
+                type="button"
+                className="wst-tool is-accent"
+                disabled={savingNote || addingTask}
+                onClick={() => saveNote()}
+              >
                 保存笔记
               </button>
             </div>
@@ -247,46 +317,66 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
             markdown={note}
             assets={file.domain.assets}
             className="wst-inspector-note"
+            onToggleTask={
+              noteBlock
+                ? (lineIndex, checked) =>
+                    guard(() =>
+                      updateTask(
+                        {
+                          source: 'markdown',
+                          nodeId: node.id,
+                          blockId: noteBlock.id,
+                          lineIndex,
+                          markdown: note,
+                        },
+                        { status: checked ? 'done' : 'open' },
+                      ),
+                    )
+                : undefined
+            }
           />
         ) : (
           <p className="wst-empty-line">暂无笔记</p>
         )}
-      </section>
-
-      <section className="wst-inspector-section" aria-label="节点任务">
-        <div className="wst-section-heading">
-          <h3>任务</h3>
-          {tasks.length > 0 && (
-            <span className="wst-count">
-              {done} / {tasks.length} 完成
-            </span>
-          )}
-        </div>
-        {tasks.length > 0 && (
-          <>
-            <progress
-              className="wst-task-progress"
-              aria-label="任务完成度"
-              max={tasks.length}
-              value={done}
-            />
-            <ul className="wst-task-list">
-              {tasks.map((task) => (
-                <li key={task.id}>
+        {total > 0 && (
+          <progress
+            className="wst-task-progress"
+            aria-label="任务完成度"
+            max={total}
+            value={done}
+          />
+        )}
+        {otherTasks.length > 0 && (
+          <ul className="wst-task-list">
+            {otherTasks.map((item) => {
+              const { task } = item;
+              const status = item.source === 'task' ? item.status : item.task.status;
+              const id =
+                item.source === 'task'
+                  ? item.task.id
+                  : JSON.stringify([item.blockId, item.task.lineIndex]);
+              return (
+                <li key={id}>
                   <div className="wst-task-line">
-                    <label className={task.done ? 'is-done' : ''}>
+                    <label className={status === 'done' ? 'is-done' : ''}>
                       <input
                         type="checkbox"
-                        checked={task.done}
-                        data-testid={`task-${task.id}`}
-                        onChange={() =>
-                          guard(() => controller.run(toggleTaskEntry(file.domain, task.id)))
-                        }
+                        checked={status === 'done'}
+                        data-testid={`task-${id}`}
+                        onChange={(event) => {
+                          const next = event.target.checked ? 'done' : 'open';
+                          guard(() => updateTask(sourceFor(item), { status: next }));
+                        }}
                       />
                       <span>{task.title || '未命名 TODO'}</span>
                     </label>
-                    {task.status && (
-                      <span className="wst-muted">{TODO_STATUS[task.status].label}</span>
+                    {status !== 'open' && (
+                      <span className="wst-muted">{TODO_STATUS[status].label}</span>
+                    )}
+                    {task.completedAt && status === 'done' && (
+                      <time className="wst-todo-date" dateTime={task.completedAt}>
+                        完成 {task.completedAt}
+                      </time>
                     )}
                     {task.scheduledAt && (
                       <time className="wst-todo-date" dateTime={task.scheduledAt}>
@@ -297,24 +387,24 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
                       type="button"
                       className="wst-tool is-icon is-subtle"
                       aria-label={'编辑 TODO 标签 ' + task.title}
-                      aria-expanded={editingTaskTags === task.id}
+                      aria-expanded={editingTaskTags === id}
                       title="编辑 TODO 标签"
-                      onClick={() =>
-                        setEditingTaskTags(editingTaskTags === task.id ? null : task.id)
-                      }
+                      onClick={() => setEditingTaskTags(editingTaskTags === id ? null : id)}
                     >
                       <WorkspaceIcon name="tag" size={15} />
                     </button>
                   </div>
-                  {editingTaskTags === task.id ? (
+                  {editingTaskTags === id ? (
                     <TagEditor
                       label="TODO 标签"
                       tags={task.tags}
                       onChange={async (tags) => {
-                        await controller.run(
-                          setTaskTagsEntry(controller.getSnapshot().file.domain, task.id, tags),
-                        );
-                        return !controller.getSnapshot().error;
+                        try {
+                          await updateTask(sourceFor(item), { tags });
+                          return true;
+                        } catch {
+                          return false;
+                        }
                       }}
                     />
                   ) : task.tags?.length ? (
@@ -323,27 +413,42 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
                     </div>
                   ) : null}
                 </li>
-              ))}
-            </ul>
-          </>
+              );
+            })}
+          </ul>
         )}
         <form
           className="wst-input-action"
           onSubmit={(event) => {
             event.preventDefault();
             const taskTitle = taskDraft.trim();
-            if (!taskTitle) return;
+            if (!taskTitle || addingTask || savingNote) return;
+            setAddingTask(true);
             guard(async () => {
-              await controller.run(
-                addTaskEntry({
-                  id: makeId('tsk_'),
-                  nodeId: node.id,
-                  title: taskTitle,
-                  done: false,
-                }),
-              );
-              if (!controller.getSnapshot().error)
+              try {
+                if (editingNote) {
+                  const line = '- [ ] ' + taskTitle;
+                  const next = appendMarkdownTask(noteDraft, line);
+                  await persistNote(next, draftAssets);
+                  setNoteDraft((current) => {
+                    if (current === next || current === noteDraft) return next;
+                    return appendMarkdownTask(current, line);
+                  });
+                } else {
+                  await controller.runFromLatest((latest) =>
+                    saveTodoEntry(latest, null, {
+                      title: taskTitle,
+                      status: 'open',
+                      tags: [],
+                      scheduledAt: null,
+                      target: { mode: 'existing', nodeId: node.id },
+                    }),
+                  );
+                }
                 setTaskDraft((current) => (current === taskDraft ? '' : current));
+              } finally {
+                setAddingTask(false);
+              }
             });
           }}
         >
@@ -358,7 +463,7 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
             className="wst-tool is-icon"
             aria-label="新增任务"
             title="新增任务"
-            disabled={!taskDraft.trim()}
+            disabled={!taskDraft.trim() || addingTask || savingNote}
           >
             <WorkspaceIcon name="plus" />
           </button>
@@ -562,120 +667,154 @@ function NodeRelations({
   hiddenRelations,
   visibleNodeIds,
   onLocate,
-}: NodePanelProps & Pick<InspectorProps, 'hiddenRelations' | 'visibleNodeIds' | 'onLocate'>) {
-  const [edgeTarget, setEdgeTarget] = useState('');
-  const [edgeType, setEdgeType] = useState<EdgeType>('dependency');
-  const { edges, nodes } = file.domain;
-  const names = new Map(nodes.map((item) => [item.id, item.title]));
+  onConnection,
+  onDetach,
+  tree,
+}: NodePanelProps &
+  Pick<
+    InspectorProps,
+    'hiddenRelations' | 'visibleNodeIds' | 'onLocate' | 'onConnection' | 'onDetach'
+  > & {
+    tree: ReturnType<typeof buildHierarchy>;
+  }) {
+  const { edges, nodes, project } = file.domain;
+  const names = new Map(nodes.map(({ id, title }) => [id, title || id]));
+  const name = (id: string) => names.get(id) ?? id;
+  const parentId = tree.parents.get(node.id);
+  const children = tree.children.get(node.id) ?? [];
   const relations = edges.filter(
-    (edge) => edge.fromNodeId === node.id || edge.toNodeId === node.id,
+    (edge) =>
+      edge.type !== 'hierarchy' && (edge.fromNodeId === node.id || edge.toNodeId === node.id),
   );
-  const target = names.has(edgeTarget) ? edgeTarget : '';
+  const locateButton = (id: string) => (
+    <button
+      type="button"
+      className="wst-text-button"
+      onClick={() => onLocate(id)}
+      title={`定位 ${name(id)}`}
+    >
+      {name(id)}
+    </button>
+  );
 
   return (
     <>
+      <section className="wst-inspector-section" aria-label="父子归属">
+        <div className="wst-section-heading">
+          <h3>父子归属</h3>
+        </div>
+        <p>
+          母节点{' '}
+          {parentId
+            ? locateButton(parentId)
+            : node.id === project.rootNodeId
+              ? '项目根节点'
+              : '独立分支'}
+        </p>
+        <div className="wst-connection-actions">
+          {node.id !== project.rootNodeId && (
+            <button
+              className="wst-tool"
+              type="button"
+              onClick={() => onConnection({ kind: 'move', nodeId: node.id })}
+            >
+              {parentId ? '更换母节点' : '挂到…'}
+            </button>
+          )}
+          {parentId && node.id !== project.rootNodeId && (
+            <button className="wst-tool" type="button" onClick={() => onDetach(node.id)}>
+              转为独立分支
+            </button>
+          )}
+          <button
+            className="wst-tool"
+            type="button"
+            onClick={() => onConnection({ kind: 'adopt', nodeId: node.id })}
+          >
+            接入已有分支
+          </button>
+        </div>
+        {children.length > 0 && (
+          <ul className="wst-relation-list" aria-label="子节点">
+            {children.map((id) => (
+              <li key={id}>
+                {locateButton(id)}
+                <button
+                  className="wst-tool"
+                  type="button"
+                  onClick={() => onConnection({ kind: 'move', nodeId: id })}
+                >
+                  改挂
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <section className="wst-inspector-section">
         <div className="wst-section-heading">
-          <h3>节点连线</h3>
+          <h3>关联连线</h3>
           {hiddenRelations > 0 && <span className="wst-count">{hiddenRelations} 条未显示</span>}
         </div>
         {relations.length ? (
           <ul className="wst-relation-list">
             {relations.map((edge) => {
-              const outgoing = edge.fromNodeId === node.id;
-              const peer = outgoing ? edge.toNodeId : edge.fromNodeId;
-              const label = names.get(peer) ?? peer;
+              const peer = edge.fromNodeId === node.id ? edge.toNodeId : edge.fromNodeId;
               return (
                 <li key={edge.id}>
                   <div className="wst-relation-peer">
-                    <span className="wst-relation-kind">
-                      {outgoing ? '出向' : '入向'} · {relationLabels[edge.type]}
-                    </span>
-                    {visibleNodeIds.has(peer) ? (
-                      <button
-                        type="button"
-                        className="wst-text-button"
-                        onClick={() => onLocate(peer)}
-                        title={`定位 ${label}`}
-                      >
-                        {label}
-                      </button>
-                    ) : (
-                      <span className="wst-muted" title="此节点位于折叠的分支中">
-                        {label}
-                      </span>
-                    )}
-                  </div>
-                  {edge.type !== 'hierarchy' && (
+                    <span className="wst-relation-kind">{relationLabels[edge.type]}</span>
                     <button
                       type="button"
-                      className="wst-tool is-icon is-danger"
-                      aria-label={`删除与 ${label} 的${relationLabels[edge.type]}连线`}
-                      onClick={() =>
-                        guard(() => controller.run(removeEdgeEntry(file.domain, edge.id)))
-                      }
+                      className="wst-text-button"
+                      disabled={!visibleNodeIds.has(peer)}
+                      onClick={() => onLocate(peer)}
                     >
-                      <WorkspaceIcon name="trash" size={15} />
+                      {relationDescription(edge.type, name(edge.fromNodeId), name(edge.toNodeId))}
                     </button>
-                  )}
+                  </div>
+                  <button
+                    type="button"
+                    className="wst-tool is-icon"
+                    aria-label={`编辑与 ${name(peer)} 的连线`}
+                    onClick={() =>
+                      onConnection({
+                        kind: 'relation',
+                        edgeId: edge.id,
+                        fromNodeId: edge.fromNodeId,
+                        toNodeId: edge.toNodeId,
+                      })
+                    }
+                  >
+                    <WorkspaceIcon name="pencil" size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="wst-tool is-icon is-danger"
+                    aria-label={`删除与 ${name(peer)} 的${relationLabels[edge.type]}连线`}
+                    onClick={() =>
+                      guard(() =>
+                        controller.runFromLatest(({ domain }) => removeEdgeEntry(domain, edge.id)),
+                      )
+                    }
+                  >
+                    <WorkspaceIcon name="trash" size={15} />
+                  </button>
                 </li>
               );
             })}
           </ul>
         ) : (
-          <p className="wst-empty-line">暂无连线</p>
+          <p className="wst-empty-line">暂无关联连线</p>
         )}
-      </section>
-      <form
-        className="wst-inspector-section"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!target) return;
-          guard(async () => {
-            await controller.run(
-              addEdgeEntry({
-                id: makeId('e_'),
-                type: edgeType,
-                fromNodeId: node.id,
-                toNodeId: target,
-              }),
-            );
-            if (!controller.getSnapshot().error)
-              setEdgeTarget((current) => (current === target ? '' : current));
-          });
-        }}
-      >
-        <div className="wst-section-heading">
-          <h3>新建关联</h3>
-        </div>
-        <label className="wst-field">
-          目标节点
-          <select value={target} onChange={(event) => setEdgeTarget(event.target.value)}>
-            <option value="">选择目标节点</option>
-            {nodes
-              .filter((item) => item.id !== node.id)
-              .map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title || item.id}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label className="wst-field">
-          关系类型
-          <select
-            value={edgeType}
-            onChange={(event) => setEdgeType(event.target.value as EdgeType)}
-          >
-            <option value="dependency">依赖</option>
-            <option value="reference">引用</option>
-            <option value="custom">自定义</option>
-          </select>
-        </label>
-        <button type="submit" className="wst-tool is-accent" disabled={!target}>
-          <WorkspaceIcon name="plus" size={14} /> 添加连线
+        <button
+          className="wst-tool is-accent"
+          type="button"
+          onClick={() => onConnection({ kind: 'relation', fromNodeId: node.id, toNodeId: '' })}
+        >
+          <WorkspaceIcon name="plus" size={14} /> 新建关联
         </button>
-      </form>
+      </section>
     </>
   );
 }
@@ -693,7 +832,9 @@ export default function WorkspaceInspector(props: InspectorProps) {
     onLocate: props.onLocate,
     autoSave: props.autoSave,
   };
-  const parent = node && file.domain.nodes.find((item) => item.id === node.parentId);
+  const { nodes, edges } = file.domain;
+  const tree = useMemo(() => buildHierarchy(nodes, edges), [nodes, edges]);
+  const parent = node && nodes.find((item) => item.id === tree.parents.get(node.id));
 
   useEffect(() => {
     if (scrollArea.current) scrollArea.current.scrollTop = 0;
@@ -798,7 +939,7 @@ export default function WorkspaceInspector(props: InspectorProps) {
                 aria-labelledby={`inspector-tab-${id}`}
                 hidden={tab !== id}
               >
-                {id === 'overview' && <NodeOverview {...nodeProps} />}
+                {id === 'overview' && <NodeOverview key={node.id} {...nodeProps} />}
                 {id === 'layout' && (
                   <NodeLayout
                     {...nodeProps}
@@ -821,6 +962,9 @@ export default function WorkspaceInspector(props: InspectorProps) {
                 {id === 'relations' && (
                   <NodeRelations
                     {...nodeProps}
+                    tree={tree}
+                    onConnection={props.onConnection}
+                    onDetach={props.onDetach}
                     hiddenRelations={props.hiddenRelations}
                     visibleNodeIds={props.visibleNodeIds}
                     onLocate={props.onLocate}

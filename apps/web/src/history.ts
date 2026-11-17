@@ -7,12 +7,14 @@
  *
  * 本模块为纯逻辑，不 import React / DOM，可在 Node 下独立测试。
  */
+import { computeSemanticHash } from '@workspacetree/core';
 import {
   DEFAULT_LAYOUT_OPTIONS,
   LOD_MIN_HEIGHT,
   LOD_MIN_WIDTH,
   resolveLayoutDirection,
 } from '@workspacetree/layout';
+import { readMarkdownBlocks, selectNodeNote } from '@workspacetree/markdown';
 import type {
   ActorKind,
   AssetRecord,
@@ -69,8 +71,8 @@ function edgeAddCommand(edge: Edge, index?: number): Command {
   return cmd('edge.add', { ...edge, ...(index === undefined ? {} : { index }) });
 }
 
-function taskAddCommand(task: Task): Command {
-  return cmd('task.add', task);
+function taskAddCommand(task: Task, index?: number): Command {
+  return cmd('task.add', { ...task, ...(index === undefined ? {} : { index }) });
 }
 
 export function createNodeEntry(
@@ -253,11 +255,13 @@ export function setStartAtEntry(
 }
 
 export function getNodeNoteBlock(domain: DomainState, id: string) {
-  const blockId = `blk_note_${id}`;
-  const block = domain.blocks.find((item) => item.id === blockId);
-  if (!block || typeof block.payload !== 'object' || block.payload === null) return undefined;
-  const markdown = (block.payload as { markdown?: unknown }).markdown;
-  return typeof markdown === 'string' ? { id: blockId, markdown } : undefined;
+  const node = domain.nodes.find((item) => item.id === id);
+  if (!node) return undefined;
+  const owned = new Set(node.blockIds);
+  return selectNodeNote(
+    node,
+    readMarkdownBlocks(domain.blocks.filter((block) => owned.has(block.id))),
+  );
 }
 
 export function getNodeNote(domain: DomainState, id: string): string {
@@ -270,12 +274,16 @@ export function setNodeNoteEntry(
   markdown: string,
   newAssets?: Record<string, AssetRecord>,
 ): HistoryEntry {
-  const before = getNodeNote(domain, id);
-  const forwardCmd = newAssets
-    ? cmd('node.setNoteWithAssets', { id, markdown, assets: newAssets })
-    : cmd('node.setNote', { id, markdown });
-
-  const inverseCmds: Command[] = [cmd('node.setNote', { id, markdown: before })];
+  const before = getNodeNoteBlock(domain, id);
+  const payload = before && before.id !== 'blk_note_' + id ? { id, blockId: before.id } : { id };
+  const type = 'blockId' in payload ? 'node.editMarkdownBlock' : 'node.setNote';
+  const forwardType = type === 'node.setNote' && newAssets ? 'node.setNoteWithAssets' : type;
+  const forwardCmd = cmd(forwardType, {
+    ...payload,
+    markdown,
+    ...(newAssets ? { assets: newAssets } : {}),
+  });
+  const inverseCmds = [cmd(type, { ...payload, markdown: before?.markdown ?? '' })];
   if (newAssets) {
     for (const assetId of Object.keys(newAssets)) {
       if (!domain.assets || !(assetId in domain.assets)) {
@@ -321,6 +329,15 @@ export function toggleTaskEntry(domain: DomainState, taskId: string): HistoryEnt
 
 export function addTaskEntry(task: Task): HistoryEntry {
   return entry('新增任务', 'domain', [taskAddCommand(task)], [cmd('task.remove', { id: task.id })]);
+}
+
+export function removeTaskEntry(task: Task, index: number): HistoryEntry {
+  return entry(
+    '删除 TODO',
+    'domain',
+    [cmd('task.remove', { id: task.id })],
+    [taskAddCommand(task, index)],
+  );
 }
 
 export function editTaskEntry(before: Task, after: Task): HistoryEntry {
@@ -577,8 +594,18 @@ export function replaceDomainEntry(current: DomainState, next: DomainState): His
   return entry(
     '导入项目文件',
     'domain',
-    [cmd('workspace.replace', { domain: next })],
-    [cmd('workspace.replace', { domain: current })],
+    [
+      cmd('workspace.replace', {
+        domain: next,
+        expectedSemanticHash: computeSemanticHash(current),
+      }),
+    ],
+    [
+      cmd('workspace.replace', {
+        domain: current,
+        expectedSemanticHash: computeSemanticHash(next),
+      }),
+    ],
     'external-import',
   );
 }

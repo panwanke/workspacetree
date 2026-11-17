@@ -85,6 +85,7 @@ export function WorkspacePopover({
 
 interface ToolbarProps {
   file: BranchFile;
+  compact: boolean;
   accountControl?: ReactNode;
   readOnly: boolean;
   projectView: ProjectView;
@@ -101,6 +102,8 @@ interface ToolbarProps {
   highlightSpineIds: string[];
   inspectorOpen: boolean;
   inspectorToggleRef: RefObject<HTMLButtonElement | null>;
+  directoryOpen: boolean;
+  directoryToggleRef: RefObject<HTMLButtonElement | null>;
   canDeleteNode: boolean;
   onAddNode: () => void;
   onAddBranch: () => void;
@@ -124,19 +127,38 @@ interface ToolbarProps {
   onToggleSpine: (id: string) => void;
   onClearSpines: () => void;
   onToggleInspector: () => void;
+  onToggleDirectory: () => void;
   onImport: () => void;
   onExportJson: () => void;
   onExportSvg: () => void;
   onResetDemo: () => void;
   onOpenSettings?: () => void;
   onOpenProjects?: () => void;
+  onNewProjectTab?: () => void;
   onOpenSearch?: () => void;
   searchShortcut?: string;
   onRenameProject?: (title: string) => void;
 }
 
+function CanvasToolOverflow({
+  compact,
+  children,
+}: {
+  compact: boolean;
+  children: (close?: () => void) => ReactNode;
+}) {
+  if (!compact) return children();
+  return (
+    <WorkspacePopover label="更多" icon="more" className="wst-toolbar-overflow">
+      {children}
+    </WorkspacePopover>
+  );
+}
+
 export default function WorkspaceToolbar(props: ToolbarProps) {
   const { domain, revisions } = props.file;
+  const { compact } = props;
+  const sourceUrl = 'https://github.com/panwanke/workspacetree';
   const highlighted = props.highlight.paths.length;
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(domain.project.title);
@@ -158,7 +180,64 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
     }
   }
 
-  return (
+  const addNode = (
+    <button
+      type="button"
+      className="wst-tool is-primary"
+      data-testid="add-node"
+      disabled={props.readOnly}
+      onClick={props.onAddNode}
+      aria-label="新建节点"
+      title={compact ? '新建节点' : '新建节点（画布内 Tab）'}
+    >
+      <WorkspaceIcon name="plus" /> <span>{compact ? '新建' : '新建节点'}</span>
+    </button>
+  );
+
+  const search = props.onOpenSearch && (
+    <button
+      type="button"
+      className="wst-tool"
+      aria-label="搜索节点"
+      title={compact ? '搜索节点' : `搜索节点 (${props.searchShortcut || 'Ctrl+F'})`}
+      data-testid="toolbar-search-btn"
+      onClick={props.onOpenSearch}
+    >
+      <WorkspaceIcon name="search" size={15} /> <span className="wst-tool-label">搜索</span>
+    </button>
+  );
+
+  const inspector = (
+    <button
+      ref={props.inspectorToggleRef}
+      type="button"
+      className={`wst-tool wst-inspector-toggle${props.inspectorOpen ? ' is-active' : ''}`}
+      aria-label="属性面板"
+      aria-controls="workspace-inspector"
+      aria-expanded={props.inspectorOpen}
+      data-testid="toggle-inspector"
+      title="属性面板"
+      onClick={props.onToggleInspector}
+    >
+      <WorkspaceIcon name="panel" /> <span className="wst-tool-label">属性</span>
+    </button>
+  );
+
+  const directory = (
+    <button
+      ref={props.directoryToggleRef}
+      type="button"
+      className={`wst-tool${props.directoryOpen ? ' is-active' : ''}`}
+      aria-expanded={props.directoryOpen}
+      aria-controls="workspace-directory"
+      onClick={props.onToggleDirectory}
+    >
+      <WorkspaceIcon name="tree" />{' '}
+      <span className="wst-tool-label">{compact ? '目录' : '大纲'}</span>
+    </button>
+  );
+
+  const header = (
     <header className="wst-header">
       <div className="wst-project-bar">
         <div className="wst-project-identity">
@@ -240,26 +319,31 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               TODO
             </button>
           </nav>
-          <span className="wst-prototype" title="开发原型，仅用于示例与测试数据">
-            开发原型
-          </span>
+          {compact && props.readOnly && <span className="wst-tab-branch-badge">只读预览</span>}
+          {!compact && (
+            <span className="wst-prototype" title="开发原型，仅用于示例与测试数据">
+              开发原型
+            </span>
+          )}
           <div className="wst-header-stats">
             <span data-testid="node-count">{domain.nodes.length} 个节点</span>
             <span data-testid="edge-count">{props.edgeCount} 条连线</span>
             <span data-testid="hidden-count">隐藏关联 {props.hiddenCount}</span>
           </div>
-          <a
-            href="https://github.com/panwanke/workspacetree"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="wst-github-star-badge"
-            title="在 GitHub 上查看源码并点亮 Star 支持我们 ⭐"
-            aria-label="GitHub 仓库与 Star"
-          >
-            <WorkspaceIcon name="github" size={15} />
-            <span className="wst-github-text">GitHub</span>
-            <span className="wst-github-star-tag">⭐ Star</span>
-          </a>
+          {!compact && (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="wst-github-star-badge"
+              title="在 GitHub 上查看源码并点亮 Star 支持我们 ⭐"
+              aria-label="GitHub 仓库与 Star"
+            >
+              <WorkspaceIcon name="github" size={15} />
+              <span className="wst-github-text">GitHub</span>
+              <span className="wst-github-star-tag">⭐ Star</span>
+            </a>
+          )}
           <WorkspacePopover
             label="项目"
             icon="folder"
@@ -268,6 +352,18 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
           >
             {(close) => (
               <>
+                {compact && props.onNewProjectTab && (
+                  <button
+                    type="button"
+                    className="wst-menu-action"
+                    onClick={() => {
+                      close();
+                      props.onNewProjectTab?.();
+                    }}
+                  >
+                    <WorkspaceIcon name="plus" /> 新建分支文件
+                  </button>
+                )}
                 {props.onOpenProjects && (
                   <button
                     type="button"
@@ -313,6 +409,16 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                 >
                   <WorkspaceIcon name="download" /> 导出 SVG
                 </button>
+                {compact && (
+                  <a
+                    className="wst-menu-action"
+                    href={sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <WorkspaceIcon name="github" /> GitHub 源码
+                  </a>
+                )}
                 <hr />
                 <button
                   type="button"
@@ -339,29 +445,27 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               </>
             )}
           </WorkspacePopover>
-          {props.accountControl}
+          {!compact && props.accountControl}
         </div>
+        {compact && props.accountControl}
       </div>
+    </header>
+  );
 
-      <nav className="wst-toolbar" aria-label="画布操作" hidden={props.projectView !== 'canvas'}>
+  function renderToolGroups(closeTools?: () => void) {
+    return (
+      <>
         <div className="wst-toolbar-group">
-          <button
-            type="button"
-            className="wst-tool is-primary"
-            data-testid="add-node"
-            disabled={props.readOnly}
-            onClick={props.onAddNode}
-            aria-label="新建节点"
-            title="新建节点（画布内 Tab）"
-          >
-            <WorkspaceIcon name="plus" /> <span>新建节点</span>
-          </button>
+          {!compact && addNode}
           <button
             type="button"
             className="wst-tool"
             data-testid="add-branch"
             disabled={props.readOnly}
-            onClick={props.onAddBranch}
+            onClick={() => {
+              closeTools?.();
+              props.onAddBranch();
+            }}
             aria-label="新建分支"
             title="新建分支"
           >
@@ -373,11 +477,14 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               className="wst-tool"
               data-testid="add-random-branch"
               disabled={props.readOnly}
-              onClick={props.onAddRandomBranch}
-              aria-label="新建独立分支"
-              title="在画布随机位置新建独立分支（快捷键 R）"
+              onClick={() => {
+                closeTools?.();
+                props.onAddRandomBranch?.();
+              }}
+              aria-label="新建独立节点"
+              title="在当前画布新建独立节点"
             >
-              🎲 <span>新建独立分支</span>
+              <WorkspaceIcon name="plus" size={15} /> <span>新建独立节点</span>
             </button>
           )}
           <div className="wst-history-tools">
@@ -387,7 +494,10 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               aria-label="撤销"
               title="撤销（Ctrl / ⌘ + Z）"
               data-testid="undo"
-              onClick={props.onUndo}
+              onClick={() => {
+                closeTools?.();
+                props.onUndo();
+              }}
               disabled={props.undoDepth === 0}
             >
               <WorkspaceIcon name="undo" />
@@ -398,7 +508,10 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               aria-label="重做"
               title="重做（Ctrl + Y 或 ⌘ + Shift + Z）"
               data-testid="redo"
-              onClick={props.onRedo}
+              onClick={() => {
+                closeTools?.();
+                props.onRedo();
+              }}
               disabled={props.redoDepth === 0}
             >
               <WorkspaceIcon name="redo" />
@@ -448,9 +561,13 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
             data-testid="fit-view"
             aria-label="自适应视图"
             title="自适应视图（F）"
-            onClick={props.onFitView}
+            onClick={() => {
+              closeTools?.();
+              props.onFitView();
+            }}
           >
             <WorkspaceIcon name="fit" />
+            {compact && <span>适应视图</span>}
           </button>
           <button
             type="button"
@@ -530,6 +647,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                   disabled={props.readOnly}
                   onClick={() => {
                     close();
+                    closeTools?.();
                     props.onResetLayout();
                   }}
                 >
@@ -544,6 +662,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
                       data-testid="open-keybindings"
                       onClick={() => {
                         close();
+                        closeTools?.();
                         props.onOpenSettings?.();
                       }}
                     >
@@ -554,18 +673,7 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               </>
             )}
           </WorkspacePopover>
-          {props.onOpenSearch && (
-            <button
-              type="button"
-              className="wst-tool"
-              aria-label="搜索节点"
-              title={`搜索节点 (${props.searchShortcut || 'Ctrl+F'})`}
-              data-testid="toolbar-search-btn"
-              onClick={props.onOpenSearch}
-            >
-              <WorkspaceIcon name="search" size={15} /> <span className="wst-tool-label">搜索</span>
-            </button>
-          )}
+          {!compact && search}
           {props.onOpenSettings && (
             <button
               type="button"
@@ -573,28 +681,41 @@ export default function WorkspaceToolbar(props: ToolbarProps) {
               aria-label="设置与快捷键"
               title="偏好设置与画布快捷键"
               data-testid="toolbar-settings-btn"
-              onClick={props.onOpenSettings}
+              onClick={() => {
+                closeTools?.();
+                props.onOpenSettings?.();
+              }}
             >
               <WorkspaceIcon name="sliders" size={15} />{' '}
               <span className="wst-tool-label">设置</span>
             </button>
           )}
         </div>
+      </>
+    );
+  }
 
-        <button
-          ref={props.inspectorToggleRef}
-          type="button"
-          className={`wst-tool wst-inspector-toggle${props.inspectorOpen ? ' is-active' : ''}`}
-          aria-label="属性面板"
-          aria-controls="workspace-inspector"
-          aria-expanded={props.inspectorOpen}
-          data-testid="toggle-inspector"
-          title="属性面板"
-          onClick={props.onToggleInspector}
-        >
-          <WorkspaceIcon name="panel" /> <span className="wst-tool-label">属性</span>
-        </button>
+  return (
+    <>
+      {header}
+
+      <nav className="wst-toolbar" aria-label="画布操作" hidden={props.projectView !== 'canvas'}>
+        {compact && (
+          <>
+            {addNode}
+            {directory}
+            {search}
+            {inspector}
+          </>
+        )}
+        <CanvasToolOverflow compact={compact}>{renderToolGroups}</CanvasToolOverflow>
+        {!compact && (
+          <>
+            {directory}
+            {inspector}
+          </>
+        )}
       </nav>
-    </header>
+    </>
   );
 }

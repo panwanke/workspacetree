@@ -1,10 +1,14 @@
-import type { ReactNode } from 'react';
-import Markdown, { defaultUrlTransform } from 'react-markdown';
+import { createContext, useContext, type ReactNode } from 'react';
+import Markdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  parseCalloutHeader,
+  decodeTaskTitle,
   parseImageMeta,
+  remarkCallouts,
   remarkImageDimensionsPlugin,
+  remarkTaskCheckboxes,
+  TASK_STATUS_CONFIG,
+  type MarkdownTaskStatus,
 } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownImage } from './images/MarkdownImage.js';
@@ -27,7 +31,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
   let key = 0;
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      parts.push(decodeTaskTitle(text.slice(lastIndex, match.index)));
     }
     const token = match[0];
     if (token.startsWith('![')) {
@@ -37,7 +41,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
           <img
             key={key++}
             className="wst-md-img"
-            src={imgMatch[2]}
+            src={safeUrlTransform(imgMatch[2])}
             alt={imgMatch[1] || '插图'}
             loading="lazy"
           />,
@@ -65,7 +69,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
     }
     lastIndex = pattern.lastIndex;
   }
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  if (lastIndex < text.length) parts.push(decodeTaskTitle(text.slice(lastIndex)));
   return parts;
 }
 
@@ -97,11 +101,59 @@ function trimMarkdownSafely(markdown: string, maxLines?: number): string {
   return result.join('\n');
 }
 
+type ToggleTask = (lineIndex: number, checked: boolean) => void;
+const ToggleTaskContext = createContext<ToggleTask | undefined>(undefined);
+const PreviewTaskContext = createContext<{
+  line: number;
+  label: string;
+  status: MarkdownTaskStatus;
+} | null>(null);
+
+const PreviewListItem: NonNullable<Components['li']> = ({ node, children, ...props }) => {
+  const data = node?.properties;
+  const line = data?.dataTaskLine ?? data?.['data-task-line'];
+  const label = data?.dataTaskLabel ?? data?.['data-task-label'];
+  const status = data?.dataTaskStatus ?? data?.['data-task-status'];
+  const task =
+    typeof line === 'number' && typeof label === 'string' && typeof status === 'string'
+      ? { line, label, status: status as MarkdownTaskStatus }
+      : null;
+  return (
+    <li {...props}>
+      <PreviewTaskContext.Provider value={task}>{children}</PreviewTaskContext.Provider>
+    </li>
+  );
+};
+
+const PreviewInput: NonNullable<Components['input']> = ({ type, checked }) => {
+  const toggle = useContext(ToggleTaskContext);
+  const task = useContext(PreviewTaskContext);
+  if (type !== 'checkbox') return <input type={type} />;
+  return (
+    <input
+      type="checkbox"
+      checked={Boolean(checked)}
+      disabled={!toggle || !task}
+      className="wst-md-checkbox nodrag nopan"
+      aria-label={(checked ? '取消完成 ' : '完成 ') + (task?.label ?? 'TODO')}
+      title={task ? TASK_STATUS_CONFIG[task.status].label : undefined}
+      data-status={task?.status}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        if (task) toggle?.(task.line, event.target.checked);
+      }}
+    />
+  );
+};
+
 export interface MarkdownPreviewProps {
   markdown: string;
   assets?: Record<string, AssetRecord>;
   className?: string;
   maxLines?: number;
+  onlyCallouts?: boolean;
+  onToggleTask?: ToggleTask;
 }
 
 export function MarkdownPreview({
@@ -109,95 +161,89 @@ export function MarkdownPreview({
   assets,
   className = '',
   maxLines,
+  onlyCallouts = false,
+  onToggleTask,
 }: MarkdownPreviewProps) {
   const content = trimMarkdownSafely(markdown, maxLines);
 
   return (
     <div className={`wst-markdown-preview ${className}`}>
-      <Markdown
-        urlTransform={safeUrlTransform}
-        remarkPlugins={[remarkGfm, remarkImageDimensionsPlugin]}
-        components={{
-          blockquote({ children }) {
-            // 提取首行判断是否为 Callout
-            const childrenArray = Array.isArray(children) ? children : [children];
-            const firstPara = childrenArray[0];
-            let calloutHeader: ReturnType<typeof parseCalloutHeader> = null;
-
-            if (firstPara && typeof firstPara === 'object' && 'props' in firstPara) {
-              const paraChildren = (firstPara as any).props?.children;
-              const firstText = Array.isArray(paraChildren) ? paraChildren[0] : paraChildren;
-              if (typeof firstText === 'string') {
-                calloutHeader = parseCalloutHeader(firstText);
-              }
-            }
-
-            if (calloutHeader) {
-              return (
-                <div className={`wst-callout is-${calloutHeader.normalizedType}`}>
-                  <div className="wst-callout-title">
-                    <span className="wst-callout-icon">💡</span>
-                    <span>{calloutHeader.title}</span>
+      <ToggleTaskContext.Provider value={onToggleTask}>
+        <Markdown
+          urlTransform={safeUrlTransform}
+          remarkPlugins={[
+            remarkGfm,
+            remarkTaskCheckboxes,
+            remarkImageDimensionsPlugin,
+            [remarkCallouts, { onlyCallouts }],
+          ]}
+          components={{
+            li: PreviewListItem,
+            input: PreviewInput,
+            blockquote({ children, node }) {
+              const type = node?.properties.dataCalloutType;
+              const title = node?.properties.dataCalloutTitle;
+              if (typeof type === 'string' && typeof title === 'string') {
+                return (
+                  <div className={`wst-callout is-${type}`}>
+                    <div className="wst-callout-title">
+                      <span className="wst-callout-icon" aria-hidden="true">
+                        💡
+                      </span>
+                      <span>{renderInlineMarkdown(title)}</span>
+                    </div>
+                    <div className="wst-callout-content">{children}</div>
                   </div>
-                  <div className="wst-callout-content">{children}</div>
-                </div>
-              );
-            }
+                );
+              }
 
-            return <blockquote>{children}</blockquote>;
-          },
-          img({ node, src, alt }) {
-            if (!src) return null;
-            const props = (node?.properties as any) || {};
-            const widthAttr = props['data-width-percent'] ?? props.dataWidthPercent;
-            const parsedWidth =
-              typeof widthAttr === 'number'
-                ? widthAttr
-                : typeof widthAttr === 'string'
-                  ? parseInt(widthAttr, 10)
-                  : undefined;
-            const meta = parseImageMeta(alt || '', src);
-            if (parsedWidth != null && !Number.isNaN(parsedWidth)) {
-              meta.widthPercent = parsedWidth;
-            }
-            return <MarkdownImage meta={meta} assets={assets} interactive={false} />;
-          },
-          pre({ children, node, ...props }) {
-            const firstChild = (node?.children as any)?.[0];
-            const className = firstChild?.properties?.className;
-            const classStr = Array.isArray(className)
-              ? className.join(' ')
-              : String(className || '');
-            if (/language-(mermaid|pele)\b/.test(classStr)) {
-              return <>{children}</>;
-            }
-            return <pre {...props}>{children}</pre>;
-          },
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || '');
-            const lang = match ? match[1]?.toLowerCase() : '';
-            if (lang === 'mermaid' || lang === 'pele') {
-              const rawCode = String(children).replace(/\n$/, '');
-              return <PeleDiagram code={rawCode} />;
-            }
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-          input({ type, checked }) {
-            if (type === 'checkbox') {
+              return <blockquote>{children}</blockquote>;
+            },
+            img({ node, src, alt }) {
+              if (!src) return null;
+              const props = (node?.properties as any) || {};
+              const widthAttr = props['data-width-percent'] ?? props.dataWidthPercent;
+              const parsedWidth =
+                typeof widthAttr === 'number'
+                  ? widthAttr
+                  : typeof widthAttr === 'string'
+                    ? parseInt(widthAttr, 10)
+                    : undefined;
+              const meta = parseImageMeta(alt || '', src);
+              if (parsedWidth != null && !Number.isNaN(parsedWidth)) {
+                meta.widthPercent = parsedWidth;
+              }
+              return <MarkdownImage meta={meta} assets={assets} interactive={false} />;
+            },
+            pre({ children, node, ...props }) {
+              const firstChild = (node?.children as any)?.[0];
+              const className = firstChild?.properties?.className;
+              const classStr = Array.isArray(className)
+                ? className.join(' ')
+                : String(className || '');
+              if (/language-(mermaid|pele)\b/.test(classStr)) {
+                return <>{children}</>;
+              }
+              return <pre {...props}>{children}</pre>;
+            },
+            code({ className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || '');
+              const lang = match ? match[1]?.toLowerCase() : '';
+              if (lang === 'mermaid' || lang === 'pele') {
+                const rawCode = String(children).replace(/\n$/, '');
+                return <PeleDiagram code={rawCode} />;
+              }
               return (
-                <input type="checkbox" checked={checked} readOnly className="wst-md-checkbox" />
+                <code className={className} {...props}>
+                  {children}
+                </code>
               );
-            }
-            return <input type={type} />;
-          },
-        }}
-      >
-        {content}
-      </Markdown>
+            },
+          }}
+        >
+          {content}
+        </Markdown>
+      </ToggleTaskContext.Provider>
     </div>
   );
 }

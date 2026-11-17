@@ -1,18 +1,30 @@
 import type { DomainState, Node } from '@workspacetree/schema';
-import { extractAllImages } from '@workspacetree/markdown';
+import { countMarkdownCallouts, decodeTaskTitle, extractAllImages } from '@workspacetree/markdown';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { getNodeNote } from './history';
+import { MarkdownPreview } from './MarkdownPreview';
+import { TODO_STATUS } from './markdown-todos';
 import { collectProjectTodos, type ProjectTodo } from './project-todos';
 import { WorkspaceIcon } from './WorkspaceIcon';
 
-export type DateDirectoryViewMode = 'dates' | 'images' | 'todos';
+const directoryViews = [
+  ['dates', '时间'],
+  ['images', '图片'],
+  ['todos', 'TODO'],
+  ['callouts', 'Callout'],
+] as const;
+
+export type DateDirectoryViewMode = (typeof directoryViews)[number][0];
 
 export interface DateDirectoryProps {
   nodes: readonly Node[];
   domain?: DomainState;
   selectedId: string | null;
   compact: boolean;
+  open: boolean;
+  onClose: () => void;
   onLocate: (id: string) => void;
+  onToggleTodo?: (todo: ProjectTodo, checked: boolean) => void;
 }
 
 interface ImageGalleryItem {
@@ -29,18 +41,20 @@ export default function DateDirectory({
   domain,
   selectedId,
   compact,
+  open,
+  onClose,
   onLocate,
+  onToggleTodo,
 }: DateDirectoryProps) {
-  const [open, setOpen] = useState(!compact);
   const [viewMode, setViewMode] = useState<DateDirectoryViewMode>(() => {
     try {
       const saved = localStorage.getItem('wst_date_directory_view');
-      if (saved === 'images' || saved === 'todos' || saved === 'dates') return saved;
+      return directoryViews.find(([id]) => id === saved)?.[0] ?? 'dates';
     } catch {}
     return 'dates';
   });
 
-  const [todoFilter, setTodoFilter] = useState<'all' | 'open' | 'in_progress' | 'done'>('all');
+  const [todoFilter, setTodoFilter] = useState<'all' | ProjectTodo['status']>('all');
 
   const [width, setWidth] = useState<number>(() => {
     try {
@@ -136,12 +150,17 @@ export default function DateDirectory({
     return groups.flatMap((group) => group.items);
   }, [domain]);
 
+  const calloutNotes = useMemo(() => {
+    if (!domain || !open || viewMode !== 'callouts') return [];
+    return nodes.flatMap((node) => {
+      const markdown = getNodeNote(domain, node.id);
+      return countMarkdownCallouts(markdown) ? [{ node, markdown }] : [];
+    });
+  }, [domain, nodes, open, viewMode]);
+
   const filteredTodos = useMemo(() => {
     if (todoFilter === 'all') return allTodos;
-    if (todoFilter === 'open') return allTodos.filter((t) => t.status === 'open');
-    if (todoFilter === 'in_progress') return allTodos.filter((t) => t.status === 'paused'); // markdown-todos paused is [~]
-    if (todoFilter === 'done') return allTodos.filter((t) => t.status === 'done');
-    return allTodos;
+    return allTodos.filter((todo) => todo.status === todoFilter);
   }, [allTodos, todoFilter]);
 
   function switchView(mode: DateDirectoryViewMode) {
@@ -153,7 +172,7 @@ export default function DateDirectory({
 
   function jump(nodeId: string) {
     onLocate(nodeId);
-    if (compact) setOpen(false);
+    if (compact) onClose();
   }
 
   // 拖拽调整宽度逻辑
@@ -190,93 +209,49 @@ export default function DateDirectory({
     };
   }, [isResizing]);
 
-  const renderTodoStatusMarker = (status: ProjectTodo['status']) => {
-    switch (status) {
-      case 'done':
-        return (
-          <span className="wst-todo-status-marker is-done" title="已完成">
-            [x]
-          </span>
-        );
-      case 'paused':
-        return (
-          <span className="wst-todo-status-marker is-progress" title="推进中">
-            [~]
-          </span>
-        );
-      case 'pending':
-        return (
-          <span className="wst-todo-status-marker is-pending" title="待确定">
-            [?]
-          </span>
-        );
-      case 'discarded':
-        return (
-          <span className="wst-todo-status-marker is-discarded" title="已废弃">
-            [-]
-          </span>
-        );
-      default:
-        return (
-          <span className="wst-todo-status-marker is-open" title="待处理">
-            [ ]
-          </span>
-        );
-    }
-  };
-
   return (
     <nav
+      id="workspace-directory"
       className={`wst-date-directory${isResizing ? ' is-resizing' : ''}`}
       aria-label="侧边目录与多维资源"
-      data-open={open}
+      hidden={!open}
       style={{
-        width: open ? `${width}px` : undefined,
-        flexBasis: open ? `${width}px` : undefined,
+        width: !compact && open ? `${width}px` : undefined,
+        flexBasis: !compact && open ? `${width}px` : undefined,
       }}
     >
-      {/* 头部面板与视图切换按钮 */}
       <div className="wst-date-directory-header">
-        <button
-          type="button"
-          className="wst-tool wst-date-directory-toggle"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-          title={open ? '收起侧边面板' : '展开侧边面板'}
-        >
-          <WorkspaceIcon name="tree" size={14} />
-          {open ? '侧边面板' : ''}
-        </button>
+        <div className="wst-directory-panel-heading">
+          <h2>{compact ? '目录' : '大纲'}</h2>
+          <button
+            type="button"
+            className="wst-tool is-icon"
+            aria-label={compact ? '收起目录' : '隐藏大纲'}
+            title={compact ? '收起目录' : '隐藏大纲'}
+            onClick={onClose}
+          >
+            <WorkspaceIcon name="close" />
+          </button>
+        </div>
 
         {open && (
-          <div className="wst-date-view-tabs" role="tablist" aria-label="侧边栏视图切换">
-            <button
-              type="button"
-              className={`wst-date-view-tab${viewMode === 'dates' ? ' is-active' : ''}`}
-              title="按日期查看时间树节点"
-              onClick={() => switchView('dates')}
-            >
-              <WorkspaceIcon name="calendar" size={13} />
-              <span>时间</span>
-            </button>
-            <button
-              type="button"
-              className={`wst-date-view-tab${viewMode === 'images' ? ' is-active' : ''}`}
-              title={`查看全部内嵌图片 (${images.length})`}
-              onClick={() => switchView('images')}
-            >
-              <WorkspaceIcon name="image" size={13} />
-              <span>图片{images.length > 0 ? ` (${images.length})` : ''}</span>
-            </button>
-            <button
-              type="button"
-              className={`wst-date-view-tab${viewMode === 'todos' ? ' is-active' : ''}`}
-              title={`查看项目待办清单 (${allTodos.length})`}
-              onClick={() => switchView('todos')}
-            >
-              <WorkspaceIcon name="checkSquare" size={13} />
-              <span>TODO{allTodos.length > 0 ? ` (${allTodos.length})` : ''}</span>
-            </button>
+          <div className="wst-date-view-tabs" role="radiogroup" aria-label="目录视图">
+            {directoryViews.map(([id, label]) => {
+              const count = id === 'images' ? images.length : id === 'todos' ? allTodos.length : 0;
+              return (
+                <label key={id} className="wst-date-view-tab">
+                  <input
+                    type="radio"
+                    name="directory-view"
+                    value={id}
+                    checked={viewMode === id}
+                    onChange={() => switchView(id)}
+                  />
+                  <span>{label}</span>
+                  {count > 0 && <span aria-hidden="true">({count})</span>}
+                </label>
+              );
+            })}
           </div>
         )}
       </div>
@@ -375,27 +350,17 @@ export default function DateDirectory({
                 >
                   全部 ({allTodos.length})
                 </button>
-                <button
-                  type="button"
-                  className={`wst-date-filter-pill${todoFilter === 'open' ? ' is-active' : ''}`}
-                  onClick={() => setTodoFilter('open')}
-                >
-                  待办
-                </button>
-                <button
-                  type="button"
-                  className={`wst-date-filter-pill${todoFilter === 'in_progress' ? ' is-active' : ''}`}
-                  onClick={() => setTodoFilter('in_progress')}
-                >
-                  进行中
-                </button>
-                <button
-                  type="button"
-                  className={`wst-date-filter-pill${todoFilter === 'done' ? ' is-active' : ''}`}
-                  onClick={() => setTodoFilter('done')}
-                >
-                  已完成
-                </button>
+                {(Object.keys(TODO_STATUS) as ProjectTodo['status'][]).map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`wst-date-filter-pill${todoFilter === status ? ' is-active' : ''}`}
+                    aria-pressed={todoFilter === status}
+                    onClick={() => setTodoFilter(status)}
+                  >
+                    {TODO_STATUS[status].label}
+                  </button>
+                ))}
               </div>
 
               {/* 任务列表 */}
@@ -406,30 +371,61 @@ export default function DateDirectory({
                   </div>
                 ) : (
                   filteredTodos.map((todo) => {
-                    const isSelected = todo.nodeId === selectedId;
+                    const isSelected = todo.nodeId !== null && todo.nodeId === selectedId;
+                    const title =
+                      (todo.source === 'markdown' ? decodeTaskTitle(todo.title) : todo.title) ||
+                      todo.todoTags.map((tag) => '#' + tag).join(' ') ||
+                      '未命名 TODO';
+                    const status = TODO_STATUS[todo.status];
                     return (
                       <div
-                        key={todo.id}
+                        key={todo.source + ':' + todo.id}
                         className={`wst-date-todo-item${isSelected ? ' is-selected' : ''}`}
-                        onClick={() => {
-                          if (todo.nodeId) jump(todo.nodeId);
-                        }}
-                        title={todo.nodeId ? `点击定位到节点：${todo.nodeTitle}` : undefined}
                       >
                         <div className="wst-date-todo-header">
-                          {renderTodoStatusMarker(todo.status)}
+                          {onToggleTodo && (
+                            <input
+                              type="checkbox"
+                              className="wst-todo-check"
+                              checked={status.done}
+                              aria-label={(status.done ? '取消完成 ' : '完成 ') + title}
+                              onChange={(event) => onToggleTodo(todo, event.target.checked)}
+                            />
+                          )}
                           <span
-                            className={`wst-date-todo-title${todo.status === 'done' ? ' is-done' : ''}`}
+                            className={`wst-todo-status-marker is-${todo.status}`}
+                            title={status.label}
                           >
-                            {todo.title}
+                            {status.marker}
                           </span>
+                          {todo.nodeId ? (
+                            <button
+                              type="button"
+                              className={`wst-date-todo-title${status.done ? ' is-done' : ''}`}
+                              aria-label={`定位 ${title} 到 ${todo.nodeTitle}`}
+                              onClick={() => jump(todo.nodeId!)}
+                            >
+                              {title}
+                            </button>
+                          ) : (
+                            <span className={`wst-date-todo-title${status.done ? ' is-done' : ''}`}>
+                              {title}
+                            </span>
+                          )}
                         </div>
                         <div className="wst-date-todo-sub">
                           <span className="wst-date-todo-node-name" title={todo.nodeTitle}>
                             {todo.nodeTitle}
                           </span>
                           {todo.scheduledAt && (
-                            <span className="wst-date-todo-date">{todo.scheduledAt}</span>
+                            <time className="wst-date-todo-date" dateTime={todo.scheduledAt}>
+                              计划 {todo.scheduledAt}
+                            </time>
+                          )}
+                          {todo.completedAt && (
+                            <time className="wst-date-todo-date" dateTime={todo.completedAt}>
+                              完成 {todo.completedAt}
+                            </time>
                           )}
                         </div>
                       </div>
@@ -439,11 +435,35 @@ export default function DateDirectory({
               </div>
             </div>
           )}
+
+          {viewMode === 'callouts' && (
+            <div className="wst-directory-callouts">
+              {calloutNotes.length === 0 && (
+                <div className="wst-date-empty">
+                  <p>当前项目暂无 Callout</p>
+                </div>
+              )}
+              {calloutNotes.map(({ node, markdown }) => (
+                <section key={node.id}>
+                  <button
+                    type="button"
+                    className="wst-date-directory-entry"
+                    aria-current={node.id === selectedId ? 'true' : undefined}
+                    title={node.title}
+                    onClick={() => jump(node.id)}
+                  >
+                    <span>{node.title || '未命名节点'}</span>
+                  </button>
+                  <MarkdownPreview markdown={markdown} assets={domain?.assets} onlyCallouts />
+                </section>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* 右侧宽度拖拽手柄 */}
-      {open && (
+      {open && !compact && (
         <div
           className={`wst-date-directory-resizer${isResizing ? ' is-dragging' : ''}`}
           onMouseDown={handleResizeStart}

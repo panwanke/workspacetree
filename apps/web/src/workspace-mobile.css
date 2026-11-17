@@ -1,0 +1,365 @@
+.wst-app.is-compact {
+  --touch-target: 44px;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  background: var(--surface);
+}
+
+.is-compact .wst-tab-bar {
+  flex: none;
+  align-items: center;
+  padding-inline: 8px;
+  scrollbar-width: none;
+}
+
+.is-compact .wst-tab-item {
+  flex: none;
+  min-height: 40px;
+  margin-block: 2px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+
+.is-compact .wst-tab-item.is-active {
+  border-color: #cbd5e1;
+}
+
+.is-compact .wst-tab-title {
+  max-width: min(36vw, 180px);
+}
+
+.is-compact :is(.wst-tab-add-btn, .wst-tab-projects-btn) {
+  flex: 0 0 var(--touch-target);
+  width: var(--touch-target);
+  height: var(--touch-target);
+  margin: 0;
+}
+
+.is-compact :is(.wst-tab-rename-btn, .wst-tab-close) {
+  width: 24px;
+  height: 36px;
+  opacity: 1;
+}
+
+.is-compact .wst-project-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  min-height: 0;
+  padding: 2px 10px 4px;
+}
+
+.is-compact .wst-project-identity {
+  min-height: 40px;
+  gap: 8px;
+  grid-area: 1 / 1;
+}
+
+.is-compact .wst-brand-mark {
+  height: 30px;
+  flex-basis: 30px;
+}
+
+.is-compact .wst-brand-logo {
+  width: 24px;
+  height: 24px;
+}
+
+.is-compact .wst-brand-name {
+  display: none;
+}
+
+.is-compact .wst-project-titles h1 {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+}
+
+.is-compact .wst-project-titles h1 > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.is-compact .wst-project-title-edit-hint {
+  flex: none;
+  opacity: 1;
+}
+
+.is-compact .wst-project-title-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.is-compact .wst-project-meta {
+  grid-area: 2 / 1 / 3 / -1;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.is-compact .wst-header-stats {
+  display: none;
+}
+
+.is-compact .wst-project-bar > .wst-account-btn {
+  grid-area: 1 / 2;
+  max-width: 112px;
+  min-height: var(--touch-target);
+}
+
+.is-compact .wst-project-view-switch button,
+.is-compact .wst-project-menu > .wst-tool {
+  min-height: 40px;
+  padding-inline: 12px;
+}
+
+.is-compact .wst-menu-action {
+  min-height: var(--touch-target);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.is-compact > .wst-toolbar {
+  order: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  min-height: 0;
+  padding: 4px max(8px, calc((100% - 600px) / 2));
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.wst-app.is-compact :is(.wst-toolbar > .wst-tool, .wst-toolbar-overflow > .wst-tool) {
+  width: 100%;
+  min-height: 48px;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 4px;
+  font-size: 11px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.is-compact .wst-toolbar-overflow {
+  position: static;
+}
+
+.is-compact .wst-toolbar-overflow > .wst-tool > svg:last-child {
+  display: none;
+}
+
+.is-compact .wst-toolbar-overflow > .wst-popover-content {
+  top: auto;
+  bottom: calc(100% + 6px);
+  inset-inline-end: 8px;
+  width: min(420px, calc(100% - 16px));
+  max-height: min(60dvh, 420px);
+  padding: 10px;
+  overscroll-behavior: contain;
+}
+
+.is-compact .wst-toolbar-overflow .wst-toolbar-group {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.is-compact .wst-toolbar-overflow .wst-view-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.is-compact .wst-view-tools > .wst-popover {
+  grid-column: 1 / -1;
+}
+
+.is-compact .wst-toolbar-overflow .wst-view-tools :is(.wst-tool, select) {
+  width: 100%;
+}
+
+.is-compact .wst-toolbar-overflow :is(.wst-tool, select) {
+  min-height: var(--touch-target);
+  font-size: 13px;
+}
+
+.wst-app.is-compact .wst-toolbar-overflow .wst-tool.is-icon {
+  min-width: var(--touch-target);
+}
+
+.is-compact .wst-toolbar-overflow .wst-view-select > svg {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.is-compact .wst-toolbar-overflow .wst-view-tools .wst-popover-content {
+  position: static;
+  width: 100%;
+  max-height: none;
+  box-shadow: none;
+}
+
+.is-compact .wst-panel-scrim {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  background: rgb(17 54 45 / 22%);
+}
+
+.is-compact :is(.wst-date-directory, .wst-inspector) {
+  position: absolute;
+  z-index: 8;
+  inset: auto 0 0;
+  width: 100%;
+  height: min(560px, calc(100% - 24px));
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 24px rgb(28 57 47 / 12%);
+}
+
+.is-compact .wst-date-directory {
+  padding: 0 12px 10px;
+}
+
+.is-compact .wst-directory-panel-heading {
+  padding: 2px 2px 0;
+}
+
+.is-compact .wst-directory-panel-heading h2 {
+  font-size: 15px;
+}
+
+.is-compact :is(.wst-date-view-tab, .wst-date-directory-entry, .wst-tabs button) {
+  min-height: var(--touch-target);
+  font-size: 13px;
+}
+
+.is-compact :is(.wst-date-directory-content, .wst-inspector-scroll, .wst-todos) {
+  overscroll-behavior: contain;
+}
+
+.wst-app.is-compact :is(.wst-inspector-bar, .wst-node-heading, .wst-directory-panel-heading) .is-icon {
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.is-compact .wst-inspector-delete {
+  display: block;
+}
+
+.wst-app.is-compact .wst-canvas .react-flow__controls {
+  margin: 0 10px 10px 0;
+}
+
+.is-compact .wst-canvas .react-flow__controls-button {
+  width: var(--touch-target);
+  height: var(--touch-target);
+}
+
+.wst-app.is-compact .wst-canvas .wst-view-help {
+  bottom: 10px;
+  left: 10px;
+}
+
+.wst-app.is-compact .wst-view-help > .wst-tool {
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0;
+}
+
+.is-compact .wst-view-help > .wst-tool :is(span, svg:last-child) {
+  display: none;
+}
+
+.is-compact .wst-status {
+  gap: 2px 9px;
+  padding: 3px 10px;
+}
+
+.is-compact .wst-status :is(
+  [data-testid='undo-depth'],
+  [data-testid='semantic-commits'],
+  [data-testid='presentation-batches'],
+  [data-testid='svg-meta']
+) {
+  display: none;
+}
+
+.is-compact :is(.wst-settings-modal, .wst-search-modal) {
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+.is-compact .wst-search-backdrop {
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+
+.is-compact .wst-search-modal {
+  width: calc(100% - 20px);
+}
+
+.is-compact .wst-search-header {
+  gap: 4px;
+  padding: 5px 8px;
+}
+
+.is-compact :is(.wst-search-input, .wst-project-title-input, .wst-inspector input:not([type='range']), .wst-card-edit-title, .wst-markdown-css-input, .wst-todos input) {
+  min-width: 0;
+  font-size: 16px;
+}
+
+.is-compact .wst-cm-editor-view {
+  font-size: 16px;
+}
+
+.wst-app.is-compact :is(.wst-search-header, .wst-todos-actions, .wst-todo-row-actions) .wst-tool.is-icon {
+  width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.is-compact :is(.wst-search-hints, .wst-search-icon) {
+  display: none;
+}
+
+.is-compact :is(.wst-search-item, .wst-todo-status, .wst-todo-add, .wst-todos-status-filter select) {
+  min-height: var(--touch-target);
+}
+
+.is-compact .wst-context-menu {
+  inset: auto 8px 8px;
+  position: absolute;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+}
+
+.is-compact .wst-context-item {
+  min-height: var(--touch-target);
+}
+
+@media (min-width: 560px) {
+  .is-compact .wst-project-bar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .is-compact .wst-project-meta {
+    grid-area: 1 / 2;
+  }
+
+  .is-compact .wst-project-bar > .wst-account-btn {
+    grid-area: 1 / 3;
+  }
+}
+
+@media (max-height: 460px) {
+  .wst-app.is-compact :is(.wst-toolbar > .wst-tool, .wst-toolbar-overflow > .wst-tool) {
+    min-height: var(--touch-target);
+    flex-direction: row;
+    gap: 5px;
+  }
+}

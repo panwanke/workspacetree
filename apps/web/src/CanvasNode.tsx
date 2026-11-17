@@ -7,7 +7,11 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react';
-import type { LayoutDirection, VisualLod } from '@workspacetree/layout';
+import {
+  markdownPreviewMinHeight,
+  type LayoutDirection,
+  type VisualLod,
+} from '@workspacetree/layout';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownPreview } from './MarkdownPreview';
 import { MarkdownEditor } from './markdown/MarkdownEditor';
@@ -18,6 +22,14 @@ import {
   type ResizeModifiers,
 } from './node-resize';
 import { TagList } from './TagList';
+
+type SaveDraft = (
+  id: string,
+  title: string,
+  note: string,
+  baseNote: string,
+  assets?: Record<string, AssetRecord>,
+) => Promise<boolean>;
 
 export interface CardNodeData extends Record<string, unknown> {
   title: string;
@@ -49,18 +61,9 @@ export interface CardNodeData extends Record<string, unknown> {
   autoSaveInterval?: number;
   onToggleCollapse?: (id: string) => void;
   onStartEdit?: (id: string) => void;
-  onCommitEdit?: (
-    id: string,
-    title: string,
-    note: string,
-    newAssets?: Record<string, AssetRecord>,
-  ) => void;
-  onAutoSave?: (
-    id: string,
-    title: string,
-    note: string,
-    newAssets?: Record<string, AssetRecord>,
-  ) => void;
+  onToggleTodo?: (lineIndex: number, checked: boolean) => void;
+  onSaveDraft?: SaveDraft;
+  onFinishEdit?: (id: string) => void;
   onCancelEdit?: () => void;
   onResizeBox?: (id: string, width: number, height: number) => void;
   onResizeScale?: (id: string, scale: number, kind: 'node' | 'branch') => void;
@@ -86,6 +89,8 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const isCancellingRef = useRef(false);
+  const committingRef = useRef(false);
+  const autoSaveRef = useRef<Promise<void> | null>(null);
   const wasEditingRef = useRef(false);
   const titleDraftRef = useRef(titleDraft);
   const noteDraftRef = useRef(noteDraft);
@@ -124,11 +129,35 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   // 提交并保存当前草稿
   const commitCurrentDraft = useCallback(() => {
-    if (isCancellingRef.current) return;
-    const finalTitle = titleDraftRef.current.trim() || data.title;
-    const finalNote = noteDraftRef.current;
-    const finalAssets = draftAssetsRef.current;
-    data.onCommitEdit?.(id, finalTitle, finalNote, finalAssets);
+    if (isCancellingRef.current || committingRef.current) return;
+    committingRef.current = true;
+    void (async () => {
+      try {
+        if (autoSaveRef.current) await autoSaveRef.current;
+        if (isCancellingRef.current) return;
+        const title = titleDraftRef.current.trim() || data.title;
+        const note = noteDraftRef.current;
+        const assets = draftAssetsRef.current;
+        const saved = await data.onSaveDraft?.(
+          id,
+          title,
+          note,
+          lastSavedSnapshotRef.current.note,
+          assets,
+        );
+        if (!saved) return;
+        lastSavedSnapshotRef.current = { title, note, assets };
+        if (
+          (titleDraftRef.current.trim() || data.title) === title &&
+          noteDraftRef.current === note &&
+          draftAssetsRef.current === assets
+        ) {
+          data.onFinishEdit?.(id);
+        }
+      } finally {
+        committingRef.current = false;
+      }
+    })();
   }, [data, id]);
 
   // 离开节点自动保存：在编辑状态下，点击编辑器外部时自动保存并退出编辑
@@ -153,11 +182,12 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   // 每 5s 自动保存：在编辑过程中持续保存草稿到项目中，且不退出编辑状态
   useEffect(() => {
-    if (!data.isEditing || !data.autoSaveEnabled) return;
+    if (!data.isEditing || !data.autoSaveEnabled || !data.onSaveDraft) return;
 
     const intervalMs = data.autoSaveInterval ?? 5000;
+    const save = data.onSaveDraft;
     const timer = setInterval(() => {
-      if (isCancellingRef.current) return;
+      if (isCancellingRef.current || committingRef.current || autoSaveRef.current) return;
       const currentTitle = titleDraftRef.current.trim() || data.title;
       const currentNote = noteDraftRef.current;
       const currentAssets = draftAssetsRef.current;
@@ -169,12 +199,19 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         JSON.stringify(currentAssets) !== JSON.stringify(last.assets);
 
       if (hasChanged) {
-        lastSavedSnapshotRef.current = {
-          title: currentTitle,
-          note: currentNote,
-          assets: { ...currentAssets },
-        };
-        data.onAutoSave?.(id, currentTitle, currentNote, currentAssets);
+        autoSaveRef.current = save(id, currentTitle, currentNote, last.note, currentAssets)
+          .then((saved) => {
+            if (saved) {
+              lastSavedSnapshotRef.current = {
+                title: currentTitle,
+                note: currentNote,
+                assets: { ...currentAssets },
+              };
+            }
+          })
+          .finally(() => {
+            autoSaveRef.current = null;
+          });
       }
     }, intervalMs);
 
@@ -185,7 +222,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
     data.autoSaveInterval,
     id,
     data.title,
-    data.onAutoSave,
+    data.onSaveDraft,
   ]);
 
   useEffect(() => {
@@ -219,7 +256,8 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   const zoomBoost = zoom < 0.75 ? Math.min(2.6, 0.75 / Math.max(0.18, zoom)) : 1;
   const baseTitlePx = Math.max(13, 14 * Math.min(1.25, Math.max(0.95, data.scale)));
   const titleFontSize = `${Math.round(baseTitlePx * zoomBoost * 10) / 10}px`;
-  const note = data.lod === 'full' && zoom >= 0.42 ? data.note : undefined;
+  const hasNote = data.lod === 'full' && Boolean(data.note?.trim());
+  const note = hasNote && (selected || zoom >= 0.42) ? data.note : undefined;
   const verticalPadding = note ? Math.max(5, 6 * data.scale) : Math.max(7, 10 * data.scale);
 
   const cardStyle = {
@@ -247,7 +285,15 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         isVisible={Boolean(selected || data.isEditing) && !data.readOnly}
         minWidth={data.isEditing ? 360 : effectiveResize.mode === 'branch' ? 22 : 77}
         maxWidth={data.isEditing ? 1400 : 560}
-        minHeight={data.isEditing ? 200 : effectiveResize.mode === 'branch' ? 16 : 36}
+        minHeight={
+          data.isEditing
+            ? 200
+            : effectiveResize.mode === 'branch'
+              ? 16
+              : effectiveResize.mode === 'box' && hasNote
+                ? markdownPreviewMinHeight(data.scale)
+                : 36
+        }
         maxHeight={data.isEditing ? 1000 : 380}
         keepAspectRatio={!data.isEditing && effectiveResize.isProportional}
         lineClassName="wst-resizer-line"
@@ -441,6 +487,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
               assets={data.assets}
               className="wst-card-markdown nowheel"
               maxLines={8}
+              onToggleTask={data.onToggleTodo}
             />
           )}
         </>

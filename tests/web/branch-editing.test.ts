@@ -367,6 +367,22 @@ describe('subtree movement', () => {
     expect(await storage.load(before.projectId)).toEqual(undone);
   });
 
+  it('attaches an independent subtree in place and restores its independence on undo', async () => {
+    const { reparentBranchEntry } = await import('../../apps/web/src/branch-editing');
+    const { editor, current } = await setup();
+    await editor.run(reparentBranchEntry(current(), sourceId, null)!);
+    const independent = current();
+    const positions = layout(independent, 'vertical').positions;
+    await editor.run(reparentBranchEntry(current(), sourceId, targetId, 'timeline', true)!);
+    expect(current().domain.nodes.find((node) => node.id === sourceId)?.parentId).toBe(targetId);
+    const attached = layout(current(), 'vertical').positions;
+    expect(attached[sourceId]).toEqual(positions[sourceId]);
+    expect(attached.n_writing_template).toEqual(positions.n_writing_template);
+    await editor.undo();
+    expect(current().domain).toEqual(independent.domain);
+    expect(current().presentation).toEqual(independent.presentation);
+  });
+
   it('detaches a subtree without losing descendant paths and rejects roots and cycles', async () => {
     const { reparentBranchEntry } = await import('../../apps/web/src/branch-editing');
     const { editor, current } = await setup();

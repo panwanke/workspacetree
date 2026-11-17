@@ -2,8 +2,15 @@ import {
   EditorSelection,
   EditorState,
   type ChangeSpec,
+  type Text,
   type TransactionSpec,
 } from '@codemirror/state';
+import {
+  editMarkdownTaskLine,
+  localToday,
+  readMarkdownTasks,
+  type MarkdownTaskItem,
+} from '@workspacetree/markdown';
 
 export interface CommandTarget {
   state: EditorState;
@@ -176,27 +183,37 @@ export function toggleTaskList(view: CommandTarget): boolean {
 /**
  * 在任务行切换勾选状态（[ ] <-> [x]）
  */
-export function toggleTaskCheck(view: CommandTarget): boolean {
+export function toggleTaskCheck(view: CommandTarget, day = localToday()): boolean {
   const { state } = view;
-  const range = state.selection.main;
-  const line = state.doc.lineAt(range.from);
-  const lineText = line.text;
-  const match = /^(\s*(?:>[ \t]*)*(?:[-+*]|\d+[.)])[ \t]+)\[([ xX\-~?])\](.*)$/.exec(lineText);
-  if (!match) return false;
+  return toggleTaskAtLine(view, state.doc.lineAt(state.selection.main.from).number, day);
+}
 
-  const prefix = match[1]!;
-  const markerChar = match[2]!;
-  const rest = match[3]!;
-  const isDone = markerChar === 'x' || markerChar === 'X';
-  const nextMarker = isDone ? '[ ]' : '[x]';
+const tasksByDocument = new WeakMap<Text, ReadonlyMap<number, MarkdownTaskItem>>();
 
-  view.dispatch({
-    changes: {
-      from: line.from,
-      to: line.to,
-      insert: `${prefix}${nextMarker}${rest}`,
-    },
+export function editorTasks(doc: Text): ReadonlyMap<number, MarkdownTaskItem> {
+  let tasks = tasksByDocument.get(doc);
+  if (!tasks) {
+    tasks = new Map(readMarkdownTasks(doc.toString()).map((task) => [task.lineIndex + 1, task]));
+    tasksByDocument.set(doc, tasks);
+  }
+  return tasks;
+}
+
+export function toggleTaskAtLine(
+  view: CommandTarget,
+  lineNumber: number,
+  day = localToday(),
+): boolean {
+  const { state } = view;
+  const task = editorTasks(state.doc).get(lineNumber);
+  if (!task || state.readOnly) return false;
+  const line = state.doc.line(lineNumber);
+  const checking = task.status !== 'done';
+  const insert = editMarkdownTaskLine(line.text, {
+    status: checking ? 'done' : 'open',
+    completedAt: checking ? day : null,
   });
+  view.dispatch({ changes: { from: line.from, to: line.to, insert } });
   return true;
 }
 

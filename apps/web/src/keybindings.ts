@@ -62,7 +62,7 @@ export const DEFAULT_KEYBINDINGS: Record<KeybindingAction, KeybindingMeta> = {
   },
   addRandomBranch: {
     label: '新建独立分支',
-    description: '在画布视口中心随机位置创建独立新分支节点',
+    description: '在画布视口内新建独立节点',
     defaultKey: 'r',
     category: 'canvas',
   },

@@ -402,54 +402,7 @@
   font-weight: 650;
 }
 
-@media (max-width: 700px) {
-  .wst-project-bar:has(.wst-account-btn) .wst-github-star-tag {
-    display: none;
-  }
-}
-
 @media (max-width: 580px) {
-  .wst-project-bar:has(.wst-account-btn) :is(.wst-prototype, .wst-github-text) {
-    display: none;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-title-input {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-identity {
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-titles h1.is-editable {
-    display: flex;
-    margin: 0;
-    padding: 0;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-title-edit-hint {
-    display: none;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-brand-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-titles h1 > span:first-child {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .wst-account-btn {
-    max-width: 82px;
-    padding-inline: 8px;
-  }
-
   .wst-login-modal {
     width: min(410px, calc(100% - 24px));
     max-height: calc(100dvh - 24px);
@@ -483,41 +436,5 @@
 
   .wst-login-field input {
     font-size: 16px;
-  }
-}
-
-@media (max-width: 460px) {
-  .wst-project-bar:has(.wst-account-btn) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 8px;
-    padding-block: 8px;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-meta {
-    display: contents;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-identity {
-    grid-area: 1 / 1 / 2 / 3;
-  }
-
-  .wst-account-btn {
-    grid-area: 1 / 3;
-    justify-self: end;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-view-switch {
-    grid-area: 2 / 1;
-    justify-self: start;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-github-star-badge {
-    grid-area: 2 / 2;
-  }
-
-  .wst-project-bar:has(.wst-account-btn) .wst-project-menu {
-    grid-area: 2 / 3;
-    justify-self: end;
   }
 }

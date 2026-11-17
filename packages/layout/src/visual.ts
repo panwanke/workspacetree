@@ -3,6 +3,7 @@
  * 2D、3D 和 SVG 必须消费本模块的结果，不分别推导显示坐标。
  */
 import type { DomainState, Edge, Node, SavedPresentation } from '@workspacetree/schema';
+import { indexWorkspaceTasks, selectNodeNote, workspaceTaskCounts } from '@workspacetree/markdown';
 import { resolveGraphBranchColors } from './roles.js';
 import { placeStructure } from './structure.js';
 import { buildHierarchy } from './tree.js';
@@ -62,13 +63,14 @@ interface SubtreeStats {
 
 /** 一次后序聚合所有子树统计，避免每个折叠节点重复扫描整份任务与边。 */
 function computeSubtreeStats(
-  domain: Pick<DomainState, 'nodes' | 'edges' | 'tasks'>,
+  domain: Pick<DomainState, 'nodes' | 'edges'>,
   hierarchy: HierarchyLike,
+  ownTasks: ReadonlyMap<string, { total: number; done: number }>,
 ): SubtreeStats {
   const ids = domain.nodes.map((node) => node.id);
   const memberCount = new Map(ids.map((id) => [id, 1]));
-  const taskDone = new Map(ids.map((id) => [id, 0]));
-  const taskTotal = new Map(ids.map((id) => [id, 0]));
+  const taskDone = new Map(ids.map((id) => [id, ownTasks.get(id)?.done ?? 0]));
+  const taskTotal = new Map(ids.map((id) => [id, ownTasks.get(id)?.total ?? 0]));
   const degreeSum = new Map(ids.map((id) => [id, 0]));
   const crossInternal = new Map(ids.map((id) => [id, 0]));
   const depths = new Map<string, number>();
@@ -84,11 +86,6 @@ function computeSubtreeStats(
   for (const root of hierarchy.roots) visit(root, 0);
   for (const id of ids) if (!depths.has(id)) visit(id, 0);
 
-  for (const task of domain.tasks) {
-    if (task.nodeId === null || !taskTotal.has(task.nodeId)) continue;
-    taskTotal.set(task.nodeId, (taskTotal.get(task.nodeId) ?? 0) + 1);
-    if (task.done) taskDone.set(task.nodeId, (taskDone.get(task.nodeId) ?? 0) + 1);
-  }
   const parentOf = (id: string): string | null => hierarchy.parents.get(id) ?? null;
   const lca = (a: string, b: string): string | null => {
     let left: string | null = a;
@@ -153,9 +150,13 @@ export function resolveLayoutDirection(
   );
 }
 
+export function markdownPreviewMinHeight(scale: number): number {
+  return Math.round(Math.max(110, 124 * Math.min(scale, 2)));
+}
+
 export function resolveVisualGraph(
   domain: Pick<DomainState, 'nodes' | 'edges' | 'project' | 'tasks'> &
-    Partial<Pick<DomainState, 'spines'>>,
+    Partial<Pick<DomainState, 'spines' | 'blocks'>>,
   presentation: Presentation,
   options: LayoutOptions = {},
 ): VisualGraph {
@@ -199,6 +200,7 @@ export function resolveVisualGraph(
   const sizes: Record<string, Size> = {};
   const scales: Record<string, number> = {};
   const lodById = new Map<string, 'full' | 'summary'>();
+  const taskIndex = indexWorkspaceTasks(domain);
   for (const node of visibleNodes) {
     const branchScale = branchScales.get(node.id) ?? 1;
     const scale = Math.max(0.1, branchScale * ((presentation.nodeScales ?? {})[node.id] ?? 1));
@@ -222,6 +224,9 @@ export function resolveVisualGraph(
             ? Math.max(LOD_MIN_HEIGHT, cfg.nodeHeight * scale)
             : cfg.nodeHeight * scale,
       };
+    }
+    if (lod === 'full' && selectNodeNote(node, taskIndex.markdownByBlock)?.markdown.trim()) {
+      sizes[node.id].height = Math.max(sizes[node.id].height, markdownPreviewMinHeight(scale));
     }
   }
 
@@ -259,14 +264,10 @@ export function resolveVisualGraph(
     domain.spines ?? [],
   );
 
-  const subtreeStats = computeSubtreeStats(domain, hierarchy);
-  const ownTaskTotal = new Map<string, number>();
-  const ownTaskDone = new Map<string, number>();
-  for (const task of domain.tasks) {
-    if (task.nodeId === null) continue;
-    ownTaskTotal.set(task.nodeId, (ownTaskTotal.get(task.nodeId) ?? 0) + 1);
-    if (task.done) ownTaskDone.set(task.nodeId, (ownTaskDone.get(task.nodeId) ?? 0) + 1);
-  }
+  const ownTasks = new Map(
+    [...taskIndex.byNode].map(([id, items]) => [id, workspaceTaskCounts(items)]),
+  );
+  const subtreeStats = computeSubtreeStats(domain, hierarchy, ownTasks);
   const visualNodes: VisualNode[] = visibleNodes.map((node) => {
     const isCollapsed = collapsed.has(node.id);
     return {
@@ -281,10 +282,10 @@ export function resolveVisualGraph(
       collapsedCount: isCollapsed ? (subtreeStats.memberCount.get(node.id) ?? 1) - 1 : 0,
       taskDone: isCollapsed
         ? (subtreeStats.taskDone.get(node.id) ?? 0)
-        : (ownTaskDone.get(node.id) ?? 0),
+        : (ownTasks.get(node.id)?.done ?? 0),
       taskTotal: isCollapsed
         ? (subtreeStats.taskTotal.get(node.id) ?? 0)
-        : (ownTaskTotal.get(node.id) ?? 0),
+        : (ownTasks.get(node.id)?.total ?? 0),
       externalConnectionCount: subtreeStats.externalConnections.get(node.id) ?? 0,
       lod: lodById.get(node.id) ?? 'full',
       branchColor: nodeBranchColors.get(node.id) ?? '#64748b',

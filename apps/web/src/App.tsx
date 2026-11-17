@@ -35,6 +35,7 @@ import {
   type VisualEdge,
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
+import { localToday, readMarkdownBlocks, selectNodeNote } from '@workspacetree/markdown';
 import type { AssetRecord, BranchFile, Edge, HierarchyEdgeRole } from '@workspacetree/schema';
 import { createBrowserStorageAdapter } from '@workspacetree/storage';
 import type { ProjectStorePort } from './project-store';
@@ -51,13 +52,20 @@ import {
   type ReactNode,
 } from 'react';
 import CanvasNode, { type CardNode } from './CanvasNode';
+import ConnectionDialog, { type ConnectionRequest } from './ConnectionDialog';
 import { useCanvasNodeDrag } from './useCanvasNodeDrag';
 import DateDirectory from './DateDirectory';
 import RelationEdge from './RelationEdge';
 import TimelineAxis from './TimelineAxis';
 import WorkspaceInspector, { type ScaleKind } from './WorkspaceInspector';
 import WorkspaceTodos from './WorkspaceTodos';
-import { saveTodoEntry } from './todo-editing';
+import {
+  deleteTodoEntry,
+  saveTodoEntry,
+  updateTodoEntry,
+  type TodoDraft,
+  type TodoSource,
+} from './todo-editing';
 import WorkspaceToolbar, {
   WorkspacePopover,
   type ProjectView,
@@ -68,7 +76,7 @@ import { createDemoBranchFile, createEmptyBranchFile } from './demo';
 import { EditorController, type EditorSnapshot } from './editor';
 import { branchSnapshotHash, openBranchFile } from './open-branch-file';
 import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from './branch-editing';
-import { reconnectEdgeEntry, setEdgeNoteEntry } from './edge-editing';
+import { saveRelationEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
 import { loadSettings, type WorkspaceSettings } from './settings';
 import { useMarkdownCss } from './markdown/custom-css';
@@ -84,7 +92,6 @@ import {
   type StorageScope,
 } from './workspace-session';
 import {
-  addEdgeEntry,
   clearPositionEntry,
   clearPositionsEntry,
   createNodeEntry,
@@ -112,7 +119,8 @@ const ThreeCanvas = lazy(() => import('./ThreeCanvas'));
 const nodeTypes = { card: CanvasNode };
 const edgeTypes = { relation: RelationEdge };
 const ALL_EDGE_TYPES: VisibleEdgeTypes = ['hierarchy', 'dependency', 'reference', 'custom'];
-const COMPACT_WORKSPACE = '(max-width: 760px)';
+const COMPACT_WORKSPACE =
+  '(max-width: 880px), (hover: none) and (pointer: coarse) and (max-height: 540px)';
 const FIT_PADDING: Record<LayoutDirection, FitViewOptions['padding']> = {
   vertical: { top: '6%', bottom: '6%', left: '88px', right: '5%' },
   horizontal: { top: '48px', bottom: '6%', left: '6%', right: '6%' },
@@ -139,6 +147,9 @@ function FlowViewportController({
   fitTrigger,
   focusNodeId,
   editingNodeId,
+  projectKey,
+  compact,
+  rootId,
   onFocused,
   direction,
   apiRef,
@@ -146,6 +157,9 @@ function FlowViewportController({
   fitTrigger: number;
   focusNodeId: string | null;
   editingNodeId: string | null;
+  projectKey: string | null;
+  compact: boolean;
+  rootId: string;
   onFocused: () => void;
   direction: LayoutDirection;
   apiRef?: React.MutableRefObject<FlowViewportAPI | null>;
@@ -170,6 +184,7 @@ function FlowViewportController({
     return fits ? 'visible' : 'clipped';
   });
   const lastFittedEditor = useRef<string | null>(null);
+  const lastFittedProject = useRef<string | null>(null);
 
   useEffect(() => {
     if (apiRef) {
@@ -184,17 +199,28 @@ function FlowViewportController({
   useEffect(() => {
     if (fitTrigger === 0) return;
     const timer = window.setTimeout(() => {
-      void reactFlow.fitView({ padding: FIT_PADDING[direction], duration: 280 });
+      const firstFit = lastFittedProject.current !== projectKey;
+      lastFittedProject.current = projectKey;
+      void reactFlow.fitView(
+        firstFit && compact
+          ? { nodes: [{ id: rootId }], padding: 0.24, maxZoom: 1, duration: 180 }
+          : { padding: compact ? 0.18 : FIT_PADDING[direction], duration: 280 },
+      );
     }, 30);
     return () => window.clearTimeout(timer);
-  }, [fitTrigger, reactFlow, direction]);
+  }, [fitTrigger, reactFlow, direction, compact, projectKey, rootId]);
 
   useEffect(() => {
     if (!focusNodeId) return;
-    void reactFlow.fitView({ nodes: [{ id: focusNodeId }], padding: 0.85, duration: 300 });
+    void reactFlow.fitView({
+      nodes: [{ id: focusNodeId }],
+      padding: compact ? 0.24 : 0.85,
+      maxZoom: compact ? 1.25 : undefined,
+      duration: 300,
+    });
     const timer = window.setTimeout(() => onFocused(), 30);
     return () => window.clearTimeout(timer);
-  }, [focusNodeId, reactFlow, onFocused]);
+  }, [focusNodeId, reactFlow, onFocused, compact]);
 
   useEffect(() => {
     if (!editingNodeId) {
@@ -206,11 +232,13 @@ function FlowViewportController({
     if (editorViewport === 'visible') return;
     void reactFlow.fitView({
       nodes: [{ id: editingNodeId }],
-      padding: { top: '48px', right: '24px', bottom: '32px', left: '44px' },
+      padding: compact
+        ? { top: '10px', right: '12px', bottom: '10px', left: '12px' }
+        : { top: '48px', right: '24px', bottom: '32px', left: '44px' },
       maxZoom: 1.15,
       duration: 160,
     });
-  }, [editingNodeId, editorViewport, reactFlow]);
+  }, [editingNodeId, editorViewport, reactFlow, compact]);
 
   return null;
 }
@@ -261,6 +289,12 @@ export default function App({
   const [nodes, setNodes] = useState<CardNode[]>([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [connectionRequest, setConnectionRequest] = useState<ConnectionRequest | null>(null);
+  const [pendingReconnect, setPendingReconnect] = useState<{
+    edge: Edge;
+    end: 'source' | 'target';
+  } | null>(null);
+  const draggingEdge = useRef<Edge | null>(null);
   const [branchClipboard, setBranchClipboard] = useState<{
     id: string;
     source: EditorController;
@@ -303,8 +337,20 @@ export default function App({
     () => window.matchMedia(COMPACT_WORKSPACE).matches,
   );
   const [inspectorOverride, setInspectorOverride] = useState<boolean | null>(null);
-  const inspectorOpen = inspectorOverride ?? !compactWorkspace;
+  const [desktopDirectoryOpen, setDesktopDirectoryOpen] = useState(() => {
+    try {
+      return localStorage.getItem('wst_date_directory_open') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [mobilePanel, setMobilePanel] = useState<'directory' | 'inspector' | null>(null);
+  const inspectorOpen = compactWorkspace
+    ? mobilePanel === 'inspector'
+    : (inspectorOverride ?? true);
+  const directoryOpen = compactWorkspace ? mobilePanel === 'directory' : desktopDirectoryOpen;
   const inspectorToggleRef = useRef<HTMLButtonElement>(null);
+  const directoryToggleRef = useRef<HTMLButtonElement>(null);
   const [svgMeta, setSvgMeta] = useState('尚未导出');
   const [uiError, setUiError] = useState<string | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -355,11 +401,33 @@ export default function App({
   }, [selectedNodeId, inspectorOpen, projectView]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('wst_date_directory_open', String(desktopDirectoryOpen));
+    } catch {}
+  }, [desktopDirectoryOpen]);
+
+  useEffect(() => {
     const query = window.matchMedia(COMPACT_WORKSPACE);
-    const update = (event: MediaQueryListEvent) => setCompactWorkspace(event.matches);
+    const update = (event: MediaQueryListEvent) => {
+      setCompactWorkspace(event.matches);
+      setMobilePanel(null);
+    };
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
   }, []);
+
+  const closeMobilePanel = useCallback(() => {
+    if (!mobilePanel) return;
+    setMobilePanel(null);
+    const trigger = mobilePanel === 'directory' ? directoryToggleRef : inspectorToggleRef;
+    trigger.current?.focus({ preventScroll: true });
+  }, [mobilePanel]);
+
+  useEffect(() => {
+    if (!compactWorkspace || !mobilePanel) return;
+    const panelId = mobilePanel === 'directory' ? 'workspace-directory' : 'workspace-inspector';
+    document.getElementById(panelId)?.querySelector('button')?.focus({ preventScroll: true });
+  }, [compactWorkspace, mobilePanel]);
 
   useEffect(() => {
     if (booted.current) return;
@@ -455,9 +523,12 @@ export default function App({
     setSnapshot(tabController.getSnapshot());
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
+    setConnectionRequest(null);
+    setPendingReconnect(null);
     setEditingEdge(null);
     setContextMenu(null);
     setEditingNodeId(null);
+    setMobilePanel(null);
     setFocusNodeId(null);
     setScalePreview(null);
     setHighlightSpineIds([]);
@@ -552,6 +623,22 @@ export default function App({
     [controller, file],
   );
 
+  const updateTodo = useCallback(
+    (source: TodoSource, changes: Partial<TodoDraft>) => {
+      const day = localToday();
+      setUiError(null);
+      return controller!.runFromLatest((latest) => updateTodoEntry(latest, source, changes, day));
+    },
+    [controller],
+  );
+
+  const toggleTodo = useCallback(
+    (source: TodoSource, checked: boolean) => {
+      guard(() => updateTodo(source, { status: checked ? 'done' : 'open' }));
+    },
+    [guard, updateTodo],
+  );
+
   const handleStartEdit = useCallback(
     (id: string) => {
       if (readOnly) return;
@@ -565,25 +652,51 @@ export default function App({
     setEditingNodeId(null);
   }, []);
 
-  const handleCommitEdit = useCallback(
-    (id: string, nextTitle: string, nextNote: string, nextAssets?: Record<string, AssetRecord>) => {
-      if (!controller || !file) return;
-      setEditingNodeId(null);
-      const currentNode = file.domain.nodes.find((item) => item.id === id);
-      if (!currentNode) return;
-      const currentNote = getNodeNote(file.domain, id);
-      guard(async () => {
-        if (nextTitle && nextTitle !== currentNode.title) {
-          await controller.run(renameNodeEntry(file.domain, id, nextTitle));
-        }
-        if (nextNote !== currentNote || (nextAssets && Object.keys(nextAssets).length > 0)) {
-          const latest = controller.getSnapshot().file.domain;
-          await controller.run(setNodeNoteEntry(latest, id, nextNote, nextAssets));
-        }
-      });
+  const persistNodeDraft = useCallback(
+    async (
+      id: string,
+      title: string,
+      markdown: string,
+      baseNote: string,
+      assets?: Record<string, AssetRecord>,
+    ) => {
+      if (!controller) return false;
+      setUiError(null);
+      try {
+        await controller.runFromLatest(({ domain }) => {
+          const node = domain.nodes.find((item) => item.id === id);
+          if (!node) throw new Error('原节点已不存在。');
+          const current = getNodeNote(domain, id);
+          const hasAssets = Object.keys(assets ?? {}).length > 0;
+          const edited = markdown !== baseNote || hasAssets;
+          if (edited && current !== baseNote && current !== markdown) {
+            throw new Error('笔记已变化，编辑内容仍在草稿中。');
+          }
+          const rename =
+            title && title !== node.title ? renameNodeEntry(domain, id, title) : undefined;
+          const note =
+            edited && (markdown !== current || hasAssets)
+              ? setNodeNoteEntry(domain, id, markdown, assets)
+              : undefined;
+          if (!rename || !note) return rename ?? note;
+          return {
+            ...note,
+            forward: [...rename.forward, ...note.forward],
+            inverse: [...note.inverse, ...rename.inverse],
+          };
+        });
+        return true;
+      } catch (cause) {
+        setUiError(cause instanceof Error ? cause.message : String(cause));
+        return false;
+      }
     },
-    [controller, file, guard],
+    [controller],
   );
+
+  const finishNodeEdit = useCallback((id: string) => {
+    setEditingNodeId((editingId) => (editingId === id ? null : editingId));
+  }, []);
 
   const handleRenameProject = useCallback(
     (newTitle: string) => {
@@ -640,25 +753,6 @@ export default function App({
       });
     },
     [editingTabTitle, guard],
-  );
-
-  const handleAutoSave = useCallback(
-    (id: string, nextTitle: string, nextNote: string, nextAssets?: Record<string, AssetRecord>) => {
-      if (!controller || !file) return;
-      const currentNode = file.domain.nodes.find((item) => item.id === id);
-      if (!currentNode) return;
-      const currentNote = getNodeNote(file.domain, id);
-      guard(async () => {
-        if (nextTitle && nextTitle !== currentNode.title) {
-          await controller.run(renameNodeEntry(file.domain, id, nextTitle));
-        }
-        if (nextNote !== currentNote || (nextAssets && Object.keys(nextAssets).length > 0)) {
-          const latest = controller.getSnapshot().file.domain;
-          await controller.run(setNodeNoteEntry(latest, id, nextNote, nextAssets));
-        }
-      });
-    },
-    [controller, file, guard],
   );
 
   const handleResizeBox = useCallback(
@@ -764,9 +858,11 @@ export default function App({
     const locked = new Set(graph.locked);
 
     const childHierarchyMap = buildHierarchy(file.domain.nodes, file.domain.edges).children;
+    const notes = readMarkdownBlocks(file.domain.blocks);
 
     const flowNodes: CardNode[] = graph.nodes.map((visual) => {
       const node = nodeMap.get(visual.id)!;
+      const note = selectNodeNote(node, notes);
       const hasChildren = (childHierarchyMap.get(visual.id) ?? []).length > 0 || visual.collapsed;
       const isEditing = editingNodeId === visual.id;
       const editorWidth = compactWorkspace ? 320 : 640;
@@ -785,7 +881,7 @@ export default function App({
         targetPosition: graph.direction === 'horizontal' ? Position.Left : Position.Top,
         data: {
           title: node.title,
-          note: getNodeNote(file.domain, node.id),
+          note: note?.markdown,
           tags: node.tags,
           taskTotal: visual.taskTotal,
           taskDone: visual.taskDone,
@@ -826,9 +922,24 @@ export default function App({
             );
           },
           onStartEdit: handleStartEdit,
-          onCommitEdit: handleCommitEdit,
-          onAutoSave: handleAutoSave,
+          onSaveDraft: persistNodeDraft,
+          onFinishEdit: finishNodeEdit,
           onCancelEdit: handleCancelEdit,
+          onToggleTodo:
+            !readOnly && note
+              ? (lineIndex: number, checked: boolean) => {
+                  toggleTodo(
+                    {
+                      source: 'markdown',
+                      nodeId: node.id,
+                      blockId: note.id,
+                      lineIndex,
+                      markdown: note.markdown,
+                    },
+                    checked,
+                  );
+                }
+              : undefined,
           onResizeBox: handleResizeBox,
           onResizeScale: handleResizeScale,
           autoSaveEnabled: settings.autoSaveNode,
@@ -907,8 +1018,9 @@ export default function App({
     readOnly,
     resizeMode,
     handleStartEdit,
-    handleCommitEdit,
-    handleAutoSave,
+    finishNodeEdit,
+    persistNodeDraft,
+    toggleTodo,
     handleCancelEdit,
     handleResizeBox,
     handleResizeScale,
@@ -941,15 +1053,16 @@ export default function App({
 
   const onNodesChange = useCallback((changes: NodeChange<CardNode>[]) => {
     setNodes((current) => applyNodeChanges(changes, current));
-  }, []);
-
-  const onSelectionChange = useCallback(({ nodes: selected }: { nodes: CardNode[] }) => {
-    const next = selected.map((item) => item.id);
-    setSelectedNodeIds((previous) =>
-      previous.length === next.length && previous.every((id, index) => id === next[index])
-        ? previous
-        : next,
-    );
+    const selection = changes.filter((change) => change.type === 'select');
+    if (!selection.length) return;
+    setSelectedNodeIds((current) => {
+      const next = new Set(current);
+      for (const change of selection) {
+        if (change.selected) next.add(change.id);
+        else next.delete(change.id);
+      }
+      return [...next];
+    });
   }, []);
 
   const selectedNode = file?.domain.nodes.find((node) => node.id === selectedNodeId) ?? null;
@@ -978,7 +1091,10 @@ export default function App({
         }
       }
       setEditingNodeId(null);
-      if (showInspector) setInspectorOverride(true);
+      if (showInspector) {
+        if (compactWorkspace) setMobilePanel('inspector');
+        else setInspectorOverride(true);
+      }
       setProjectView('canvas');
       locateNode(id);
     });
@@ -1006,10 +1122,12 @@ export default function App({
         setSelectedNodeIds([id]);
         if (startEditing) {
           setEditingNodeId(id);
+        } else if (compactWorkspace) {
+          setFocusNodeId(id);
         }
       });
     },
-    [controller, file, guard],
+    [controller, file, guard, compactWorkspace],
   );
 
   function addNode(): void {
@@ -1024,30 +1142,14 @@ export default function App({
     addChildWithInheritedStyle(parentId, false, 'branch');
   }
 
-  const addRandomBranchNode = useCallback(
+  const addIndependentNode = useCallback(
     (screenPos?: { x: number; y: number }): void => {
-      if (!file || !controller) return;
-      let initialPos: { x: number; y: number };
-      if (screenPos && flowApiRef.current?.screenToFlowPosition) {
-        const flowPos = flowApiRef.current.screenToFlowPosition(screenPos);
-        initialPos = {
-          x: Math.round(flowPos.x + (Math.random() - 0.5) * 40),
-          y: Math.round(flowPos.y + (Math.random() - 0.5) * 40),
-        };
-      } else if (flowApiRef.current?.getViewport) {
-        const vp = flowApiRef.current.getViewport();
-        const centerX = -vp.x / vp.zoom + (window.innerWidth * 0.45) / vp.zoom;
-        const centerY = -vp.y / vp.zoom + (window.innerHeight * 0.45) / vp.zoom;
-        initialPos = {
-          x: Math.round(centerX + (Math.random() - 0.5) * 360),
-          y: Math.round(centerY + (Math.random() - 0.5) * 260),
-        };
-      } else {
-        initialPos = {
-          x: Math.round(150 + Math.random() * 300),
-          y: Math.round(150 + Math.random() * 300),
-        };
-      }
+      if (!file || !controller || readOnly) return;
+      const bounds = canvasRef.current?.getBoundingClientRect();
+      const point =
+        screenPos ??
+        (bounds && { x: bounds.left + bounds.width * 0.4, y: bounds.top + bounds.height * 0.4 });
+      const initialPos = point && flowApiRef.current?.screenToFlowPosition(point);
 
       const id = newNodeId();
       const count = file.domain.nodes.length + 1;
@@ -1055,7 +1157,7 @@ export default function App({
         await controller.run(
           createNodeEntry(
             id,
-            `独立分支 ${count}`,
+            `独立节点 ${count}`,
             null,
             makeId('e_'),
             file.presentation,
@@ -1065,10 +1167,10 @@ export default function App({
         );
         if (controller.getSnapshot().error) return;
         setSelectedNodeIds([id]);
-        setFocusNodeId(id);
+        handleStartEdit(id);
       });
     },
-    [controller, file, guard, layoutDirection],
+    [controller, file, guard, handleStartEdit, layoutDirection, readOnly],
   );
 
   const handleNewTab = useCallback(async () => {
@@ -1180,7 +1282,9 @@ export default function App({
       setUiError('根节点不可删除');
       return;
     }
-    guard(() => controller!.run(deleteSubtreeEntry(file.domain, selectedNodeId)));
+    guard(() =>
+      controller!.runFromLatest(({ domain }) => deleteSubtreeEntry(domain, selectedNodeId)),
+    );
     setSelectedNodeId(null);
   }
 
@@ -1311,24 +1415,24 @@ export default function App({
     [controller, file, readOnly],
   );
 
-  const moveBranch = useCallback(
-    (id: string, parentId: string | null) => {
+  const commitBranchMove = useCallback(
+    async (id: string, parentId: string | null, keepPosition = false) => {
       if (!controller || readOnly) return;
-      guard(async () => {
-        const edit = reparentBranchEntry(
-          controller.getSnapshot().file,
-          id,
-          parentId,
-          layoutStrategy,
-        );
-        if (!edit) return;
-        await controller.run(edit);
-        if (controller.getSnapshot().error) return;
-        setSelectedNodeId(id);
-        setSelectedEdgeId(null);
-      });
+      await controller.runFromLatest(
+        (latest) =>
+          reparentBranchEntry(latest, id, parentId, layoutStrategy, keepPosition) ?? undefined,
+      );
+      const error = controller.getSnapshot().error;
+      if (error) throw new Error(error);
+      setSelectedNodeId(id);
+      setSelectedEdgeId(null);
+      if (parentId !== null && !keepPosition) setFocusNodeId(id);
     },
-    [controller, guard, layoutStrategy, readOnly, setSelectedNodeId],
+    [controller, layoutStrategy, readOnly, setSelectedNodeId],
+  );
+  const moveBranch = useCallback(
+    (id: string, parentId: string | null) => guard(() => commitBranchMove(id, parentId)),
+    [guard, commitBranchMove],
   );
 
   const pasteBranch = useCallback(
@@ -1406,64 +1510,55 @@ export default function App({
     });
   }
 
-  function reconnectConnection(flowEdge: FlowEdge, connection: Connection): void {
-    if (!controller || readOnly) return;
+  function directConnection(flowEdge: FlowEdge): Edge | undefined {
     const originals = originalConnections(
       derived.graph?.edges.find((item) => item.id === flowEdge.id),
     );
-    if (originals.length !== 1) return;
-    const edge = originals[0];
-    if (edge.fromNodeId === connection.source && edge.toNodeId === connection.target) return;
+    return originals.length === 1 &&
+      originals[0].fromNodeId === flowEdge.source &&
+      originals[0].toNodeId === flowEdge.target
+      ? originals[0]
+      : undefined;
+  }
+
+  function applyReconnect(edge: Edge, source: string, target: string): void {
+    if (!controller || readOnly || (edge.fromNodeId === source && edge.toNodeId === target)) return;
     if (edge.type === 'hierarchy') {
-      if (edge.toNodeId === connection.target) moveBranch(edge.toNodeId, connection.source);
+      if (edge.toNodeId === target) moveBranch(target, source);
       return;
     }
+    const type = edge.type;
     guard(async () => {
-      await controller.run(
-        reconnectEdgeEntry(
-          controller.getSnapshot().file.domain,
+      await controller.runFromLatest(({ domain }) =>
+        saveRelationEntry(
+          domain,
+          {
+            type,
+            note: domain.edges.find(({ id }) => id === edge.id)?.note,
+            fromNodeId: source,
+            toNodeId: target,
+          },
           edge.id,
-          connection.source,
-          connection.target,
         ),
       );
       if (!controller.getSnapshot().error) setSelectedEdgeId(null);
     });
   }
 
-  const handleConnect = useCallback(
-    (connection: Connection) => {
-      if (!controller || readOnly || !file) return;
-      if (!connection.source || !connection.target) return;
-      if (connection.source === connection.target) return;
+  function reconnectConnection(flowEdge: FlowEdge, connection: Connection): void {
+    const edge = directConnection(flowEdge);
+    if (edge) applyReconnect(edge, connection.source, connection.target);
+  }
 
-      // 避免重复创建已存在的非层级关联
-      const alreadyExists = file.domain.edges.some(
-        (edge) =>
-          edge.fromNodeId === connection.source &&
-          edge.toNodeId === connection.target &&
-          edge.type !== 'hierarchy',
-      );
-      if (alreadyExists) return;
-
-      guard(async () => {
-        const edgeId = makeId('e_');
-        await controller.run(
-          addEdgeEntry({
-            id: edgeId,
-            type: 'dependency',
-            fromNodeId: connection.source,
-            toNodeId: connection.target,
-          }),
-        );
-        if (!controller.getSnapshot().error) {
-          if (!showRelations) setShowRelations(true);
-          setSelectedEdgeId(edgeId);
-        }
-      });
-    },
-    [controller, file, guard, readOnly, showRelations],
-  );
+  function handleConnect(connection: Connection): void {
+    if (!controller || readOnly || connection.source === connection.target) return;
+    setConnectionRequest({
+      kind: 'relation',
+      fromNodeId: connection.source,
+      toNodeId: connection.target,
+      allowHierarchy: true,
+    });
+  }
 
   function revealConnection(edge: Edge): void {
     guard(async () => {
@@ -1496,6 +1591,12 @@ export default function App({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (connectionRequest) return;
+      if (pendingReconnect && event.key === 'Escape') {
+        event.preventDefault();
+        setPendingReconnect(null);
+        return;
+      }
       const target = event.target as HTMLElement | null;
       const elementTarget = event.target instanceof Element ? event.target : null;
       const isEditing =
@@ -1536,6 +1637,10 @@ export default function App({
         }
         if (settingsOpen) {
           setSettingsOpen(false);
+          return;
+        }
+        if (mobilePanel) {
+          closeMobilePanel();
           return;
         }
         setContextMenu(null);
@@ -1620,14 +1725,14 @@ export default function App({
         return;
       }
 
-      // 3. 随机位置开启新分支（默认 r，可自定义）
+      // Start an independent node in the current viewport.
       if (
         viewMode === '2d' &&
         isEventMatchingKeybinding(event, keybindings.addRandomBranch) &&
         file
       ) {
         event.preventDefault();
-        addRandomBranchNode();
+        addIndependentNode();
         return;
       }
 
@@ -1663,7 +1768,9 @@ export default function App({
     guard,
     selectedNodeId,
     addChildWithInheritedStyle,
-    addRandomBranchNode,
+    addIndependentNode,
+    connectionRequest,
+    pendingReconnect,
     deleteNode,
     putBranchOnClipboard,
     branchClipboard,
@@ -1679,6 +1786,8 @@ export default function App({
     saveModalOpen,
     searchOpen,
     viewMode,
+    mobilePanel,
+    closeMobilePanel,
   ]);
 
   function resetDemo(): void {
@@ -1703,7 +1812,7 @@ export default function App({
   const stats = snapshot.stats;
   return (
     <div
-      className="wst-app"
+      className={`wst-app${compactWorkspace ? ' is-compact' : ''}`}
       data-testid="phase1-root"
       onDragEnter={(event) => handleFileDrag(event, 1)}
       onDragLeave={(event) => handleFileDrag(event, -1)}
@@ -1725,7 +1834,12 @@ export default function App({
           松开以打开分支文件
         </div>
       )}
-      <div className="wst-tab-bar" role="tablist" aria-label="打开的分支文件">
+      <div
+        className="wst-tab-bar"
+        role="tablist"
+        aria-label="打开的分支文件"
+        hidden={compactWorkspace && tabs.length === 1}
+      >
         {tabs.map((tab) => (
           <div
             key={tab.id}
@@ -1813,6 +1927,13 @@ export default function App({
         </button>
       </div>
       <WorkspaceToolbar
+        compact={compactWorkspace}
+        directoryOpen={directoryOpen}
+        directoryToggleRef={directoryToggleRef}
+        onToggleDirectory={() => {
+          if (compactWorkspace) setMobilePanel(directoryOpen ? null : 'directory');
+          else setDesktopDirectoryOpen((open) => !open);
+        }}
         file={file}
         accountControl={accountControl}
         readOnly={readOnly}
@@ -1834,11 +1955,12 @@ export default function App({
         canDeleteNode={Boolean(selectedNode && selectedNode.id !== file.domain.project.rootNodeId)}
         onAddNode={addNode}
         onAddBranch={addBranch}
-        onAddRandomBranch={() => addRandomBranchNode()}
+        onAddRandomBranch={() => addIndependentNode()}
         onDeleteNode={deleteNode}
         onUndo={() => guard(() => controller.undo())}
         onRedo={() => guard(() => controller.redo())}
         onProjectView={(view) => {
+          setMobilePanel(null);
           setContextMenu(null);
           setSelectedEdgeId(null);
           setEditingEdge(null);
@@ -1884,35 +2006,57 @@ export default function App({
           )
         }
         onClearSpines={() => setHighlightSpineIds([])}
-        onToggleInspector={() => setInspectorOverride(!inspectorOpen)}
+        onToggleInspector={() => {
+          if (compactWorkspace) setMobilePanel(inspectorOpen ? null : 'inspector');
+          else setInspectorOverride(!inspectorOpen);
+        }}
         onImport={() => importRef.current?.click()}
         onExportJson={exportJson}
         onExportSvg={exportSvgFile}
         onResetDemo={resetDemo}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setMobilePanel(null);
+          setSettingsOpen(true);
+        }}
         onOpenProjects={() => setProjectsOpen(true)}
-        onOpenSearch={() => setSearchOpen(true)}
+        onNewProjectTab={() => void handleNewTab()}
+        onOpenSearch={() => {
+          setMobilePanel(null);
+          setSearchOpen(true);
+        }}
         searchShortcut={keybindings.searchNodes}
       />
       <input ref={importRef} type="file" accept=".json" multiple hidden onChange={importJson} />
 
       <div className="wst-body" onClick={() => setContextMenu(null)}>
-        {projectView === 'canvas' && layoutStrategy === 'date-constrained' && (
+        {projectView === 'canvas' && (
           <DateDirectory
             key={`dates-${activeTabId}`}
             nodes={file.domain.nodes}
             domain={file.domain}
             selectedId={selectedNodeId}
             compact={compactWorkspace}
+            open={directoryOpen}
+            onClose={() => {
+              if (compactWorkspace) closeMobilePanel();
+              else {
+                setDesktopDirectoryOpen(false);
+                directoryToggleRef.current?.focus({ preventScroll: true });
+              }
+            }}
             onLocate={(id) => locateProjectNode(id, false)}
+            onToggleTodo={readOnly ? undefined : toggleTodo}
           />
+        )}
+        {compactWorkspace && mobilePanel && projectView === 'canvas' && (
+          <div className="wst-panel-scrim" aria-hidden="true" onClick={closeMobilePanel} />
         )}
         <main
           className="wst-canvas"
           ref={canvasRef}
           tabIndex={-1}
           aria-label="项目画布"
-          inert={projectView === 'todos'}
+          inert={projectView === 'todos' || (compactWorkspace && mobilePanel !== null)}
         >
           {viewMode === '3d' && derived.graph ? (
             <Suspense fallback={<main className="wst-loading">正在加载三维渲染器…</main>}>
@@ -1943,13 +2087,25 @@ export default function App({
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
-              onSelectionChange={onSelectionChange}
-              onNodeClick={() => {
+              onNodeClick={(_, node) => {
+                if (pendingReconnect) {
+                  const { edge, end } = pendingReconnect;
+                  setPendingReconnect(null);
+                  applyReconnect(
+                    edge,
+                    end === 'source' ? node.id : edge.fromNodeId,
+                    end === 'target' ? node.id : edge.toNodeId,
+                  );
+                }
                 setSelectedEdgeId(null);
                 setEditingEdge(null);
                 canvasRef.current?.focus({ preventScroll: true });
               }}
               onPaneClick={() => {
+                if (pendingReconnect) {
+                  setPendingReconnect(null);
+                  return;
+                }
                 canvasRef.current?.focus({ preventScroll: true });
                 setSelectedNodeIds([]);
                 setSelectedEdgeId(null);
@@ -1960,6 +2116,7 @@ export default function App({
               onNodeContextMenu={(event, node) => {
                 event.preventDefault();
                 if (readOnly) return;
+                setPendingReconnect(null);
                 setSelectedEdgeId(null);
                 if (!selectedNodeIds.includes(node.id)) {
                   setSelectedNodeIds([node.id]);
@@ -1971,13 +2128,38 @@ export default function App({
                   targetId: node.id,
                 });
               }}
-              onPaneContextMenu={(event) => {
+              onDoubleClick={(event) => {
+                if (
+                  !readOnly &&
+                  event.target instanceof Element &&
+                  event.target.classList.contains('react-flow__pane')
+                ) {
+                  addIndependentNode({ x: event.clientX, y: event.clientY });
+                }
+              }}
+              onContextMenu={(event) => {
+                if (
+                  !(event.target instanceof Element) ||
+                  !event.target.classList.contains('react-flow__pane')
+                )
+                  return;
                 event.preventDefault();
                 if (readOnly) return;
                 setContextMenu({ x: event.clientX, y: event.clientY, kind: 'pane' });
               }}
-              onEdgeClick={(_, edge) => {
+              onEdgeClick={(event, edge) => {
                 selectConnection(edge.id);
+                const target = event.target;
+                const end =
+                  target instanceof Element &&
+                  target.classList.contains('react-flow__edgeupdater-source')
+                    ? 'source'
+                    : target instanceof Element &&
+                        target.classList.contains('react-flow__edgeupdater-target')
+                      ? 'target'
+                      : null;
+                const original = end && !readOnly ? directConnection(edge) : undefined;
+                setPendingReconnect(original && end ? { edge: original, end } : null);
                 canvasRef.current?.focus({ preventScroll: true });
               }}
               onEdgeDoubleClick={(event, edge) => {
@@ -2005,6 +2187,7 @@ export default function App({
               onEdgeContextMenu={(event, edge) => {
                 event.preventDefault();
                 if (readOnly) return;
+                setPendingReconnect(null);
                 selectConnection(edge.id);
                 setContextMenu({
                   x: event.clientX,
@@ -2014,22 +2197,48 @@ export default function App({
                 });
               }}
               onReconnect={reconnectConnection}
+              onReconnectStart={(_, edge) => {
+                setPendingReconnect(null);
+                draggingEdge.current = directConnection(edge) ?? null;
+              }}
+              onReconnectEnd={() => {
+                draggingEdge.current = null;
+              }}
               onConnect={handleConnect}
+              isValidConnection={({ source, target }) => {
+                if (source === target) return false;
+                const edge = draggingEdge.current;
+                if (!edge) return true;
+                if (edge.type === 'hierarchy') {
+                  return (
+                    target === edge.toNodeId &&
+                    !pathToRoot(file.domain.nodes, file.domain.edges, source).includes(target)
+                  );
+                }
+                return !file.domain.edges.some(
+                  (item) =>
+                    item.id !== edge.id &&
+                    item.type === edge.type &&
+                    item.fromNodeId === source &&
+                    item.toNodeId === target,
+                );
+              }}
               connectionLineStyle={{ stroke: '#2563eb', strokeWidth: 2, strokeDasharray: '5 5' }}
               connectionMode={ConnectionMode.Loose}
               connectionRadius={24}
               connectOnClick={false}
+              zoomOnDoubleClick={readOnly}
               {...nodeDragHandlers}
               nodesConnectable={!readOnly}
               nodesDraggable={!readOnly}
               deleteKeyCode={null}
-              selectionOnDrag
+              selectionOnDrag={!compactWorkspace}
               selectionMode={SelectionMode.Partial}
-              panOnDrag={[1, 2]}
+              panOnDrag={compactWorkspace ? true : [1, 2]}
               multiSelectionKeyCode={['Shift', 'Meta']}
               fitView
-              fitViewOptions={{ padding: FIT_PADDING[layoutDirection] }}
-              minZoom={0.1}
+              fitViewOptions={{ padding: compactWorkspace ? 0.18 : FIT_PADDING[layoutDirection] }}
+              minZoom={compactWorkspace ? 0.035 : 0.1}
               maxZoom={2.5}
               proOptions={{ hideAttribution: true }}
             >
@@ -2037,6 +2246,9 @@ export default function App({
                 fitTrigger={fitTrigger}
                 focusNodeId={focusNodeId}
                 editingNodeId={editingNodeId}
+                projectKey={activeTabId}
+                compact={compactWorkspace}
+                rootId={file.domain.project.rootNodeId}
                 onFocused={clearFocus}
                 direction={layoutDirection}
                 apiRef={flowApiRef}
@@ -2062,8 +2274,13 @@ export default function App({
                   </svg>
                 </ViewportPortal>
               )}
-              <Controls />
-              <MiniMap pannable zoomable style={{ width: 150, height: 108 }} />
+              <Controls
+                position={compactWorkspace ? 'bottom-right' : 'bottom-left'}
+                orientation={compactWorkspace ? 'horizontal' : 'vertical'}
+              />
+              {!compactWorkspace && (
+                <MiniMap pannable zoomable style={{ width: 150, height: 108 }} />
+              )}
             </ReactFlow>
           )}
           <WorkspacePopover label="操作指南" icon="help" align="start" className="wst-view-help">
@@ -2071,7 +2288,12 @@ export default function App({
               <>
                 <div className="wst-popover-heading">操作指南</div>
                 <ul className="wst-help-list">
-                  {viewMode === '3d' ? (
+                  {compactWorkspace ? (
+                    <>
+                      <li>拖动空白处平移，双指缩放</li>
+                      <li>点选卡片后打开属性查看笔记和任务</li>
+                    </>
+                  ) : viewMode === '3d' ? (
                     <>
                       <li>左键拖动旋转，右键拖动平移</li>
                       <li>滚轮缩放，点击选中节点</li>
@@ -2097,7 +2319,7 @@ export default function App({
                         <kbd>{keybindings.deleteNode}</kbd> 删除节点
                       </li>
                       <li>
-                        <kbd>{keybindings.addRandomBranch}</kbd> 随机新分支，
+                        <kbd>{keybindings.addRandomBranch}</kbd> 新建独立节点，
                         <kbd>{keybindings.fitView}</kbd> 适应视图
                       </li>
                     </>
@@ -2106,6 +2328,18 @@ export default function App({
               </>
             )}
           </WorkspacePopover>
+          {pendingReconnect && !readOnly && (
+            <div className="wst-reconnect-status" role="status">
+              {pendingReconnect.edge.type === 'hierarchy'
+                ? '选择新母节点，整支会随之移动'
+                : pendingReconnect.end === 'source'
+                  ? '选择新的起点'
+                  : '选择新的终点'}
+              <button className="wst-tool" type="button" onClick={() => setPendingReconnect(null)}>
+                取消
+              </button>
+            </div>
+          )}
           {editingEdge && !readOnly && (
             <form
               className="wst-edge-note-form"
@@ -2154,11 +2388,33 @@ export default function App({
           {contextMenu && !readOnly && (
             <div
               className="wst-context-menu"
-              style={{ left: contextMenu.x, top: contextMenu.y }}
+              style={compactWorkspace ? undefined : { left: contextMenu.x, top: contextMenu.y }}
               onClick={(event) => event.stopPropagation()}
             >
               {contextMenu.kind === 'node' && contextMenu.targetId && (
                 <>
+                  {contextMenu.targetId !== file.domain.project.rootNodeId && (
+                    <button
+                      type="button"
+                      className="wst-context-item"
+                      onClick={() => {
+                        setConnectionRequest({ kind: 'move', nodeId: contextMenu.targetId! });
+                        setContextMenu(null);
+                      }}
+                    >
+                      挂到…
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="wst-context-item"
+                    onClick={() => {
+                      setConnectionRequest({ kind: 'adopt', nodeId: contextMenu.targetId! });
+                      setContextMenu(null);
+                    }}
+                  >
+                    接入已有分支
+                  </button>
                   <button
                     type="button"
                     className="wst-context-item"
@@ -2311,7 +2567,11 @@ export default function App({
                     onClick={() => {
                       const targetId = contextMenu.targetId!;
                       if (targetId !== file.domain.project.rootNodeId) {
-                        guard(() => controller.run(deleteSubtreeEntry(file.domain, targetId)));
+                        guard(() =>
+                          controller.runFromLatest(({ domain }) =>
+                            deleteSubtreeEntry(domain, targetId),
+                          ),
+                        );
                         setSelectedNodeIds([]);
                       }
                       setContextMenu(null);
@@ -2337,11 +2597,11 @@ export default function App({
                     type="button"
                     className="wst-context-item"
                     onClick={() => {
-                      addRandomBranchNode({ x: contextMenu.x, y: contextMenu.y });
+                      addIndependentNode({ x: contextMenu.x, y: contextMenu.y });
                       setContextMenu(null);
                     }}
                   >
-                    🎲 随机位置开启新分支 (R)
+                    新建独立节点
                   </button>
                   <button
                     type="button"
@@ -2434,6 +2694,25 @@ export default function App({
                           type="button"
                           className="wst-context-item"
                           onClick={() => {
+                            setConnectionRequest(
+                              edge.type === 'hierarchy'
+                                ? { kind: 'move', nodeId: edge.toNodeId }
+                                : {
+                                    kind: 'relation',
+                                    edgeId: edge.id,
+                                    fromNodeId: edge.fromNodeId,
+                                    toNodeId: edge.toNodeId,
+                                  },
+                            );
+                            setContextMenu(null);
+                          }}
+                        >
+                          {edge.type === 'hierarchy' ? '更换母节点' : '编辑关联'}
+                        </button>
+                        <button
+                          type="button"
+                          className="wst-context-item"
+                          onClick={() => {
                             editConnectionNote(edge, contextMenu.x, contextMenu.y);
                             setContextMenu(null);
                           }}
@@ -2488,11 +2767,16 @@ export default function App({
           onScalePreview={previewInspectorScale}
           onScaleApply={applyInspectorScale}
           onClose={() => {
-            setInspectorOverride(false);
-            inspectorToggleRef.current?.focus();
+            if (compactWorkspace) closeMobilePanel();
+            else {
+              setInspectorOverride(false);
+              inspectorToggleRef.current?.focus();
+            }
           }}
           autoSave={settings.autoSaveNode}
           onLocate={locateNode}
+          onConnection={setConnectionRequest}
+          onDetach={(id) => moveBranch(id, null)}
           onDelete={
             !readOnly && selectedNode?.id !== file.domain.project.rootNodeId
               ? deleteNode
@@ -2501,7 +2785,7 @@ export default function App({
           onEditOnCanvas={
             !readOnly && viewMode === '2d'
               ? (id) => {
-                  if (compactWorkspace) setInspectorOverride(false);
+                  if (compactWorkspace) setMobilePanel(null);
                   locateNode(id);
                   handleStartEdit(id);
                 }
@@ -2518,12 +2802,15 @@ export default function App({
           redoDepth={snapshot.redoDepth}
           onUndo={() => guard(() => controller.undo())}
           onRedo={() => guard(() => controller.redo())}
-          onSave={async (source, draft) => {
+          onCreate={(draft) => {
+            const day = localToday();
             setUiError(null);
-            await controller.run(saveTodoEntry(controller.getSnapshot().file, source, draft));
-            const error = controller.getSnapshot().error;
-            if (error) throw new Error(error);
+            return controller.runFromLatest((latest) => saveTodoEntry(latest, null, draft, day));
           }}
+          onUpdate={updateTodo}
+          onDelete={(source) =>
+            controller.runFromLatest((latest) => deleteTodoEntry(latest, source))
+          }
         />
       </div>
 
@@ -2579,6 +2866,29 @@ export default function App({
           setUiError(null);
         }}
       />
+
+      {connectionRequest && !readOnly && (
+        <ConnectionDialog
+          domain={file.domain}
+          request={connectionRequest}
+          onClose={() => setConnectionRequest(null)}
+          onSave={async ({ fromNodeId, toNodeId, type, note, keepPosition }) => {
+            setUiError(null);
+            if (type === 'hierarchy') {
+              await commitBranchMove(toNodeId, fromNodeId, keepPosition);
+              return;
+            }
+            const id = connectionRequest.kind === 'relation' ? connectionRequest.edgeId : undefined;
+            await controller.runFromLatest(({ domain }) =>
+              saveRelationEntry(domain, { fromNodeId, toNodeId, type, note }, id),
+            );
+            const error = controller.getSnapshot().error;
+            if (error) throw new Error(error);
+            setShowRelations(true);
+            setSelectedEdgeId(null);
+          }}
+        />
+      )}
 
       <SearchModal
         open={searchOpen}

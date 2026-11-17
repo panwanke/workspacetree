@@ -115,8 +115,8 @@ describe('Markdown 快捷键与命令处理 (commands.ts)', () => {
     expect(target.state.selection.main.from).toBe(6);
 
     // 切换勾选状态（[ ] -> [x]）
-    expect(toggleTaskCheck(target)).toBe(true);
-    expect(target.docString()).toBe('- [x] 开发新功能');
+    expect(toggleTaskCheck(target, '2026-11-17')).toBe(true);
+    expect(target.docString()).toBe('- [x] 开发新功能 ✅ 2026-11-17');
 
     // 再次切换勾选状态（[x] -> [ ]）
     expect(toggleTaskCheck(target)).toBe(true);
@@ -127,6 +127,17 @@ describe('Markdown 快捷键与命令处理 (commands.ts)', () => {
     const target = createTestTarget('这是一段重要信息', { from: 0, to: 8 });
     expect(insertCallout(target, 'warning')).toBe(true);
     expect(target.docString()).toBe('> [!warning]\n> 这是一段重要信息');
+  });
+
+  it('leaves fenced checklist examples unchanged', () => {
+    const doc = '~~~md\n- [ ] Example\n~~~';
+    const target = createTestTarget(doc, {
+      from: doc.indexOf('Example'),
+      to: doc.indexOf('Example'),
+    });
+    expect(toggleTaskCheck(target)).toBe(false);
+    expect(target.docString()).toBe(doc);
+    expect(target.state.field(livePreviewField).size).toBe(0);
   });
 
   it('handleListEnter 智能延续列表前缀与回车退出', () => {

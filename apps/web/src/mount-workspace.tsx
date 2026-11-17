@@ -3,6 +3,7 @@ import './styles.css';
 import './workspace.css';
 import './todos.css';
 import './tags.css';
+import './workspace-mobile.css';
 import { StrictMode, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 

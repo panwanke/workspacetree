@@ -62,6 +62,7 @@ export class EditorController {
   };
   private lastAction = '就绪';
   private error: string | null = null;
+  private pendingEdit = Promise.resolve();
 
   constructor(
     private readonly storage: StorageAdapter,
@@ -151,7 +152,7 @@ export class EditorController {
       actor: { kind: entry.actorKind, id: 'local-canvas' },
       commands,
     });
-    const reloaded = await this.storage.load(this.file.projectId);
+    const reloaded = outcome.file ?? (await this.storage.load(this.file.projectId));
     if (!reloaded) throw new Error('branch file vanished after write');
     this.file = reloaded;
     this.stats.persistedBatches += 1;
@@ -219,23 +220,37 @@ export class EditorController {
     }
   }
 
-  private async safely(action: () => Promise<void>): Promise<void> {
-    try {
-      if (this.isReadOnly) throw new Error('This tab is read-only');
-      await action();
-    } catch (cause) {
-      this.error = cause instanceof Error ? cause.message : String(cause);
-    }
-    this.emit();
+  private safely(action: () => Promise<void>, propagateError = false): Promise<void> {
+    const operation = this.pendingEdit.then(async () => {
+      try {
+        if (this.isReadOnly) throw new Error('This tab is read-only');
+        this.error = null;
+        await action();
+      } catch (cause) {
+        this.error = cause instanceof Error ? cause.message : String(cause);
+        if (propagateError) throw cause;
+      } finally {
+        this.emit();
+      }
+    });
+    this.pendingEdit = operation.catch(() => {});
+    return operation;
   }
 
-  async run(entry: HistoryEntry): Promise<void> {
-    await this.safely(async () => {
-      await this.applyEntry(entry, 'forward');
-      this.undoStack.push(entry);
-      this.redoStack.length = 0;
-      this.lastAction = entry.label;
-    });
+  private async runEntry(entry: HistoryEntry | undefined): Promise<void> {
+    if (!entry || (!entry.forward.length && !entry.chained?.forward.length)) return;
+    await this.applyEntry(entry, 'forward');
+    this.undoStack.push(entry);
+    this.redoStack.length = 0;
+    this.lastAction = entry.label;
+  }
+
+  run(entry: HistoryEntry): Promise<void> {
+    return this.safely(() => this.runEntry(entry));
+  }
+
+  runFromLatest(build: (file: BranchFile) => HistoryEntry | undefined): Promise<void> {
+    return this.safely(() => this.runEntry(build(this.file)), true);
   }
 
   /** Stage each project's commands through the service and publish both in one transaction. */
