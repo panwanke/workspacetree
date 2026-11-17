@@ -8,6 +8,7 @@ export default function RelationEdge({
   targetX,
   targetY,
   sourcePosition,
+  markerStart,
   markerEnd,
   data,
   selected,
@@ -18,6 +19,8 @@ export default function RelationEdge({
   const dimmed = data?.dimmed === true;
   const baseColor =
     typeof data?.color === 'string' ? data.color : kind === 'hierarchy' ? '#94a3b8' : '#dc2626';
+  const baseWidth = typeof data?.width === 'number' ? data.width : kind === 'hierarchy' ? 1.8 : 2;
+  const dashArray = typeof data?.dashArray === 'string' ? data.dashArray : undefined;
   const path = directionalBezierPath(
     { x: sourceX, y: sourceY },
     { x: targetX, y: targetY },
@@ -26,6 +29,7 @@ export default function RelationEdge({
   return (
     <BaseEdge
       path={path}
+      markerStart={markerStart}
       markerEnd={markerEnd}
       interactionWidth={interactionWidth}
       label={typeof data?.note === 'string' ? data.note : undefined}
@@ -35,8 +39,9 @@ export default function RelationEdge({
       labelBgStyle={{ fill: '#fff' }}
       style={{
         stroke: selected ? '#2563eb' : highlighted ? '#ea580c' : baseColor,
-        strokeWidth: selected || highlighted ? 3 : kind === 'hierarchy' ? 1.8 : 2,
-        strokeDasharray: kind === 'hierarchy' ? undefined : '6 4',
+        strokeWidth: selected || highlighted ? Math.max(3, baseWidth) : baseWidth,
+        strokeDasharray: dashArray,
+        strokeLinecap: dashArray === '1 5' ? 'round' : undefined,
         opacity: dimmed && !selected ? 0.18 : 1,
         transition: 'stroke 160ms ease, stroke-width 160ms ease, opacity 160ms ease',
       }}

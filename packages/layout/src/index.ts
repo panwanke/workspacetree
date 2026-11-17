@@ -5,6 +5,7 @@
  * 该包可在无 React 环境下独立调用与测试；画布与 SVG 导出共用同一组几何函数。
  */
 export * from './types.js';
+export * from './edge-style.js';
 export * from './tree.js';
 export * from './geometry.js';
 export * from './edges.js';

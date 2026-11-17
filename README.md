@@ -48,7 +48,9 @@ Both views support horizontal and vertical layouts. Undated parent nodes are pos
 - Create, move, copy, cut, paste and collapse branches, including across project tabs.
 - Real-time Markdown live editing & preview with CodeMirror 6, formatting shortcuts, Callouts and 5-state tasks (`[ ]`, `[x]`, `[-]`, `[~]`, `[?]`).
 - Self-contained image embedding with SHA-256 deduplication, automatic Worker compression (1 MiB / 2048 px threshold) and drag-to-resize relative width (`{width=X%}`).
-- Edit node dates, Markdown notes, tags, tasks, sizes and connections, with auto-save on blur and 5-second draft backup.
+- Edit node dates, Markdown notes, tags, tasks, sizes and connections; click an edge to inspect its relation, endpoints, note and appearance, then set color, width, line style and arrows or copy/apply styles in bulk. Drafts auto-save on blur and every five seconds.
+- Search node titles, optional Markdown bodies and connection notes; selecting an edge result expands collapsed ancestors and opens the edge inspector.
+- Edge styles live in presentation state (schema v3) and round-trip through undo/redo, branch transfer, JSON and branchpack. The 2D canvas and SVG export share the same resolved styles; 3D remains unchanged.
 - Browse tasks by branch and locate nodes using the date directory.
 - Switch between 2D and 3D, highlight paths and export SVG.
 - Import .branch.json files. Press Ctrl+S or ⌘S to save, or choose **Project → Save as** to export a copy.

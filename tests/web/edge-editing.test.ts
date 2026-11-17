@@ -4,11 +4,17 @@ import { resolveVisualGraph } from '@workspacetree/layout';
 import { createDemoBranchFile } from '../fixtures/phase1-demo';
 import { EditorController } from '../../apps/web/src/editor';
 import {
+  orientConnection,
   reconnectEdgeEntry,
   saveRelationEntry,
   setEdgeNoteEntry,
 } from '../../apps/web/src/edge-editing';
-import { addEdgeEntry, removeEdgeEntry } from '../../apps/web/src/history';
+import {
+  addEdgeEntry,
+  removeEdgeEntry,
+  setEdgeStyleEntry,
+  setEdgeStylesEntry,
+} from '../../apps/web/src/history';
 
 async function setup() {
   const storage = new MemoryStorageAdapter();
@@ -19,6 +25,28 @@ async function setup() {
 }
 
 describe('canvas edge editing', () => {
+  it('keeps the drag start as source even when Loose mode swaps the connection endpoints', () => {
+    // 从 A 拖到 B 通常得到 A→B
+    expect(orientConnection({ source: 'A', target: 'B' }, 'A')).toEqual({
+      fromNodeId: 'A',
+      toNodeId: 'B',
+    });
+    // 命中 A 的 target handle 时 React Flow 会把连接重排为 B→A，需按起点校正回 A→B
+    expect(orientConnection({ source: 'B', target: 'A' }, 'A')).toEqual({
+      fromNodeId: 'A',
+      toNodeId: 'B',
+    });
+    // 起点是终点节点时应尊重原始 connection（例如程序化触发，无明确拖拽起点）
+    expect(orientConnection({ source: 'B', target: 'A' }, 'B')).toEqual({
+      fromNodeId: 'B',
+      toNodeId: 'A',
+    });
+    expect(orientConnection({ source: 'A', target: 'B' }, null)).toEqual({
+      fromNodeId: 'A',
+      toNodeId: 'B',
+    });
+  });
+
   it('edits both endpoints, type and note in one undoable change', async () => {
     const { editor, domain, edge } = await setup();
     const before = domain().edges;
@@ -144,5 +172,65 @@ describe('canvas edge editing', () => {
     // Redo should restore the edge
     await editor.redo();
     expect(domain().edges.some((e) => e.id === newEdgeId)).toBe(true);
+  });
+
+  it('stores one undoable edge style change without touching the domain', async () => {
+    const { editor, edge } = await setup();
+    const beforeSemantic = editor.getSnapshot().file.revisions.semanticHash;
+    const style = {
+      color: '#123abc',
+      width: 3,
+      lineStyle: 'dotted' as const,
+      arrow: 'both' as const,
+    };
+
+    await editor.run(setEdgeStyleEntry(editor.getSnapshot().file, edge.id, style)!);
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[edge.id]).toEqual(style);
+    expect(editor.getSnapshot().file.revisions.semanticHash).toBe(beforeSemantic);
+
+    await editor.undo();
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[edge.id]).toBeUndefined();
+    await editor.redo();
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[edge.id]).toEqual(style);
+  });
+
+  it('applies and undoes a batch of edge styles in one step', async () => {
+    const { editor, domain } = await setup();
+    const [first, second] = domain().edges.filter((edge) => edge.type !== 'hierarchy');
+    if (!first || !second) throw new Error('demo file needs two non-hierarchy edges');
+    const style = {
+      color: '#ab12cd',
+      width: 5,
+      lineStyle: 'solid' as const,
+      arrow: 'start' as const,
+    };
+
+    await editor.run(
+      setEdgeStylesEntry(editor.getSnapshot().file, [
+        { edgeId: first.id, style },
+        { edgeId: second.id, style },
+      ])!,
+    );
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[first.id]).toEqual(style);
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[second.id]).toEqual(style);
+    expect(editor.getSnapshot().undoDepth).toBe(1);
+
+    await editor.undo();
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[first.id]).toBeUndefined();
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[second.id]).toBeUndefined();
+  });
+
+  it('restores an edge style when deleting the edge is undone', async () => {
+    const { editor, edge } = await setup();
+    const style = { color: '#ff8800', width: 2.5, arrow: 'both' as const };
+    await editor.run(setEdgeStyleEntry(editor.getSnapshot().file, edge.id, style)!);
+    await editor.run(removeEdgeEntry(editor.getSnapshot().file, edge.id));
+
+    expect(editor.getSnapshot().file.domain.edges.some((item) => item.id === edge.id)).toBe(false);
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[edge.id]).toBeUndefined();
+
+    await editor.undo();
+    expect(editor.getSnapshot().file.domain.edges.some((item) => item.id === edge.id)).toBe(true);
+    expect(editor.getSnapshot().file.presentation.edgeStyles?.[edge.id]).toEqual(style);
   });
 });

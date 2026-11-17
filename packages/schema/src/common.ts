@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const ID_PREFIX = {
   project: 'prj_',
@@ -26,6 +26,11 @@ export const MAX_NODE_SCALE = 2;
 export const ScaleSchema = z.number().min(MIN_DISPLAY_SCALE).max(MAX_DISPLAY_SCALE);
 export const NodeScaleSchema = z.number().min(MIN_NODE_SCALE).max(MAX_NODE_SCALE);
 export const EdgeTypeSchema = z.enum(['hierarchy', 'dependency', 'reference', 'custom']);
+export const EdgeLineStyleSchema = z.enum(['solid', 'dashed', 'dotted']);
+export const EdgeArrowSchema = z.enum(['none', 'start', 'end', 'both']);
+export const MIN_EDGE_WIDTH = 0.5;
+export const MAX_EDGE_WIDTH = 12;
+export const EdgeWidthSchema = z.number().min(MIN_EDGE_WIDTH).max(MAX_EDGE_WIDTH);
 export const ActorKindSchema = z.enum(['human', 'agent', 'external-import']);
 export const StateClassSchema = z.enum(['domain', 'presentation']);
 export const ProjectRefModeSchema = z.enum(['link', 'preview', 'inline']);
@@ -74,5 +79,7 @@ export const COMMAND_TYPE_PATTERN =
   /^(project|node|task|edge|spine|branch|presentation|history|workspace|import)\.[a-z][A-Za-z0-9]*$/;
 
 export type EdgeType = z.infer<typeof EdgeTypeSchema>;
+export type EdgeLineStyle = z.infer<typeof EdgeLineStyleSchema>;
+export type EdgeArrow = z.infer<typeof EdgeArrowSchema>;
 export type ActorKind = z.infer<typeof ActorKindSchema>;
 export type StateClass = z.infer<typeof StateClassSchema>;

@@ -157,4 +157,36 @@ describe('T-30 SVG 导出', () => {
     expect(result.svg).toContain('https://example.com/ext.png');
     expect(result.svg).toContain('<image ');
   });
+
+  it('exports edge width, dotted dashes and both arrow heads from resolved styles', () => {
+    const edge = domain.edges.find((item) => item.type === 'hierarchy')!;
+    const graph = resolveVisualGraph(domain, {
+      nodePositions: {},
+      verticalNodePositions: {},
+      branchScales: {},
+      nodeScales: {},
+      collapsedByDefault: [],
+      layoutDirection: 'horizontal',
+      edgeStyles: {
+        [edge.id]: {
+          color: '#0a7c42',
+          width: 3.5,
+          lineStyle: 'dotted',
+          arrow: 'both',
+        },
+      },
+    });
+    const result = exportSvg({
+      nodes: domain.nodes,
+      edges: domain.edges,
+      positions: graph.positions,
+      graph,
+      tasks: domain.tasks,
+    });
+    expect(result.svg).toContain('stroke="#0a7c42"');
+    expect(result.svg).toContain('stroke-width="3.5"');
+    expect(result.svg).toContain('stroke-dasharray="1 5"');
+    expect(result.svg).toContain('marker-start="url(#wst-arrow-0)"');
+    expect(result.svg).toContain('marker-end="url(#wst-arrow-0)"');
+  });
 });

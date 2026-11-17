@@ -446,4 +446,43 @@ describe('subtree movement', () => {
     expect(restoredIncoming?.fromNodeId).toBe('n_init');
     expect(restoredIncoming?.role).toBeUndefined();
   });
+
+  it('remaps edge styles when a branch is copied to another project', async () => {
+    const storage = new IdbJsonStorageAdapter(createMemoryKeyValueStore());
+    const seed = createDemoBranchFile();
+    const child = seed.domain.nodes.find((node) => node.id === 'n_writing_template')!;
+    const styledEdge = seed.domain.edges.find(
+      (edge) => edge.type === 'hierarchy' && edge.toNodeId === child.id,
+    )!;
+    const style = {
+      color: '#13579b',
+      width: 4,
+      lineStyle: 'dashed' as const,
+      arrow: 'both' as const,
+    };
+    seed.presentation.edgeStyles = { [styledEdge.id]: style };
+    seed.revisions.presentationHash = computePresentationHash(seed.presentation);
+    seed.revisions.fileHash = computeFileHash(seed);
+
+    const source = await EditorController.bootstrap(storage, () => seed);
+    const target = await EditorController.bootstrap(storage, createEmptyBranchFile);
+    const parentId = target.getSnapshot().file.domain.project.rootNodeId;
+    const copy = transferBranch(
+      source.getSnapshot().file,
+      target.getSnapshot().file,
+      sourceId,
+      parentId,
+      'date-constrained',
+    );
+    await target.run(copy.receive);
+
+    const moved = target.getSnapshot().file;
+    const movedChild = moved.domain.nodes.find((node) => node.title === child.title)!;
+    const incoming = moved.domain.edges.find(
+      (edge) => edge.type === 'hierarchy' && edge.toNodeId === movedChild.id,
+    )!;
+    expect(incoming.id).not.toBe(styledEdge.id);
+    expect(moved.presentation.edgeStyles?.[incoming.id]).toEqual(style);
+    expect(source.getSnapshot().file.presentation.edgeStyles?.[styledEdge.id]).toEqual(style);
+  });
 });

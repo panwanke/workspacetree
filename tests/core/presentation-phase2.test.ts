@@ -4,6 +4,7 @@ import {
   canonicalize,
   CommandService,
   computePresentationHash,
+  computeSemanticHash,
   validatePresentation,
 } from '@workspacetree/core';
 import { createMinimalBranchFile } from '@workspacetree/cli';
@@ -357,5 +358,33 @@ describe('Phase 2 history 与 EditorController', () => {
     expect(editor.getSnapshot().file.domain.nodes[0]!.title).toBe('Imported root');
     expect(editor.getSnapshot().file.presentation.nodeScales?.n_root).toBe(1.8);
     expect(executeBatch).toHaveBeenCalledTimes(6);
+  });
+
+  it('edge style is presentation-only and participates in presentation hash', () => {
+    const file = createMinimalBranchFile();
+    const style = {
+      color: '#123abc',
+      width: 4,
+      lineStyle: 'dotted' as const,
+      arrow: 'both' as const,
+    };
+    const beforeSemantic = computeSemanticHash(file.domain);
+    const beforePresentation = computePresentationHash(file.presentation);
+    const result = reduce(file, 'presentation.setEdgeStyle', { edgeId: 'e_test', style });
+    expect(result.commit).toBeNull();
+    expect(computeSemanticHash(result.domain)).toBe(beforeSemantic);
+    expect(computePresentationHash(result.presentation)).not.toBe(beforePresentation);
+    expect(result.presentation.edgeStyles?.e_test).toEqual(style);
+    expect(() => validatePresentation(result.presentation)).not.toThrow();
+
+    const styledFile = { ...file, presentation: result.presentation };
+    const cleared = reduce(styledFile, 'presentation.setEdgeStyle', {
+      edgeId: 'e_test',
+      style: null,
+    });
+    const fileWithoutField = { ...file, presentation: { ...file.presentation } };
+    expect(computePresentationHash(cleared.presentation)).toBe(
+      computePresentationHash(fileWithoutField.presentation),
+    );
   });
 });

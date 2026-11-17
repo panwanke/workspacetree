@@ -3,7 +3,13 @@
  * 归档 archived 属 DomainState，缩放 scale 属 SavedPresentation，二者不自动联动（C8）。
  */
 import { z } from 'zod';
-import { NodeScaleSchema, ScaleSchema } from './common.js';
+import {
+  EdgeArrowSchema,
+  EdgeLineStyleSchema,
+  EdgeWidthSchema,
+  NodeScaleSchema,
+  ScaleSchema,
+} from './common.js';
 import {
   BlockSchema,
   EdgeSchema,
@@ -53,6 +59,16 @@ export const NodeSizeSchema = z.object({
   height: z.number().positive(),
 });
 
+export const EdgeStyleSchema = z.object({
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  width: EdgeWidthSchema.optional(),
+  lineStyle: EdgeLineStyleSchema.optional(),
+  arrow: EdgeArrowSchema.optional(),
+});
+
 export const SavedPresentationSchema = z.object({
   nodePositions: z.record(z.string(), PositionSchema),
   verticalNodePositions: z.record(z.string(), PositionSchema).nullish(),
@@ -60,6 +76,7 @@ export const SavedPresentationSchema = z.object({
   branchScaleCompensation: z.record(z.string(), z.number().positive()).optional(),
   nodeScales: z.record(z.string(), NodeScaleSchema).nullish(),
   nodeSizes: z.record(z.string(), NodeSizeSchema).nullish(),
+  edgeStyles: z.record(z.string(), EdgeStyleSchema).optional(),
   collapsedByDefault: z.array(z.string()),
   savedSpineDisplay: z.string().nullable(),
   layoutDirection: LayoutDirectionSchema.nullish(),
@@ -92,6 +109,7 @@ export const BranchFileSchema = z.object({
 
 export type AssetRecord = z.infer<typeof AssetRecordSchema>;
 export type DomainState = z.infer<typeof DomainStateSchema>;
+export type EdgeStyle = z.infer<typeof EdgeStyleSchema>;
 export type LayoutDirection = z.infer<typeof LayoutDirectionSchema>;
 export type SavedPresentation = z.infer<typeof SavedPresentationSchema>;
 export type SessionView = z.infer<typeof SessionViewSchema>;

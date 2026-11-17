@@ -2,6 +2,10 @@
 
 ## 2026-11-17
 
+- **连线属性与样式系统**：单击线段打开独立属性面板，支持查看/编辑关系、母节点、端点定位、备注及样式（常用 7×2 色板、自定义/最近颜色、粗细、实线/虚线/点线、起点/终点/双向箭头）；聚合边按原始关系逐条编辑。新增内存样式剪贴板与批量应用对话框；搜索支持连线备注并自动展开定位。
+- **Schema v3 与呈现状态联动**：`SavedPresentation.edgeStyles` 以原始边 ID 持久化样式，新增 v2→v3 迁移和 `presentation.setEdgeStyle` 命令；样式随删除、子树删除、解除父子与跨项目分支复制/移动一致撤销/恢复，不改变语义哈希。
+- **2D/SVG 统一样式渲染**：layout 层统一解析默认、覆盖和聚合样式；React Flow 与 SVG 导出共享线宽、线型与箭头配置。3D 画布保持原有渲染，不在本期范围内。
+
 - **统一任务体系与完成时间跟踪**：`TaskSchema` 增加可选 `completedAt` 字段；`packages/markdown` 新增 `workspace-tasks.ts`，打通结构化任务与 Markdown 内嵌任务的统一索引与双向计数；`packages/core` 在任务完成/取消切换时自动维护 `completedAt`，并在 `workspace.replace` 增加语义哈希校验防覆写；项目 TODO 面板支持原位快捷编辑、日期计划与标签联动。
 - **关联连线对话框与关系编辑**：新增 `ConnectionDialog.tsx`，支持父子层级挂载、前后置依赖、引用及自定义关联连线的统一创建与编辑；支持节点快速搜索、循环归属校验以及关联备注（note）的撤销/重做事务。
 - **画布节点 Markdown 动态高度与移动端触控优化**：`packages/layout` 根据 Markdown 笔记内容智能计算节点卡片最小高度；新增 `workspace-mobile.css`，针对小屏与触控设备优化 44px 目标交互、安全区边距（dvh）与工具栏折叠收纳。

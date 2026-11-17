@@ -1,23 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DomainState, Node } from '@workspacetree/schema';
-import { getNodeNote } from './history';
+import type { DomainState } from '@workspacetree/schema';
+import { relationLabels } from './ConnectionDialog';
+import { searchWorkspace, type WorkspaceSearchResult } from './search';
 import { WorkspaceIcon } from './WorkspaceIcon';
-
-interface SearchResultItem {
-  node: Node;
-  matchedInTitle: boolean;
-  matchedInNote: boolean;
-  snippet?: string;
-}
 
 interface SearchModalProps {
   open: boolean;
   onClose: () => void;
   domain: DomainState;
   onSelectNode: (nodeId: string) => void;
+  onSelectEdge: (edgeId: string) => void;
 }
 
-export default function SearchModal({ open, onClose, domain, onSelectNode }: SearchModalProps) {
+export default function SearchModal({
+  open,
+  onClose,
+  domain,
+  onSelectNode,
+  onSelectEdge,
+}: SearchModalProps) {
   const [query, setQuery] = useState('');
   const [includeMarkdown, setIncludeMarkdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -35,114 +36,70 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
     }
   }, [open]);
 
-  const results: SearchResultItem[] = useMemo(() => {
-    if (!open) return [];
-    const q = query.trim().toLowerCase();
-    const list: SearchResultItem[] = [];
+  const results = useMemo(
+    () => (open ? searchWorkspace(domain, query, includeMarkdown) : []),
+    [open, query, includeMarkdown, domain],
+  );
+  const nodeCount = results.filter((item) => item.kind === 'node').length;
+  const edgeCount = results.length - nodeCount;
 
-    for (const node of domain.nodes) {
-      const title = node.title || '未命名节点';
-      const note = getNodeNote(domain, node.id);
-
-      if (!q) {
-        // 初始未输入时按节点出现顺序展示全部
-        list.push({
-          node,
-          matchedInTitle: true,
-          matchedInNote: false,
-        });
-        continue;
-      }
-
-      const inTitle = title.toLowerCase().includes(q);
-      const noteLower = note.toLowerCase();
-      const noteIdx = includeMarkdown ? noteLower.indexOf(q) : -1;
-      const inNote = noteIdx !== -1;
-
-      if (inTitle || inNote) {
-        let snippet: string | undefined;
-        if (inNote) {
-          const start = Math.max(0, noteIdx - 20);
-          const end = Math.min(note.length, noteIdx + q.length + 32);
-          const prefix = start > 0 ? '...' : '';
-          const suffix = end < note.length ? '...' : '';
-          snippet = prefix + note.slice(start, end).replace(/\s+/g, ' ') + suffix;
-        }
-        list.push({
-          node,
-          matchedInTitle: inTitle,
-          matchedInNote: inNote,
-          snippet,
-        });
-      }
-    }
-    return list;
-  }, [open, query, includeMarkdown, domain]);
-
-  // 当搜索结果发生变动时重置选中索引
   useEffect(() => {
     setSelectedIndex(0);
   }, [query, includeMarkdown]);
 
-  // 保证选中项在可视区域内
   useEffect(() => {
     if (listRef.current) {
       const selectedEl = listRef.current.querySelector<HTMLElement>('.wst-search-item.is-selected');
-      if (selectedEl) {
-        selectedEl.scrollIntoView({ block: 'nearest' });
-      }
+      selectedEl?.scrollIntoView({ block: 'nearest' });
     }
   }, [selectedIndex]);
 
   if (!open) return null;
 
-  function commitSelect(nodeId: string) {
-    onSelectNode(nodeId);
+  function commitSelect(item: WorkspaceSearchResult): void {
+    if (item.kind === 'node') onSelectNode(item.id);
+    else onSelectEdge(item.edge.id);
     onClose();
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex((prev) => (results.length > 0 ? (prev + 1) % results.length : 0));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex((prev) =>
-        results.length > 0 ? (prev - 1 + results.length) % results.length : 0,
+  function handleKeyDown(event: React.KeyboardEvent): void {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSelectedIndex((previous) => (results.length > 0 ? (previous + 1) % results.length : 0));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSelectedIndex((previous) =>
+        results.length > 0 ? (previous - 1 + results.length) % results.length : 0,
       );
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (results[selectedIndex]) {
-        commitSelect(results[selectedIndex].node.id);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const item = results[selectedIndex];
+      if (item) commitSelect(item);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
       onClose();
     }
   }
 
-  function renderHighlightedText(text: string, highlight: string) {
+  function renderHighlightedText(text: string, highlight: string): React.ReactNode {
     if (!highlight.trim()) return text;
     const q = highlight.trim().toLowerCase();
     const parts: React.ReactNode[] = [];
-    let cur = text;
+    let current = text;
     let key = 0;
-
-    while (cur) {
-      const idx = cur.toLowerCase().indexOf(q);
-      if (idx === -1) {
-        parts.push(cur);
+    while (current) {
+      const index = current.toLowerCase().indexOf(q);
+      if (index === -1) {
+        parts.push(current);
         break;
       }
-      if (idx > 0) {
-        parts.push(cur.slice(0, idx));
-      }
+      if (index > 0) parts.push(current.slice(0, index));
       parts.push(
         <mark key={key++} className="wst-search-mark">
-          {cur.slice(idx, idx + q.length)}
+          {current.slice(index, index + q.length)}
         </mark>,
       );
-      cur = cur.slice(idx + q.length);
+      current = current.slice(index + q.length);
     }
     return parts;
   }
@@ -152,13 +109,12 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
       className="wst-modal-backdrop wst-search-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="搜索项目节点"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      aria-label="搜索项目节点与连线"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <div className="wst-search-modal" onKeyDown={handleKeyDown}>
-        {/* 顶部搜索输入栏 */}
         <div className="wst-search-header">
           <span className="wst-search-icon" aria-hidden="true">
             <WorkspaceIcon name="search" size={18} />
@@ -168,9 +124,9 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
             className="wst-search-input"
             type="text"
             value={query}
-            placeholder="搜索节点标题... (支持键盘上下键切换，按 Enter 直达)"
+            placeholder="搜索节点标题或连线备注... (支持键盘上下键切换，按 Enter 直达)"
             aria-label="搜索关键词"
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(event) => setQuery(event.target.value)}
           />
           {query && (
             <button
@@ -195,43 +151,70 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
           </button>
         </div>
 
-        {/* 检索范围与计数状态栏 */}
         <div className="wst-search-toolbar">
           <label className="wst-search-scope-toggle">
             <input
               type="checkbox"
               checked={includeMarkdown}
-              onChange={(e) => setIncludeMarkdown(e.target.checked)}
+              onChange={(event) => setIncludeMarkdown(event.target.checked)}
             />
             <span>同时检索 Markdown 笔记正文</span>
           </label>
           <span className="wst-search-count">
             {query.trim()
-              ? `找到 ${results.length} 个匹配节点`
+              ? `找到 ${nodeCount} 个节点、${edgeCount} 条连线`
               : `共 ${domain.nodes.length} 个节点`}
           </span>
         </div>
 
-        {/* 搜索结果列表 */}
         <div className="wst-search-results" ref={listRef} role="listbox">
           {results.length === 0 ? (
             <div className="wst-search-empty">
-              <p>未找到包含「{query}」的节点</p>
+              <p>未找到包含「{query}」的节点或连线</p>
               <span className="wst-search-empty-hint">
-                提示：可尝试勾选上方「同时检索 Markdown 笔记正文」扩大搜索范围
+                提示：可勾选「同时检索 Markdown 笔记正文」扩大节点搜索范围
               </span>
             </div>
           ) : (
             results.map((item, index) => {
               const isSelected = index === selectedIndex;
-              const titleText = item.node.title || '未命名节点';
+              if (item.kind === 'edge') {
+                return (
+                  <div
+                    key={`edge-${item.id}`}
+                    className={`wst-search-item${isSelected ? ' is-selected' : ''}`}
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => commitSelect(item)}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                  >
+                    <div className="wst-search-item-main">
+                      <div className="wst-search-item-title">
+                        <span className="wst-search-node-icon" aria-hidden="true">
+                          <WorkspaceIcon name="arrow" size={14} />
+                        </span>
+                        <span className="wst-search-title-text">
+                          {relationLabels[item.edge.type]} · {item.fromTitle} → {item.toTitle}
+                        </span>
+                      </div>
+                      <div className="wst-search-snippet">
+                        <span className="wst-search-snippet-label">连线备注：</span>
+                        <span>{renderHighlightedText(item.snippet, query)}</span>
+                      </div>
+                    </div>
+                    <div className="wst-search-item-meta">
+                      <span className="wst-search-tag-pill">连线</span>
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div
-                  key={item.node.id}
+                  key={`node-${item.id}`}
                   className={`wst-search-item${isSelected ? ' is-selected' : ''}`}
                   role="option"
                   aria-selected={isSelected}
-                  onClick={() => commitSelect(item.node.id)}
+                  onClick={() => commitSelect(item)}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <div className="wst-search-item-main">
@@ -240,7 +223,7 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
                         <WorkspaceIcon name="tree" size={14} />
                       </span>
                       <span className="wst-search-title-text">
-                        {renderHighlightedText(titleText, query)}
+                        {renderHighlightedText(item.title, query)}
                       </span>
                     </div>
                     {item.snippet && (
@@ -251,15 +234,7 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
                     )}
                   </div>
                   <div className="wst-search-item-meta">
-                    {item.node.startAt && (
-                      <span className="wst-search-date-pill">{item.node.startAt}</span>
-                    )}
-                    {item.node.tags && item.node.tags.length > 0 && (
-                      <span className="wst-search-tag-pill">
-                        #{item.node.tags[0]}
-                        {item.node.tags.length > 1 ? ` +${item.node.tags.length - 1}` : ''}
-                      </span>
-                    )}
+                    {item.matchedInTitle && <span className="wst-search-tag-pill">标题</span>}
                   </div>
                 </div>
               );
@@ -267,7 +242,6 @@ export default function SearchModal({ open, onClose, domain, onSelectNode }: Sea
           )}
         </div>
 
-        {/* 底部按键指引 */}
         <div className="wst-search-footer">
           <div className="wst-search-hints">
             <span>

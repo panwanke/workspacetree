@@ -250,7 +250,9 @@
   overscroll-behavior: contain;
 }
 
-.wst-app.is-compact :is(.wst-inspector-bar, .wst-node-heading, .wst-directory-panel-heading) .is-icon {
+.wst-app.is-compact
+  :is(.wst-inspector-bar, .wst-node-heading, .wst-directory-panel-heading)
+  .is-icon {
   width: var(--touch-target);
   min-height: var(--touch-target);
 }
@@ -288,12 +290,14 @@
   padding: 3px 10px;
 }
 
-.is-compact .wst-status :is(
-  [data-testid='undo-depth'],
-  [data-testid='semantic-commits'],
-  [data-testid='presentation-batches'],
-  [data-testid='svg-meta']
-) {
+.is-compact
+  .wst-status
+  :is(
+    [data-testid='undo-depth'],
+    [data-testid='semantic-commits'],
+    [data-testid='presentation-batches'],
+    [data-testid='svg-meta']
+  ) {
   display: none;
 }
 
@@ -314,7 +318,15 @@
   padding: 5px 8px;
 }
 
-.is-compact :is(.wst-search-input, .wst-project-title-input, .wst-inspector input:not([type='range']), .wst-card-edit-title, .wst-markdown-css-input, .wst-todos input) {
+.is-compact
+  :is(
+    .wst-search-input,
+    .wst-project-title-input,
+    .wst-inspector input:not([type='range']),
+    .wst-card-edit-title,
+    .wst-markdown-css-input,
+    .wst-todos input
+  ) {
   min-width: 0;
   font-size: 16px;
 }
@@ -323,7 +335,9 @@
   font-size: 16px;
 }
 
-.wst-app.is-compact :is(.wst-search-header, .wst-todos-actions, .wst-todo-row-actions) .wst-tool.is-icon {
+.wst-app.is-compact
+  :is(.wst-search-header, .wst-todos-actions, .wst-todo-row-actions)
+  .wst-tool.is-icon {
   width: var(--touch-target);
   min-height: var(--touch-target);
 }
@@ -332,7 +346,8 @@
   display: none;
 }
 
-.is-compact :is(.wst-search-item, .wst-todo-status, .wst-todo-add, .wst-todos-status-filter select) {
+.is-compact
+  :is(.wst-search-item, .wst-todo-status, .wst-todo-add, .wst-todos-status-filter select) {
   min-height: var(--touch-target);
 }
 
@@ -367,4 +382,24 @@
     flex-direction: row;
     gap: 5px;
   }
+}
+
+.is-compact :is(.wst-edge-actions .wst-tool, .wst-edge-endpoint) {
+  min-height: var(--touch-target);
+}
+
+.is-compact .wst-edge-style-grid :is(input, select) {
+  min-height: var(--touch-target);
+  font-size: 16px;
+}
+
+.is-compact .wst-edge-color-presets {
+  grid-template-columns: repeat(7, var(--touch-target));
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+
+.is-compact :is(.wst-edge-color-swatch, .wst-edge-color-add) {
+  width: var(--touch-target);
+  min-height: var(--touch-target);
 }

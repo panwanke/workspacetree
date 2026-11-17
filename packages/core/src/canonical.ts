@@ -85,6 +85,7 @@ function canonicalPresentation(presentation: SavedPresentation): SavedPresentati
   const layoutDirection = presentation.layoutDirection ?? 'horizontal';
   const verticalNodePositions = presentation.verticalNodePositions ?? {};
   const nodeScales = presentation.nodeScales ?? {};
+  const edgeStyles = presentation.edgeStyles ?? {};
   const hasPhase2State =
     layoutDirection !== 'horizontal' ||
     Object.keys(verticalNodePositions).length > 0 ||
@@ -94,12 +95,14 @@ function canonicalPresentation(presentation: SavedPresentation): SavedPresentati
     layoutDirection,
     verticalNodePositions,
     nodeScales,
+    edgeStyles,
   };
   if (!hasPhase2State) {
     delete normalized.layoutDirection;
     delete normalized.verticalNodePositions;
     delete normalized.nodeScales;
   }
+  if (Object.keys(edgeStyles).length === 0) delete normalized.edgeStyles;
   return normalized;
 }
 

@@ -5,9 +5,9 @@ import {
   migrateTasksV1ToV2,
   migrateToCurrent,
 } from '@workspacetree/core';
-import { BranchFileSchema } from '@workspacetree/schema';
+import { BranchFileSchema, SCHEMA_VERSION } from '@workspacetree/schema';
 
-describe('Markdown 与数据版本迁移 (v1 -> v2)', () => {
+describe('Markdown 与数据版本迁移', () => {
   it('migrateTasksV1ToV2 正确转换标记并跳过代码围栏', () => {
     const v1Markdown = [
       '- [*] 已完成任务',
@@ -38,7 +38,7 @@ describe('Markdown 与数据版本迁移 (v1 -> v2)', () => {
     expect(migrated).toContain('行内文字 `[*] 与 [x]` 也不变');
   });
 
-  it('完整 BranchFile 从 v1 升级至 v2：blocks 文本迁移、tasks 归一、初始化 assets 并重算哈希', () => {
+  it('完整 BranchFile 从 v1 升级至当前版本：blocks 文本迁移、tasks 归一、初始化 assets/edgeStyles 并重算哈希', () => {
     const v1File = {
       schemaVersion: 1,
       projectId: 'prj_migration_test',
@@ -90,8 +90,9 @@ describe('Markdown 与数据版本迁移 (v1 -> v2)', () => {
 
     const migrated = migrateToCurrent(v1File) as any;
 
-    // schemaVersion 升级到 2
-    expect(migrated.schemaVersion).toBe(2);
+    // schemaVersion 升级到当前版本（v3）
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(migrated.presentation.edgeStyles).toEqual({});
 
     // 文本块已转成 v2 语法
     expect(migrated.domain.blocks[0].payload.markdown).toBe(

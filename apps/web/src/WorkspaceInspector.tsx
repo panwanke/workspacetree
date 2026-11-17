@@ -1,4 +1,9 @@
-import { buildHierarchy, type LayoutDirection } from '@workspacetree/layout';
+import {
+  buildHierarchy,
+  type LayoutDirection,
+  type ResolvedEdgeStyle,
+  type VisualEdge,
+} from '@workspacetree/layout';
 import {
   prependMarkdownTask,
   indexWorkspaceTasks,
@@ -6,10 +11,11 @@ import {
   workspaceTaskCounts,
   type WorkspaceTask,
 } from '@workspacetree/markdown';
-import type { AssetRecord, BranchFile, Node } from '@workspacetree/schema';
+import type { AssetRecord, BranchFile, Edge, EdgeStyle, Node } from '@workspacetree/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { relationDescription, relationLabels, type ConnectionRequest } from './ConnectionDialog';
 import type { EditorController } from './editor';
+import EdgeInspector from './EdgeInspector';
 import {
   clearPositionEntry,
   getNodeNote,
@@ -56,6 +62,10 @@ interface InspectorProps {
   inert: boolean;
   file: BranchFile;
   node: Node | null;
+  visualEdge: VisualEdge | null;
+  selectedEdges: readonly Edge[];
+  focusEdgeId: string | null;
+  edgeClipboard: ResolvedEdgeStyle | null;
   selectedCount: number;
   hiddenRelations: number;
   direction: LayoutDirection;
@@ -65,6 +75,14 @@ interface InspectorProps {
   onClose: () => void;
   onConnection: (request: ConnectionRequest) => void;
   onDetach: (id: string) => void;
+  onMoveBranch: (id: string) => void;
+  onDeleteEdge: (edge: Edge) => void;
+  onRevealEdge: (edge: Edge) => void;
+  onSetEdgeNote: (edge: Edge, note: string) => void;
+  onApplyEdgeStyle: (edgeId: string, style: EdgeStyle | null) => void;
+  onCopyEdgeStyle: (style: ResolvedEdgeStyle) => void;
+  onOpenEdgeBatch: () => void;
+  onEdgeDraftChange: (dirty: boolean) => void;
   onLocate: (id: string) => void;
   onScalePreview: (id: string, kind: ScaleKind, value: number | null) => void;
   onScaleApply: (id: string, kind: ScaleKind, value: number) => void;
@@ -794,7 +812,7 @@ function NodeRelations({
                     aria-label={`删除与 ${name(peer)} 的${relationLabels[edge.type]}连线`}
                     onClick={() =>
                       guard(() =>
-                        controller.runFromLatest(({ domain }) => removeEdgeEntry(domain, edge.id)),
+                        controller.runFromLatest((latest) => removeEdgeEntry(latest, edge.id)),
                       )
                     }
                   >
@@ -862,7 +880,34 @@ export default function WorkspaceInspector(props: InspectorProps) {
           <WorkspaceIcon name="close" />
         </button>
       </div>
-      {node && props.readOnly ? (
+      {props.visualEdge ? (
+        <EdgeInspector
+          file={file}
+          visual={props.visualEdge}
+          edges={props.selectedEdges}
+          focusEdgeId={props.focusEdgeId}
+          readOnly={props.readOnly}
+          clipboard={props.edgeClipboard}
+          onLocateNode={props.onLocate}
+          onEditConnection={(edge) =>
+            props.onConnection({
+              kind: 'relation',
+              edgeId: edge.id,
+              fromNodeId: edge.fromNodeId,
+              toNodeId: edge.toNodeId,
+            })
+          }
+          onMoveBranch={props.onMoveBranch}
+          onDetach={props.onDetach}
+          onDeleteEdge={props.onDeleteEdge}
+          onRevealEdge={props.onRevealEdge}
+          onSetNote={props.onSetEdgeNote}
+          onApplyStyle={props.onApplyEdgeStyle}
+          onCopyStyle={props.onCopyEdgeStyle}
+          onOpenBatch={props.onOpenEdgeBatch}
+          onDraftChange={props.onEdgeDraftChange}
+        />
+      ) : node && props.readOnly ? (
         <div className="wst-inspector-scroll">
           <h3>{node.title || '未命名节点'}</h3>
           {node.startAt && <p>{node.startAt}</p>}

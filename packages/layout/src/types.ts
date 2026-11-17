@@ -4,6 +4,7 @@
  * 开发 / 原型阶段，不得承载正式项目数据（C16 / ADR-022）。
  */
 import type { EdgeType } from '@workspacetree/schema';
+import type { EdgeStyleField, ResolvedEdgeStyle } from './edge-style.js';
 
 export type LayoutDirection = 'horizontal' | 'vertical';
 export type LayoutStrategy = 'timeline' | 'structure' | 'date-constrained' | 'date-priority';
@@ -78,6 +79,10 @@ export interface VisualEdge {
   originalEdgeIds: string[];
   aggregatedCount: number;
   color?: string;
+  /** 2D / SVG 使用的完整样式；3D 继续只消费上面的 color。 */
+  style2d: ResolvedEdgeStyle;
+  direct: boolean;
+  mixedStyleFields: readonly EdgeStyleField[];
 }
 
 export type AnchorSide = 'left' | 'right' | 'top' | 'bottom';

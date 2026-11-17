@@ -7,6 +7,7 @@ import {
   BranchFileSchema,
   CommandEnvelopeSchema,
   DomainStateSchema,
+  EdgeStyleSchema,
   SCHEMA_VERSION,
   SessionViewSchema,
 } from '@workspacetree/schema';
@@ -90,5 +91,32 @@ describe('T-03 schemaVersion 迁移', () => {
       SchemaMigrationError,
     );
     expect(() => migrateToCurrent({})).toThrow(SchemaMigrationError);
+  });
+
+  it('v2 迁移到 v3 初始化 edgeStyles 并保留未知字段', () => {
+    const input = {
+      schemaVersion: 2,
+      presentation: { customView: 'keep-me' },
+      customRoot: 'keep-root',
+    };
+    const migrated = migrateToCurrent(input) as Record<string, any>;
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.presentation.edgeStyles).toEqual({});
+    expect(migrated.presentation.customView).toBe('keep-me');
+    expect(migrated.customRoot).toBe('keep-root');
+  });
+
+  it('EdgeStyle 约束颜色、宽度和枚举', () => {
+    expect(
+      EdgeStyleSchema.safeParse({
+        color: '#123abc',
+        width: 3,
+        lineStyle: 'dotted',
+        arrow: 'both',
+      }).success,
+    ).toBe(true);
+    expect(EdgeStyleSchema.safeParse({ color: '#fff' }).success).toBe(false);
+    expect(EdgeStyleSchema.safeParse({ width: 20 }).success).toBe(false);
+    expect(EdgeStyleSchema.safeParse({ arrow: 'sideways' }).success).toBe(false);
   });
 });

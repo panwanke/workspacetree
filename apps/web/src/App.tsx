@@ -30,13 +30,20 @@ import {
   type LayoutDirection,
   type LayoutStrategy,
   type MultiSpineHighlight,
+  type ResolvedEdgeStyle,
   type VisibleEdgeTypes,
   type VisualGraph,
   type VisualEdge,
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
 import { localToday, readMarkdownBlocks, selectNodeNote } from '@workspacetree/markdown';
-import type { AssetRecord, BranchFile, Edge, HierarchyEdgeRole } from '@workspacetree/schema';
+import type {
+  AssetRecord,
+  BranchFile,
+  Edge,
+  EdgeStyle,
+  HierarchyEdgeRole,
+} from '@workspacetree/schema';
 import { createBrowserStorageAdapter } from '@workspacetree/storage';
 import type { ProjectStorePort } from './project-store';
 import {
@@ -53,6 +60,7 @@ import {
 } from 'react';
 import CanvasNode, { type CardNode } from './CanvasNode';
 import ConnectionDialog, { type ConnectionRequest } from './ConnectionDialog';
+import EdgeStyleBatchDialog from './EdgeStyleBatchDialog';
 import { useCanvasNodeDrag } from './useCanvasNodeDrag';
 import DateDirectory from './DateDirectory';
 import RelationEdge from './RelationEdge';
@@ -88,7 +96,7 @@ import {
 } from './local-file-access';
 import { useLocalFileSync } from './use-local-file-sync';
 import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from './branch-editing';
-import { saveRelationEntry, setEdgeNoteEntry } from './edge-editing';
+import { orientConnection, saveRelationEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
 import { loadSettings, type WorkspaceSettings } from './settings';
 import { useMarkdownCss } from './markdown/custom-css';
@@ -121,6 +129,8 @@ import {
   setBranchScaleEntry,
   setCollapsedEntry,
   setCollapsedNodesEntry,
+  setEdgeStyleEntry,
+  setEdgeStylesEntry,
   setLayoutDirectionEntry,
   setNodeNoteEntry,
   setNodeScaleEntry,
@@ -305,12 +315,18 @@ export default function App({
   const [nodes, setNodes] = useState<CardNode[]>([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [focusEdgeId, setFocusEdgeId] = useState<string | null>(null);
+  const [edgeStyleClipboard, setEdgeStyleClipboard] = useState<ResolvedEdgeStyle | null>(null);
+  const [edgeBatchOpen, setEdgeBatchOpen] = useState(false);
+  const [edgeDraftDirty, setEdgeDraftDirty] = useState(false);
   const [connectionRequest, setConnectionRequest] = useState<ConnectionRequest | null>(null);
   const [pendingReconnect, setPendingReconnect] = useState<{
     edge: Edge;
     end: 'source' | 'target';
   } | null>(null);
   const draggingEdge = useRef<Edge | null>(null);
+  // 记录连线真实起点节点，用于校正 Loose 模式下重叠 handle 造成的方向反转。
+  const connectStartNodeId = useRef<string | null>(null);
   const [branchClipboard, setBranchClipboard] = useState<{
     id: string;
     source: EditorController;
@@ -409,6 +425,7 @@ export default function App({
   useEffect(() => {
     if (selectedNodeIds.length > 0) {
       setSelectedEdgeId(null);
+      setFocusEdgeId(null);
       setEditingEdge(null);
     }
   }, [selectedNodeIds]);
@@ -545,7 +562,7 @@ export default function App({
   const localFileIssue = useLocalFileSync(
     tabController,
     activeTab?.localFile?.storage,
-    Boolean(editingNodeId || editingEdge || editingTabId || connectionRequest),
+    Boolean(editingNodeId || editingEdge || editingTabId || connectionRequest || edgeDraftDirty),
   );
 
   useEffect(() => {
@@ -554,6 +571,7 @@ export default function App({
     setSnapshot(tabController.getSnapshot());
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
+    setFocusEdgeId(null);
     setConnectionRequest(null);
     setPendingReconnect(null);
     setEditingEdge(null);
@@ -987,14 +1005,29 @@ export default function App({
       .filter((edge) => visible.has(edge.type))
       .map((edge) => {
         const isHighlighted = edge.originalEdgeIds.some((id) => highlightedEdges.has(id));
-        const edgeColor = edge.color ?? (edge.type === 'hierarchy' ? '#64748b' : '#dc2626');
         const selected = selectedEdgeId === edge.id;
         const original =
           edge.originalEdgeIds.length === 1
             ? originalEdges.get(edge.originalEdgeIds[0])
             : undefined;
         const direct =
-          original && original.fromNodeId === edge.sourceId && original.toNodeId === edge.targetId;
+          edge.direct &&
+          Boolean(
+            original &&
+            original.fromNodeId === edge.sourceId &&
+            original.toNodeId === edge.targetId,
+          );
+        const style = edge.style2d;
+        const markerColor = selected ? '#2563eb' : isHighlighted ? '#ea580c' : style.color;
+        const marker = {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+          color: markerColor,
+          orient: 'auto-start-reverse' as const,
+        };
+        const hasStartArrow = style.arrow === 'start' || style.arrow === 'both';
+        const hasEndArrow = style.arrow === 'end' || style.arrow === 'both';
         const anchors = visualEdgeAnchors(
           graph.nodeById[edge.sourceId],
           graph.nodeById[edge.targetId],
@@ -1013,19 +1046,17 @@ export default function App({
             (edge.type === 'hierarchy' ? 'source' : true),
           interactionWidth: 20,
           zIndex: selected ? 12 : isHighlighted ? 10 : 0,
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 14,
-            height: 14,
-            color: selected ? '#2563eb' : isHighlighted ? '#ea580c' : edgeColor,
-          },
+          markerStart: hasStartArrow ? marker : undefined,
+          markerEnd: hasEndArrow ? marker : undefined,
           data: {
             kind: edge.type,
             highlighted: isHighlighted,
             dimmed: hasHighlight && !isHighlighted,
-            color: edgeColor,
+            color: style.color,
+            width: style.width,
+            dashArray: style.dashArray,
             aggregatedCount: edge.aggregatedCount,
-            note: direct ? original.note : undefined,
+            note: direct ? original?.note : undefined,
           },
         };
       });
@@ -1313,9 +1344,7 @@ export default function App({
       setUiError('根节点不可删除');
       return;
     }
-    guard(() =>
-      controller!.runFromLatest(({ domain }) => deleteSubtreeEntry(domain, selectedNodeId)),
-    );
+    guard(() => controller!.runFromLatest((latest) => deleteSubtreeEntry(latest, selectedNodeId)));
     setSelectedNodeId(null);
   }
 
@@ -1514,6 +1543,7 @@ export default function App({
         return;
       setBranchClipboard({ id, source: controller, copy: copy ? file : null });
       setSelectedEdgeId(null);
+      setFocusEdgeId(null);
     },
     [controller, file, readOnly],
   );
@@ -1529,6 +1559,7 @@ export default function App({
       if (error) throw new Error(error);
       setSelectedNodeId(id);
       setSelectedEdgeId(null);
+      setFocusEdgeId(null);
       if (parentId !== null && !keepPosition) setFocusNodeId(id);
     },
     [controller, layoutStrategy, readOnly, setSelectedNodeId],
@@ -1566,6 +1597,7 @@ export default function App({
         }
         if (!copy) setBranchClipboard((current) => (current === branchClipboard ? null : current));
         setSelectedEdgeId(null);
+        setFocusEdgeId(null);
       });
     },
     [branchClipboard, controller, guard, layoutStrategy, readOnly, setSelectedNodeId],
@@ -1579,8 +1611,9 @@ export default function App({
         return;
       }
       guard(async () => {
-        await controller.run(removeEdgeEntry(controller.getSnapshot().file.domain, edge.id));
+        await controller.run(removeEdgeEntry(controller.getSnapshot().file, edge.id));
         if (!controller.getSnapshot().error) setSelectedEdgeId(null);
+        setFocusEdgeId(null);
       });
     },
     [controller, guard, moveBranch, readOnly],
@@ -1595,10 +1628,59 @@ export default function App({
     });
   }
 
-  function selectConnection(id: string): void {
+  function selectConnection(id: string, focus: string | null = null): void {
     setSelectedEdgeId(id);
+    setFocusEdgeId(focus);
     setSelectedNodeId(null);
     setEditingNodeId(null);
+    setContextMenu(null);
+  }
+
+  function openEdgeInspector(): void {
+    if (compactWorkspace) setMobilePanel('inspector');
+    else setInspectorOverride(true);
+  }
+
+  function applyEdgeStyle(edgeId: string, style: EdgeStyle | null): void {
+    if (!controller || readOnly) return;
+    guard(() => controller.runFromLatest((latest) => setEdgeStyleEntry(latest, edgeId, style)));
+  }
+
+  async function applyBatchEdgeStyles(edgeIds: string[]): Promise<void> {
+    if (!controller || readOnly || !edgeStyleClipboard) {
+      throw new Error('当前项目不可编辑或没有可应用的样式');
+    }
+    const style: EdgeStyle = {
+      color: edgeStyleClipboard.color,
+      width: edgeStyleClipboard.width,
+      lineStyle: edgeStyleClipboard.lineStyle,
+      arrow: edgeStyleClipboard.arrow,
+    };
+    await controller.runFromLatest((latest) => {
+      const graph = resolveVisualGraph(latest.domain, latest.presentation, {
+        strategy: layoutStrategy,
+      });
+      const directIds = new Set(
+        graph.edges.filter((edge) => edge.direct).flatMap((edge) => edge.originalEdgeIds),
+      );
+      const invalid = edgeIds.filter(
+        (id) => !latest.domain.edges.some((edge) => edge.id === id) || !directIds.has(id),
+      );
+      if (invalid.length > 0) {
+        throw new Error(`${invalid.length} 条目标已失效，请刷新批量列表后重试`);
+      }
+      return setEdgeStylesEntry(
+        latest,
+        edgeIds.map((edgeId) => ({ edgeId, style })),
+      );
+    });
+  }
+
+  function setEdgeNote(edge: Edge, note: string): void {
+    if (!controller || readOnly) return;
+    guard(() =>
+      controller.runFromLatest((latest) => setEdgeNoteEntry(latest.domain, edge.id, note)),
+    );
   }
 
   function editConnectionNote(edge: Edge, clientX: number, clientY: number): void {
@@ -1645,6 +1727,7 @@ export default function App({
         ),
       );
       if (!controller.getSnapshot().error) setSelectedEdgeId(null);
+      setFocusEdgeId(null);
     });
   }
 
@@ -1655,26 +1738,50 @@ export default function App({
 
   function handleConnect(connection: Connection): void {
     if (!controller || readOnly || connection.source === connection.target) return;
+    const { fromNodeId, toNodeId } = orientConnection(connection, connectStartNodeId.current);
     setConnectionRequest({
       kind: 'relation',
-      fromNodeId: connection.source,
-      toNodeId: connection.target,
+      fromNodeId,
+      toNodeId,
       allowHierarchy: true,
     });
   }
 
   function revealConnection(edge: Edge): void {
+    if (!controller) return;
     guard(async () => {
-      const latest = controller!.getSnapshot().file;
-      const paths = [edge.fromNodeId, edge.toNodeId].flatMap((id) =>
+      const latest = controller.getSnapshot().file;
+      const current = latest.domain.edges.find((item) => item.id === edge.id);
+      if (!current) {
+        setUiError('这条关系已经被删除。');
+        return;
+      }
+      if (current.type !== 'hierarchy') setShowRelations(true);
+      setViewMode('2d');
+      setProjectView('canvas');
+      const paths = [current.fromNodeId, current.toNodeId].flatMap((id) =>
         pathToRoot(latest.domain.nodes, latest.domain.edges, id).slice(0, -1),
       );
-      const collapsed = latest.presentation.collapsedByDefault.filter((id) => paths.includes(id));
+      const collapsed = [...new Set(paths)].filter((id) =>
+        latest.presentation.collapsedByDefault.includes(id),
+      );
       if (collapsed.length) {
-        await controller!.run(setCollapsedNodesEntry(latest, collapsed, false));
-        if (controller!.getSnapshot().error) return;
+        if (controller.isReadOnly) controller.expandPreviewAncestors(collapsed);
+        else {
+          await controller.run(setCollapsedNodesEntry(latest, collapsed, false));
+          if (controller.getSnapshot().error) return;
+        }
       }
-      locateNode(edge.toNodeId);
+      const visual = derived.graph?.edges.find((item) => item.originalEdgeIds.includes(current.id));
+      selectConnection(visual?.id ?? '', current.id);
+      openEdgeInspector();
+      window.setTimeout(() => {
+        void flowApiRef.current?.fitView({
+          nodes: [{ id: current.fromNodeId }, { id: current.toNodeId }],
+          padding: 0.35,
+          duration: 300,
+        });
+      }, 80);
     });
   }
 
@@ -1682,15 +1789,18 @@ export default function App({
     selectedEdgeId && derived.flowEdges.some((edge) => edge.id === selectedEdgeId)
       ? derived.graph?.edges.find((edge) => edge.id === selectedEdgeId)
       : undefined;
+  const selectedEdgeDetails = selectedVisualEdge ? originalConnections(selectedVisualEdge) : [];
+  const focusedEdge = focusEdgeId
+    ? selectedEdgeDetails.find((edge) => edge.id === focusEdgeId)
+    : undefined;
   const selectedOriginalEdge =
-    selectedVisualEdge &&
-    file?.domain.edges.find(
-      (edge) =>
-        selectedVisualEdge?.originalEdgeIds.length === 1 &&
-        selectedVisualEdge.originalEdgeIds[0] === edge.id &&
-        selectedVisualEdge.sourceId === edge.fromNodeId &&
-        selectedVisualEdge.targetId === edge.toNodeId,
-    );
+    focusedEdge ?? (selectedVisualEdge?.direct ? selectedEdgeDetails[0] : undefined);
+
+  useEffect(() => {
+    if (!focusEdgeId) return;
+    const visual = derived.graph?.edges.find((edge) => edge.originalEdgeIds.includes(focusEdgeId));
+    if (visual && visual.id !== selectedEdgeId) setSelectedEdgeId(visual.id);
+  }, [focusEdgeId, derived.graph, selectedEdgeId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -1749,6 +1859,7 @@ export default function App({
         setContextMenu(null);
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        setFocusEdgeId(null);
         setBranchClipboard(null);
         setEditingEdge(null);
         return;
@@ -2077,11 +2188,13 @@ export default function App({
           setMobilePanel(null);
           setContextMenu(null);
           setSelectedEdgeId(null);
+          setFocusEdgeId(null);
           setEditingEdge(null);
           setProjectView(view);
         }}
         onViewMode={(mode) => {
           setSelectedEdgeId(null);
+          setFocusEdgeId(null);
           setEditingEdge(null);
           setViewMode(mode);
         }}
@@ -2099,6 +2212,7 @@ export default function App({
         }
         onToggleRelations={() => {
           setSelectedEdgeId(null);
+          setFocusEdgeId(null);
           setEditingEdge(null);
           setShowRelations((value) => !value);
         }}
@@ -2221,6 +2335,7 @@ export default function App({
                   );
                 }
                 setSelectedEdgeId(null);
+                setFocusEdgeId(null);
                 setEditingEdge(null);
                 canvasRef.current?.focus({ preventScroll: true });
               }}
@@ -2232,6 +2347,7 @@ export default function App({
                 canvasRef.current?.focus({ preventScroll: true });
                 setSelectedNodeIds([]);
                 setSelectedEdgeId(null);
+                setFocusEdgeId(null);
                 setEditingEdge(null);
                 setEditingNodeId(null);
                 setContextMenu(null);
@@ -2241,6 +2357,7 @@ export default function App({
                 if (readOnly) return;
                 setPendingReconnect(null);
                 setSelectedEdgeId(null);
+                setFocusEdgeId(null);
                 if (!selectedNodeIds.includes(node.id)) {
                   setSelectedNodeIds([node.id]);
                 }
@@ -2283,6 +2400,7 @@ export default function App({
                       : null;
                 const original = end && !readOnly ? directConnection(edge) : undefined;
                 setPendingReconnect(original && end ? { edge: original, end } : null);
+                if (!end) openEdgeInspector();
                 canvasRef.current?.focus({ preventScroll: true });
               }}
               onEdgeDoubleClick={(event, edge) => {
@@ -2328,6 +2446,12 @@ export default function App({
                 draggingEdge.current = null;
               }}
               onConnect={handleConnect}
+              onConnectStart={(_, params) => {
+                connectStartNodeId.current = params.nodeId;
+              }}
+              onConnectEnd={() => {
+                connectStartNodeId.current = null;
+              }}
               isValidConnection={({ source, target }) => {
                 if (source === target) return false;
                 const edge = draggingEdge.current;
@@ -2691,8 +2815,8 @@ export default function App({
                       const targetId = contextMenu.targetId!;
                       if (targetId !== file.domain.project.rootNodeId) {
                         guard(() =>
-                          controller.runFromLatest(({ domain }) =>
-                            deleteSubtreeEntry(domain, targetId),
+                          controller.runFromLatest((latest) =>
+                            deleteSubtreeEntry(latest, targetId),
                           ),
                         );
                         setSelectedNodeIds([]);
@@ -2881,6 +3005,10 @@ export default function App({
           inert={projectView === 'todos'}
           file={file}
           node={selectedNode}
+          visualEdge={selectedVisualEdge ?? null}
+          selectedEdges={selectedEdgeDetails}
+          focusEdgeId={selectedOriginalEdge?.id ?? null}
+          edgeClipboard={edgeStyleClipboard}
           selectedCount={selectedNodeIds.length}
           hiddenRelations={selectedNode ? (derived.counts[selectedNode.id] ?? 0) : 0}
           direction={layoutDirection}
@@ -2900,6 +3028,14 @@ export default function App({
           onLocate={locateNode}
           onConnection={setConnectionRequest}
           onDetach={(id) => moveBranch(id, null)}
+          onMoveBranch={(id) => setConnectionRequest({ kind: 'move', nodeId: id })}
+          onDeleteEdge={removeConnection}
+          onRevealEdge={revealConnection}
+          onSetEdgeNote={setEdgeNote}
+          onApplyEdgeStyle={applyEdgeStyle}
+          onCopyEdgeStyle={setEdgeStyleClipboard}
+          onOpenEdgeBatch={() => setEdgeBatchOpen(true)}
+          onEdgeDraftChange={setEdgeDraftDirty}
           onDelete={
             !readOnly && selectedNode?.id !== file.domain.project.rootNodeId
               ? deleteNode
@@ -3020,6 +3156,7 @@ export default function App({
             if (error) throw new Error(error);
             setShowRelations(true);
             setSelectedEdgeId(null);
+            setFocusEdgeId(null);
           }}
         />
       )}
@@ -3029,7 +3166,22 @@ export default function App({
         onClose={() => setSearchOpen(false)}
         domain={file.domain}
         onSelectNode={(nodeId) => locateProjectNode(nodeId, true)}
+        onSelectEdge={(edgeId) => {
+          const edge = file.domain.edges.find((item) => item.id === edgeId);
+          if (edge) revealConnection(edge);
+        }}
       />
+
+      {edgeBatchOpen && (
+        <EdgeStyleBatchDialog
+          file={file}
+          graphEdges={derived.graph?.edges ?? []}
+          initialEdgeId={selectedOriginalEdge?.id ?? null}
+          clipboard={edgeStyleClipboard}
+          onClose={() => setEdgeBatchOpen(false)}
+          onApply={applyBatchEdgeStyles}
+        />
+      )}
 
       {accountDialog}
     </div>

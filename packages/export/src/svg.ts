@@ -9,8 +9,10 @@ import {
   pathForNodes,
   visualEdgeAnchors,
   visualEdgePath,
+  resolveEdgeStyle,
   type LayoutOptions,
   type Point,
+  type ResolvedEdgeStyle,
   type VisibleEdgeTypes,
   type VisualGraph,
 } from '@workspacetree/layout';
@@ -73,14 +75,50 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
   const highlight = new Set(input.highlightNodeIds ?? []);
   const tasks = input.graph ? undefined : indexWorkspaceTasks(input);
 
+  const sourceEdges = new Map(input.edges.map((edge) => [edge.id, edge]));
+  const exportEdges = input.graph
+    ? input.graph.edges.map((edge) => ({
+        id: edge.id,
+        type: edge.type,
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
+        originalIds: edge.originalEdgeIds,
+        color: edge.color,
+        style2d: edge.style2d as ResolvedEdgeStyle | undefined,
+      }))
+    : input.edges.map((edge) => ({
+        id: edge.id,
+        type: edge.type,
+        sourceId: edge.fromNodeId,
+        targetId: edge.toNodeId,
+        originalIds: [edge.id],
+        color: undefined as string | undefined,
+        style2d: undefined as ResolvedEdgeStyle | undefined,
+      }));
+  const styleOf = (edge: (typeof exportEdges)[number]): ResolvedEdgeStyle =>
+    edge.style2d ?? resolveEdgeStyle(edge.type, undefined, edge.color);
+  const markerColors = new Set<string>();
+  for (const edge of exportEdges) {
+    if (!visible.has(edge.type)) continue;
+    const style = styleOf(edge);
+    if (style.arrow === 'start' || style.arrow === 'end' || style.arrow === 'both') {
+      markerColors.add(style.color);
+    }
+  }
+  const markerIds = new Map(
+    [...markerColors].map((color, index) => [color, `wst-arrow-${index}`] as const),
+  );
+
   const lines: string[] = [];
   lines.push(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX - 24} ${bounds.minY - 24} ${width} ${height}">`,
   );
   lines.push('  <defs>');
-  lines.push(
-    '    <marker id="wst-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker>',
-  );
+  for (const [color, id] of markerIds) {
+    lines.push(
+      `    <marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${color}" /></marker>`,
+    );
+  }
   lines.push('  </defs>');
   lines.push(
     `  <rect x="${bounds.minX - 24}" y="${bounds.minY - 24}" width="${width}" height="${height}" fill="#ffffff" />`,
@@ -91,26 +129,8 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
     );
   }
 
-  lines.push('  <g id="edges" fill="none" stroke-width="1.6">');
+  lines.push('  <g id="edges" fill="none">');
   const drawnEdges: string[] = [];
-  const sourceEdges = new Map(input.edges.map((edge) => [edge.id, edge]));
-  const exportEdges = input.graph
-    ? input.graph.edges.map((edge) => ({
-        id: edge.id,
-        type: edge.type,
-        sourceId: edge.sourceId,
-        targetId: edge.targetId,
-        originalIds: edge.originalEdgeIds,
-        color: edge.color,
-      }))
-    : input.edges.map((edge) => ({
-        id: edge.id,
-        type: edge.type,
-        sourceId: edge.fromNodeId,
-        targetId: edge.toNodeId,
-        originalIds: [edge.id],
-        color: undefined as string | undefined,
-      }));
   for (const edge of exportEdges) {
     if (!visible.has(edge.type)) continue;
     const from = positions[edge.sourceId];
@@ -122,10 +142,20 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
       sourceVisual && targetVisual && input.graph
         ? visualEdgePath(sourceVisual, targetVisual, input.graph.direction)
         : pathForNodes(from, to, cfg).path;
-    const stroke = edge.color ?? (edge.type === 'hierarchy' ? '#64748b' : '#c026d3');
-    const dash = edge.type === 'hierarchy' ? '' : ' stroke-dasharray="6 4"';
+    const style = styleOf(edge);
+    const marker = markerIds.get(style.color);
+    const markerStart =
+      marker && (style.arrow === 'start' || style.arrow === 'both')
+        ? ` marker-start="url(#${marker})"`
+        : '';
+    const markerEnd =
+      marker && (style.arrow === 'end' || style.arrow === 'both')
+        ? ` marker-end="url(#${marker})"`
+        : '';
+    const dash = style.dashArray ? ` stroke-dasharray="${style.dashArray}"` : '';
+    const cap = style.lineStyle === 'dotted' ? ' stroke-linecap="round"' : '';
     lines.push(
-      `    <path id="${escapeXml(edge.id)}" data-edge-type="${edge.type}" d="${path}" stroke="${stroke}"${dash} marker-end="url(#wst-arrow)" />`,
+      `    <path id="${escapeXml(edge.id)}" data-edge-type="${edge.type}" d="${path}" stroke="${style.color}" stroke-width="${style.width}"${dash}${cap}${markerStart}${markerEnd} />`,
     );
     const original =
       edge.originalIds.length === 1 ? sourceEdges.get(edge.originalIds[0]) : undefined;

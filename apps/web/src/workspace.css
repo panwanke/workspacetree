@@ -1490,3 +1490,176 @@ button.wst-date-todo-title {
     display: none;
   }
 }
+
+.wst-edge-endpoints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.wst-edge-endpoint {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.wst-edge-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.wst-edge-color-section {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wst-edge-color-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.wst-edge-color-presets {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.wst-edge-color-swatch,
+.wst-edge-color-add {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.wst-edge-color-swatch.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.wst-edge-color-swatch:disabled,
+.wst-edge-color-add:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.wst-edge-color-add {
+  display: grid;
+  place-items: center;
+  background: var(--wash);
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.wst-edge-color-add input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.wst-edge-color-add:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.wst-edge-style-grid input[type='color'] {
+  width: 100%;
+  height: 32px;
+  padding: 2px;
+}
+
+.wst-edge-preview {
+  width: 100%;
+  height: 44px;
+  margin: 2px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.wst-edge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.wst-edge-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.wst-edge-source-row + .wst-edge-source-row {
+  border-top: 1px solid var(--line);
+}
+
+.wst-edge-mixed {
+  margin: 6px 0 0;
+  color: #b45309;
+  font-size: 11px;
+}
+
+.wst-edge-id {
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+
+.wst-edge-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.wst-edge-batch-list {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.wst-edge-batch-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  cursor: pointer;
+}
+
+.wst-edge-batch-item + .wst-edge-batch-item {
+  border-top: 1px solid var(--line);
+}
+
+.wst-edge-batch-item span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wst-edge-batch-item small {
+  color: var(--muted);
+  font-size: 11px;
+}

@@ -243,7 +243,8 @@ export default function DateDirectory({
               onChange={(event) => switchView(event.target.value as DateDirectoryViewMode)}
             >
               {directoryViews.map(([id, label]) => {
-                const count = id === 'images' ? images.length : id === 'todos' ? allTodos.length : 0;
+                const count =
+                  id === 'images' ? images.length : id === 'todos' ? allTodos.length : 0;
                 return (
                   <option key={id} value={id}>
                     {label}

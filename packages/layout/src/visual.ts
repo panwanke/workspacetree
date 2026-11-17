@@ -2,11 +2,12 @@
  * 统一视觉几何：时间排序、横纵布局、手动锁点、节点/分支缩放与折叠。
  * 2D、3D 和 SVG 必须消费本模块的结果，不分别推导显示坐标。
  */
-import type { DomainState, Edge, Node, SavedPresentation } from '@workspacetree/schema';
+import type { DomainState, Edge, EdgeStyle, Node, SavedPresentation } from '@workspacetree/schema';
 import { indexWorkspaceTasks, selectNodeNote, workspaceTaskCounts } from '@workspacetree/markdown';
 import { resolveGraphBranchColors } from './roles.js';
 import { placeStructure } from './structure.js';
 import { buildHierarchy } from './tree.js';
+import { isDirectVisualEdge, resolveAggregatedEdgeStyle, resolveEdgeStyle } from './edge-style.js';
 import {
   DEFAULT_LAYOUT_OPTIONS,
   LOD_MIN_HEIGHT,
@@ -33,6 +34,7 @@ type Presentation = Pick<
   | 'layoutDirection'
   | 'verticalNodePositions'
   | 'nodeScales'
+  | 'edgeStyles'
 > & {
   nodeSizes?: SavedPresentation['nodeSizes'];
 };
@@ -299,6 +301,7 @@ export function resolveVisualGraph(
     hierarchy.parents,
     undefined,
     edgeColors,
+    presentation.edgeStyles,
   );
   return {
     direction,
@@ -426,6 +429,7 @@ export function resolveVisualEdges(
   parents: ReadonlyMap<string, string | null>,
   visibleTypes: VisibleEdgeTypes = ['hierarchy', 'dependency', 'reference', 'custom'],
   edgeColors?: ReadonlyMap<string, string>,
+  edgeStyles?: Readonly<Record<string, EdgeStyle>>,
 ): VisualEdge[] {
   const allowed = new Set(visibleTypes);
   const groups = new Map<string, VisualEdge>();
@@ -439,24 +443,41 @@ export function resolveVisualEdges(
     if (existing) {
       existing.originalEdgeIds.push(edge.id);
       existing.aggregatedCount += 1;
-    } else {
-      const color =
-        edgeColors?.get(edge.id) ??
-        (edge.type === 'hierarchy'
-          ? '#64748b'
-          : edge.type === 'dependency'
-            ? '#dc2626'
-            : '#c026d3');
-      groups.set(key, {
-        id: `visual:${key}`,
-        type: edge.type,
-        sourceId,
-        targetId,
-        originalEdgeIds: [edge.id],
-        aggregatedCount: 1,
-        color,
-      });
+      continue;
     }
+    const color =
+      edgeColors?.get(edge.id) ??
+      (edge.type === 'hierarchy' ? '#64748b' : edge.type === 'dependency' ? '#dc2626' : '#c026d3');
+    groups.set(key, {
+      id: `visual:${key}`,
+      type: edge.type,
+      sourceId,
+      targetId,
+      originalEdgeIds: [edge.id],
+      aggregatedCount: 1,
+      color,
+      style2d: resolveEdgeStyle(edge.type, edgeStyles?.[edge.id], edgeColors?.get(edge.id)),
+      direct: isDirectVisualEdge(edge, sourceId, targetId),
+      mixedStyleFields: [],
+    });
+  }
+  const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
+  for (const group of groups.values()) {
+    const originals = group.originalEdgeIds.flatMap((id) => {
+      const edge = edgeById.get(id);
+      return edge ? [edge] : [];
+    });
+    group.direct =
+      originals.length === 1 && isDirectVisualEdge(originals[0]!, group.sourceId, group.targetId);
+    const aggregated = resolveAggregatedEdgeStyle(group.type, originals, edgeStyles, edgeColors);
+    group.mixedStyleFields = group.direct ? [] : aggregated.mixedStyleFields;
+    group.style2d = group.direct
+      ? resolveEdgeStyle(
+          group.type,
+          edgeStyles?.[originals[0]!.id],
+          edgeColors?.get(originals[0]!.id),
+        )
+      : aggregated.style;
   }
   return [...groups.values()];
 }

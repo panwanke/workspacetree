@@ -679,4 +679,56 @@ describe('Phase 2 统一视觉几何', () => {
       expect(overlapsHoriz).toBe(false);
     });
   });
+
+  it('resolves direct and aggregated edge styles without mutating the 3D color', () => {
+    const domain = createDemoDomain();
+    const hierarchy = domain.edges.find((edge) => edge.type === 'hierarchy')!;
+    const styled = resolveVisualGraph(
+      domain,
+      presentation({
+        edgeStyles: {
+          [hierarchy.id]: {
+            color: '#123abc',
+            width: 4,
+            lineStyle: 'dotted',
+            arrow: 'both',
+          },
+        },
+      }),
+    );
+    const direct = styled.edges.find((edge) => edge.originalEdgeIds.includes(hierarchy.id))!;
+    expect(direct.direct).toBe(true);
+    expect(direct.style2d).toMatchObject({
+      color: '#123abc',
+      width: 4,
+      lineStyle: 'dotted',
+      arrow: 'both',
+      dashArray: '1 5',
+    });
+
+    const from = domain.nodes[0]!.id;
+    const to = domain.nodes[1]!.id;
+    domain.edges.push(
+      { id: 'e_style_a', type: 'dependency', fromNodeId: from, toNodeId: to },
+      { id: 'e_style_b', type: 'dependency', fromNodeId: from, toNodeId: to },
+    );
+    const folded = resolveVisualGraph(
+      domain,
+      presentation({
+        edgeStyles: {
+          e_style_a: { color: '#ff0000', width: 3, lineStyle: 'solid' },
+          e_style_b: { color: '#0000ff', width: 5, lineStyle: 'dotted' },
+        },
+      }),
+    );
+    const aggregate = folded.edges.find(
+      (edge) =>
+        edge.originalEdgeIds.includes('e_style_a') && edge.originalEdgeIds.includes('e_style_b'),
+    )!;
+    expect(aggregate.aggregatedCount).toBeGreaterThanOrEqual(2);
+    expect(aggregate.direct).toBe(false);
+    expect(aggregate.mixedStyleFields).toEqual(['color', 'width', 'lineStyle']);
+    expect(aggregate.style2d).toMatchObject({ width: 2, lineStyle: 'dashed' });
+    expect(aggregate.color).not.toBe('#ff0000');
+  });
 });

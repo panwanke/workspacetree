@@ -92,6 +92,50 @@ export function migrateV1ToV2(input: Record<string, unknown>): Record<string, un
 // 自动注册 v1 -> v2 迁移
 registerMigration(1, migrateV1ToV2);
 
+/** v3 把边样式作为呈现状态加入 presentation，不触碰领域内容及语义哈希。 */
+export function migrateV2ToV3(input: Record<string, unknown>): Record<string, unknown> {
+  const output = { ...input };
+  if (
+    output.presentation &&
+    typeof output.presentation === 'object' &&
+    !Array.isArray(output.presentation)
+  ) {
+    const presentation = { ...(output.presentation as Record<string, unknown>) };
+    if (
+      !presentation.edgeStyles ||
+      typeof presentation.edgeStyles !== 'object' ||
+      Array.isArray(presentation.edgeStyles)
+    ) {
+      presentation.edgeStyles = {};
+    }
+    output.presentation = presentation;
+  }
+
+  if (
+    output.domain &&
+    output.presentation &&
+    output.revisions &&
+    typeof output.revisions === 'object'
+  ) {
+    const revisions = { ...(output.revisions as Record<string, unknown>) };
+    try {
+      const semanticHash = computeSemanticHash(output.domain as any);
+      const presentationHash = computePresentationHash(output.presentation as any);
+      revisions.semanticHash = semanticHash;
+      revisions.presentationHash = presentationHash;
+      revisions.fileHash = '';
+      const tempFile = { ...output, schemaVersion: 3, revisions } as any;
+      revisions.fileHash = computeFileHash(tempFile);
+      output.revisions = revisions;
+    } catch {
+      // 与 v1 迁移保持一致：不完整对象交给后续 Schema 校验明确报错。
+    }
+  }
+  return output;
+}
+
+registerMigration(2, migrateV2ToV3);
+
 export function migrateToCurrent(input: unknown): Record<string, unknown> {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     throw new SchemaMigrationError('schemaVersion migration expects an object');

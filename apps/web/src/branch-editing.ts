@@ -218,26 +218,37 @@ export function transferBranch(
       }
     }
   }
+  const edgeIdMap = new Map<string, string>();
+  const movedInternalEdges = source.domain.edges.filter(
+    (edge) => edge.type !== 'hierarchy' && inside(edge.fromNodeId) && inside(edge.toNodeId),
+  );
   next.edges.push(
-    ...source.domain.edges
-      .filter(
-        (edge) => edge.type !== 'hierarchy' && inside(edge.fromNodeId) && inside(edge.toNodeId),
-      )
-      .map((edge) => ({
+    ...movedInternalEdges.map((edge) => {
+      const id = makeId('e_');
+      edgeIdMap.set(edge.id, id);
+      return {
         ...edge,
-        id: makeId('e_'),
+        id,
         fromNodeId: mapped(edge.fromNodeId),
         toNodeId: mapped(edge.toNodeId),
-      })),
-    ...nodes.map((node) => ({
-      id: makeId('e_'),
-      type: 'hierarchy' as const,
-      toNodeId: mapped(node.id),
-      fromNodeId: node.id === nodeId ? parentId : mapped(sourceTree.parents.get(node.id)!),
-      role: (node.id === nodeId ? 'branch' : hierarchyRoles.get(node.id)) as
-        HierarchyEdgeRole | undefined,
-      note: node.id === nodeId ? undefined : hierarchyNotes.get(node.id),
-    })),
+      };
+    }),
+    ...nodes.map((node) => {
+      const id = makeId('e_');
+      const oldEdge = source.domain.edges.find(
+        (edge) => edge.type === 'hierarchy' && edge.toNodeId === node.id,
+      );
+      if (oldEdge) edgeIdMap.set(oldEdge.id, id);
+      return {
+        id,
+        type: 'hierarchy' as const,
+        toNodeId: mapped(node.id),
+        fromNodeId: node.id === nodeId ? parentId : mapped(sourceTree.parents.get(node.id)!),
+        role: (node.id === nodeId ? 'branch' : hierarchyRoles.get(node.id)) as
+          HierarchyEdgeRole | undefined,
+        note: node.id === nodeId ? undefined : hierarchyNotes.get(node.id),
+      };
+    }),
   );
   next.tasks.push(
     ...source.domain.tasks
@@ -270,6 +281,23 @@ export function transferBranch(
     );
     Object.assign((targetPresentation[field] ??= {}), transferred);
     for (const id of ids) delete values[id];
+  }
+  if (sourcePresentation.edgeStyles) {
+    const styles = sourcePresentation.edgeStyles;
+    targetPresentation.edgeStyles ??= {};
+    for (const [oldId, newId] of edgeIdMap) {
+      const style = styles[oldId];
+      if (!style) continue;
+      targetPresentation.edgeStyles[newId] = style;
+      delete styles[oldId];
+    }
+    for (const edge of source.domain.edges) {
+      if (inside(edge.fromNodeId) || inside(edge.toNodeId)) delete styles[edge.id];
+    }
+    if (Object.keys(targetPresentation.edgeStyles).length === 0) {
+      delete targetPresentation.edgeStyles;
+    }
+    if (Object.keys(styles).length === 0) delete sourcePresentation.edgeStyles;
   }
   const oldScale = inheritedScale(
     sourceTree.parents,
@@ -365,6 +393,9 @@ export function reparentBranchEntry(
   const node = domain.nodes.find((item) => item.id === nodeId)!;
   const previousSpines = domain.spines.filter((spine, index) => spine !== nextDomain.spines[index]);
   const nextPresentation = structuredClone(presentation);
+  if (parentId === null && oldEdge && nextPresentation.edgeStyles) {
+    delete nextPresentation.edgeStyles[oldEdge.id];
+  }
   nextPresentation.layoutDirection = resolveLayoutDirection(presentation);
   const oldInherited = inheritedScale(parents, parents.get(nodeId) ?? null, presentation);
   const newInherited = inheritedScale(parents, parentId, presentation);

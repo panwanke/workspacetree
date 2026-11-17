@@ -8,6 +8,7 @@
 import {
   AssetRecordSchema,
   DomainStateSchema,
+  EdgeStyleSchema,
   NodeScaleSchema,
   SavedPresentationSchema,
   ScaleSchema,
@@ -74,6 +75,7 @@ export const PRESENTATION_COMMAND_TYPES = new Set([
   'presentation.collapse',
   'presentation.setDefaultSpine',
   'presentation.setLayoutDirection',
+  'presentation.setEdgeStyle',
   'presentation.clearManualPosition',
   'presentation.clearManualPositions',
   'presentation.replace',
@@ -228,6 +230,9 @@ function clonePresentation(presentation: SavedPresentation): SavedPresentation {
     ...(presentation.nodeSizes === undefined
       ? {}
       : { nodeSizes: presentation.nodeSizes && cloneRecords(presentation.nodeSizes) }),
+    ...(presentation.edgeStyles === undefined
+      ? {}
+      : { edgeStyles: cloneRecords(presentation.edgeStyles) }),
     collapsedByDefault: [...presentation.collapsedByDefault],
     savedSpineDisplay: presentation.savedSpineDisplay,
     ...(presentation.layoutDirection === undefined
@@ -714,6 +719,25 @@ export function applyCommand(
       nextPresentation.layoutDirection = directionOf(payload);
       break;
     }
+    case 'presentation.setEdgeStyle': {
+      const payload = payloadOf(envelope, ['edgeId', 'style']);
+      const edgeId = str(payload, 'edgeId');
+      if (payload.style === null || payload.style === undefined) {
+        if (nextPresentation.edgeStyles) delete nextPresentation.edgeStyles[edgeId];
+        break;
+      }
+      const parsed = EdgeStyleSchema.safeParse(payload.style);
+      if (!parsed.success) {
+        throw new ValidationError('command.payload.style is not a well-formed EdgeStyle');
+      }
+      if (Object.keys(parsed.data).length === 0) {
+        if (nextPresentation.edgeStyles) delete nextPresentation.edgeStyles[edgeId];
+        break;
+      }
+      nextPresentation.edgeStyles ??= {};
+      nextPresentation.edgeStyles[edgeId] = parsed.data;
+      break;
+    }
     case 'presentation.clearManualPosition': {
       const payload = payloadOf(envelope, ['nodeId']);
       const nodeId = str(payload, 'nodeId');
@@ -747,6 +771,7 @@ export function applyCommand(
       delete nextPresentation.nodeSizes;
       delete nextPresentation.branchScaleCompensation;
       delete nextPresentation.layoutDirection;
+      delete nextPresentation.edgeStyles;
       Object.assign(nextPresentation, clonePresentation(parsed.data));
       break;
     }

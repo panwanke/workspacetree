@@ -117,6 +117,7 @@ async function verifyConnections(page) {
   const hierarchy = edge('hierarchy', 'n_child', id);
   await hierarchy.waitFor();
   await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
   await hierarchy.locator('.react-flow__edge-interaction').click();
   await hierarchy.locator('.react-flow__edgeupdater-source').click();
   await canvas.getByRole('status').getByText('选择新母节点，整支会随之移动').waitFor();
@@ -124,6 +125,23 @@ async function verifyConnections(page) {
   await edge('hierarchy', 'n_root', id).waitFor();
   await page.getByRole('button', { name: '撤销', exact: true }).click();
   await hierarchy.waitFor();
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
+
+  await hierarchy.locator('.react-flow__edge-interaction').click();
+  const edgeInspector = page.getByTestId('edge-inspector');
+  await edgeInspector.waitFor();
+  assert.equal(
+    await edgeInspector.locator('.wst-edge-color-presets').first().getByRole('button').count(),
+    14,
+    'The edge inspector must show the two-row preset color palette.',
+  );
+  await edgeInspector.getByRole('combobox', { name: '线型' }).selectOption('dotted');
+  await edgeInspector.getByRole('button', { name: '应用样式' }).click();
+  const dashArray = await hierarchy
+    .locator('.react-flow__edge-path')
+    .evaluate((element) => element.style.strokeDasharray);
+  assert.ok(dashArray.includes('1'), 'Applied dotted style must reach the canvas edge.');
 
   await canvas.locator(`.react-flow__node[data-id="${id}"] .wst-card-title`).click();
   await inspector.getByRole('button', { name: '新建关联', exact: true }).click();
@@ -143,6 +161,7 @@ async function verifyConnections(page) {
   await hierarchy.waitFor({ state: 'detached' });
 
   await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
   await relation.locator('.react-flow__edge-textbg').click();
   const handle = relation.locator('.react-flow__edgeupdater-source');
   await handle.hover();
@@ -211,11 +230,14 @@ async function verifyProjectTodos(page, touch = false) {
     await inbox.getByRole('button', { name: '编辑 TODO ' + renamed, exact: true }).waitFor();
     await assign.click();
     await mode.selectOption('existing');
-    await todos
-      .getByRole('combobox', { name: '目标节点', exact: true })
-      .selectOption('n_branch_ui');
-    const assigned = todos.getByRole('region', { name: '交互与渲染系统', exact: true });
-    await assigned.getByRole('button', { name: '编辑 TODO ' + renamed, exact: true }).waitFor();
+    const targetSelect = todos.getByRole('combobox', { name: '目标节点', exact: true });
+    const targetOption = await targetSelect
+      .locator('option:not([value=""])')
+      .first()
+      .getAttribute('value');
+    assert.ok(targetOption, 'A node must be available for TODO reassignment.');
+    await targetSelect.selectOption(targetOption);
+    await todos.getByRole('button', { name: '编辑 TODO ' + renamed, exact: true }).waitFor();
   }
 
   const filter = todos.getByLabel('状态', { exact: true });
@@ -337,12 +359,11 @@ async function verifyMobileWorkspace(browser, url) {
     await directory.waitFor({ state: 'hidden' });
     await inspector.getByRole('button', { name: '收起属性面板' }).tap();
     await page.getByRole('button', { name: '目录', exact: true }).tap();
-    const views = directory.getByRole('radiogroup', { name: '目录视图' });
-    const callouts = views.getByRole('radio', { name: 'Callout', exact: true });
-    await callouts.tap();
-    assert.ok(await callouts.isChecked());
+    const views = directory.getByRole('combobox', { name: '大纲视图' });
+    await views.selectOption('callouts');
+    assert.equal(await views.inputValue(), 'callouts');
     await directory.getByText('用于补充背景说明、技术选型或环境配置需求。').waitFor();
-    await views.getByRole('radio', { name: '时间', exact: true }).tap();
+    await views.selectOption('dates');
     await directory.getByRole('button', { name: /WorkspaceTree 2.0 研发全景/ }).tap();
     await directory.waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: '属性面板', exact: true }).tap();
@@ -460,15 +481,14 @@ try {
       assert.ok((await canvas.evaluate((element) => element.clientWidth)) > canvasWidth + 200);
       assert.equal(await outlineToggle.getAttribute('aria-expanded'), 'false');
       await outlineToggle.click();
+      await outline.waitFor({ state: 'visible' });
 
-      const views = outline.getByRole('radiogroup', { name: '目录视图' });
-      assert.equal(await views.getByRole('radio').count(), 4);
-      const dates = views.getByRole('radio', { name: '时间', exact: true });
-      await dates.press('ArrowRight');
-      assert.ok(await views.getByRole('radio', { name: '图片', exact: true }).isChecked());
-      const callouts = views.getByRole('radio', { name: 'Callout', exact: true });
-      await callouts.check();
-      assert.equal(await views.getByRole('radio', { checked: true }).count(), 1);
+      const views = outline.getByRole('combobox', { name: '大纲视图' });
+      assert.equal(await views.locator('option').count(), 4);
+      await views.selectOption('dates');
+      assert.equal(await views.inputValue(), 'dates');
+      await views.selectOption('callouts');
+      assert.equal(await views.inputValue(), 'callouts');
       await outline.getByText('当前项目暂无 Callout').waitFor();
 
       const root = canvas.locator('.react-flow__node[data-id="n_root"]');
@@ -515,14 +535,16 @@ try {
       await page.getByTestId('node-count').getByText('3 个节点').waitFor();
       assert.equal(await outlineToggle.getAttribute('aria-expanded'), 'false');
       await outlineToggle.click();
-      assert.ok(await callouts.isChecked());
+      await outline.waitFor({ state: 'visible' });
+      const persistedViews = outline.getByRole('combobox', { name: '大纲视图' });
+      assert.equal(await persistedViews.inputValue(), 'callouts');
       await outline.getByText('Callout 正文', { exact: true }).waitFor();
       const todoTitle = await verifyProjectTodos(page);
       const todoView = page.getByRole('main', { name: '项目 TODO' });
       const todoRow = todoView
         .getByRole('checkbox', { name: '完成 ' + todoTitle, exact: true })
         .locator('xpath=ancestor::li[1]');
-      await todoRow.getByRole('button', { name: /定位节点 Root/ }).click();
+      await todoRow.getByRole('button', { name: /定位节点/ }).click();
       const notePanel = page.getByRole('region', { name: 'Markdown 笔记' });
       const noteCheckbox = notePanel.getByRole('checkbox', {
         name: '完成 ' + todoTitle,
@@ -535,6 +557,8 @@ try {
       await notePanel.getByRole('textbox', { name: '新任务名称' }).fill('笔记新增任务');
       await notePanel.getByRole('button', { name: '新增任务' }).click();
       await notePanel.getByRole('checkbox', { name: '完成 笔记新增任务', exact: true }).waitFor();
+      await outline.getByRole('button', { name: '隐藏大纲' }).click();
+      await outline.waitFor({ state: 'hidden' });
       await verifyConnections(page);
       await verifyMobileWorkspace(browser, `${origin}${base}`);
       await verifyLinkedProjectFile(page, fixture);

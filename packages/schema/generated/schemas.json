@@ -703,6 +703,43 @@
             }
           ]
         },
+        "edgeStyles": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "width": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 12
+              },
+              "lineStyle": {
+                "type": "string",
+                "enum": [
+                  "solid",
+                  "dashed",
+                  "dotted"
+                ]
+              },
+              "arrow": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "start",
+                  "end",
+                  "both"
+                ]
+              }
+            }
+          }
+        },
         "collapsedByDefault": {
           "type": "array",
           "items": {
@@ -1631,6 +1668,43 @@
                   "type": "null"
                 }
               ]
+            },
+            "edgeStyles": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 12
+                  },
+                  "lineStyle": {
+                    "type": "string",
+                    "enum": [
+                      "solid",
+                      "dashed",
+                      "dotted"
+                    ]
+                  },
+                  "arrow": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "start",
+                      "end",
+                      "both"
+                    ]
+                  }
+                }
+              }
             },
             "collapsedByDefault": {
               "type": "array",

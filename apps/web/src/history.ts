@@ -22,6 +22,7 @@ import type {
   Command,
   DomainState,
   Edge,
+  EdgeStyle,
   HierarchyEdgeRole,
   LayoutDirection,
   Node,
@@ -69,6 +70,49 @@ function findNode(domain: DomainState, id: string): Node {
 
 function edgeAddCommand(edge: Edge, index?: number): Command {
   return cmd('edge.add', { ...edge, ...(index === undefined ? {} : { index }) });
+}
+
+function setEdgeStyleCommand(edgeId: string, style: EdgeStyle | null): Command {
+  return cmd('presentation.setEdgeStyle', { edgeId, style });
+}
+
+function sameEdgeStyle(a: EdgeStyle | null, b: EdgeStyle | null): boolean {
+  const normalize = (style: EdgeStyle | null) =>
+    style
+      ? Object.fromEntries(
+          Object.entries(style)
+            .filter(([, value]) => value !== undefined)
+            .sort(),
+        )
+      : null;
+  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+}
+
+export function setEdgeStyleEntry(
+  file: BranchFile,
+  edgeId: string,
+  style: EdgeStyle | null,
+): HistoryEntry | undefined {
+  return setEdgeStylesEntry(file, [{ edgeId, style }]);
+}
+
+/** 多条边样式合成一次 presentation 历史，Undo/Redo 同样只产生一步。 */
+export function setEdgeStylesEntry(
+  file: BranchFile,
+  changes: readonly { edgeId: string; style: EdgeStyle | null }[],
+): HistoryEntry | undefined {
+  const styles = file.presentation.edgeStyles ?? {};
+  const forward: Command[] = [];
+  const inverse: Command[] = [];
+  for (const { edgeId, style } of changes) {
+    const before = styles[edgeId] ?? null;
+    const after = style && Object.keys(style).length > 0 ? style : null;
+    if (sameEdgeStyle(before, after)) continue;
+    forward.push(setEdgeStyleCommand(edgeId, after));
+    inverse.push(setEdgeStyleCommand(edgeId, before));
+  }
+  if (forward.length === 0) return undefined;
+  return entry('设置连线样式', 'presentation', forward, inverse);
 }
 
 function taskAddCommand(task: Task, index?: number): Command {
@@ -174,7 +218,9 @@ export function createNodeEntry(
 }
 
 /** 删除整棵子树：捕获被删节点、全部关联边、任务与 Spine 成员，Undo 可完整还原拓扑。 */
-export function deleteSubtreeEntry(domain: DomainState, rootId: string): HistoryEntry {
+export function deleteSubtreeEntry(input: BranchFile | DomainState, rootId: string): HistoryEntry {
+  const domain = 'domain' in input ? input.domain : input;
+  const presentation = 'domain' in input ? input.presentation : undefined;
   const children = new Map<string, string[]>();
   for (const edge of domain.edges) {
     if (edge.type !== 'hierarchy') continue;
@@ -207,7 +253,24 @@ export function deleteSubtreeEntry(domain: DomainState, rootId: string): History
   // 数组顺序参与 semanticHash；逐条重放会把还原节点追加到数组末尾，导致哈希漂移。
   // 因此删除子树的反向命令用一次整域替换，保证 Undo 后语义哈希与拓扑逐字节一致。
   const before: DomainState = structuredClone(domain);
-  return entry('删除子树', 'domain', forward, [cmd('workspace.replace', { domain: before })]);
+  const result = entry('删除子树', 'domain', forward, [
+    cmd('workspace.replace', { domain: before }),
+  ]);
+  if (presentation?.edgeStyles) {
+    const styleForward: Command[] = [];
+    const styleInverse: Command[] = [];
+    for (const edge of removedEdges) {
+      const style = presentation.edgeStyles[edge.id];
+      if (!style) continue;
+      styleForward.push(setEdgeStyleCommand(edge.id, null));
+      styleInverse.push(setEdgeStyleCommand(edge.id, style));
+    }
+    if (styleForward.length > 0) {
+      result.chained = entry('清理连线样式', 'presentation', styleForward, styleInverse);
+      result.atomic = true;
+    }
+  }
+  return result;
 }
 
 export function renameProjectEntry(domain: DomainState, title: string): HistoryEntry {
@@ -299,16 +362,29 @@ export function addEdgeEntry(edge: Edge): HistoryEntry {
   return entry('新增连线', 'domain', [edgeAddCommand(edge)], [cmd('edge.remove', { id: edge.id })]);
 }
 
-export function removeEdgeEntry(domain: DomainState, edgeId: string): HistoryEntry {
+export function removeEdgeEntry(input: BranchFile | DomainState, edgeId: string): HistoryEntry {
+  const domain = 'domain' in input ? input.domain : input;
+  const presentation = 'domain' in input ? input.presentation : undefined;
   const index = domain.edges.findIndex((item) => item.id === edgeId);
   const edge = domain.edges[index];
   if (!edge) throw new Error(`unknown edge: ${edgeId}`);
-  return entry(
+  const result = entry(
     '删除连线',
     'domain',
     [cmd('edge.remove', { id: edgeId })],
     [edgeAddCommand(edge, index)],
   );
+  const style = presentation?.edgeStyles?.[edgeId];
+  if (style) {
+    result.chained = entry(
+      '清理连线样式',
+      'presentation',
+      [setEdgeStyleCommand(edgeId, null)],
+      [setEdgeStyleCommand(edgeId, style)],
+    );
+    result.atomic = true;
+  }
+  return result;
 }
 
 export function toggleTaskEntry(domain: DomainState, taskId: string): HistoryEntry {
