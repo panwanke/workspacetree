@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-17
+
+- **统一任务体系与完成时间跟踪**：`TaskSchema` 增加可选 `completedAt` 字段；`packages/markdown` 新增 `workspace-tasks.ts`，打通结构化任务与 Markdown 内嵌任务的统一索引与双向计数；`packages/core` 在任务完成/取消切换时自动维护 `completedAt`，并在 `workspace.replace` 增加语义哈希校验防覆写；项目 TODO 面板支持原位快捷编辑、日期计划与标签联动。
+- **关联连线对话框与关系编辑**：新增 `ConnectionDialog.tsx`，支持父子层级挂载、前后置依赖、引用及自定义关联连线的统一创建与编辑；支持节点快速搜索、循环归属校验以及关联备注（note）的撤销/重做事务。
+- **画布节点 Markdown 动态高度与移动端触控优化**：`packages/layout` 根据 Markdown 笔记内容智能计算节点卡片最小高度；新增 `workspace-mobile.css`，针对小屏与触控设备优化 44px 目标交互、安全区边距（dvh）与工具栏折叠收纳。
+- **双部署架构说明与安全指引**：在 `README.md` 与 `README_zh.md` 中完善 GitHub Pages 纯单机离线版与 WorkBuddy 云端账号版的物理隔离架构对比、本地测试命令，并强化敏感接口与密钥的隐私安全防护。
+
 ## 2026-11-16
 
 - **认证错误中文化**：新增 `apps/web/src/cloud/auth-errors.ts`（`describeAuthError`）。发码/验码失败不再把上游英文原文直接抛给用户——腾讯云短信会以 `send error code FailedOperation.PhoneNumberInBlacklist msg number on the blacklist` 这种形态回传，现在统一翻译成「该手机号收不到短信验证码…请换一个手机号登录」这类可操作文案，并保留原始错误码作为 `ActionResult.detail` 小字（`.wst-login-error-code`）供报障。已覆盖黑名单、号码格式、三档限流、短信签名/模板配置类错误，以及 SDK 的 `rate-limited / network / backend-unavailable / unauthenticated / permission-denied / not-found / invalid-request`。
