@@ -13,6 +13,53 @@ const server = await preview({
   preview: { host: '127.0.0.1', port: 0 },
 });
 
+async function verifyLinkedProjectFile(page, fixture) {
+  const filename = 'linked-project.branch.json';
+  const project = JSON.parse(await readFile(fixture, 'utf8'));
+  project.domain.project.title = 'Linked fixture';
+  await page.evaluate(
+    async ({ filename, project }) => {
+      const root = await navigator.storage.getDirectory();
+      const handle = await root.getFileHandle(filename, { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(JSON.stringify(project));
+      await writable.close();
+      // Substitute only the OS picker. Keep the native file handle and IndexedDB behavior.
+      window.showOpenFilePicker = async () => [handle];
+    },
+    { filename, project },
+  );
+
+  await page.getByTestId('project-menu').click();
+  await page.getByRole('button', { name: '打开并同步 .branch.json' }).click();
+  await page.getByRole('heading', { name: 'Linked fixture', exact: true }).waitFor();
+  assert.equal(await page.getByTestId('storage-scope').textContent(), `同步文件 · ${filename}`);
+  await page.getByTestId('add-node').click();
+  await page.getByTestId('node-count').getByText('3 个节点').waitFor();
+
+  const persisted = await page.evaluate(async (filename) => {
+    const root = await navigator.storage.getDirectory();
+    const handle = await root.getFileHandle(filename);
+    const file = JSON.parse(await (await handle.getFile()).text());
+    const nodeCount = file.domain.nodes.length;
+    file.domain.project.title = 'Updated outside the canvas';
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify(file));
+    await writable.close();
+    return nodeCount;
+  }, filename);
+  assert.equal(persisted, 3, 'The canvas edit must write to the selected file.');
+  const externalTitle = page.getByRole('heading', {
+    name: 'Updated outside the canvas',
+    exact: true,
+  });
+  await externalTitle.waitFor();
+  assert.equal(await page.getByTestId('undo-depth').textContent(), '可撤销 0');
+  await page.reload();
+  await externalTitle.waitFor();
+  assert.equal(await page.getByTestId('storage-scope').textContent(), `同步文件 · ${filename}`);
+}
+
 async function verifyConnections(page) {
   const canvas = page.getByRole('main', { name: '项目画布' });
   const pane = canvas.locator('.react-flow__pane');
@@ -448,7 +495,11 @@ try {
       await notePanel.getByRole('checkbox', { name: '完成 笔记新增任务', exact: true }).waitFor();
       await verifyConnections(page);
       await verifyMobileWorkspace(browser, `${origin}${base}`);
+      await verifyLinkedProjectFile(page, fixture);
     } else {
+      await page.getByTestId('project-menu').click();
+      assert.equal(await page.getByRole('button', { name: '打开并同步 .branch.json' }).count(), 0);
+      await page.keyboard.press('Escape');
       const login = page
         .locator('.wst-project-bar')
         .getByRole('button', { name: '登录', exact: true });

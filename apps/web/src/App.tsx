@@ -75,6 +75,17 @@ import WorkspaceToolbar, {
 import { createDemoBranchFile, createEmptyBranchFile } from './demo';
 import { EditorController, type EditorSnapshot } from './editor';
 import { branchSnapshotHash, openBranchFile } from './open-branch-file';
+import {
+  connectLocalProjectFile,
+  forgetLocalProjectFile,
+  localFileSyncMessage,
+  pickLocalProjectFile,
+  rememberLocalProjectFile,
+  restoreLocalProjectFile,
+  supportsLocalFileSync,
+  type LocalFileConnection,
+} from './local-file-access';
+import { useLocalFileSync } from './use-local-file-sync';
 import { reparentBranchEntry, restoreBranchLayoutEntry, transferBranch } from './branch-editing';
 import { saveRelationEntry, setEdgeNoteEntry } from './edge-editing';
 import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } from './keybindings';
@@ -256,6 +267,7 @@ export interface WorkspaceTab {
   projectId: string;
   branchName: string;
   controller: EditorController;
+  localFile?: LocalFileConnection;
 }
 
 interface WorkspaceAppProps {
@@ -263,6 +275,7 @@ interface WorkspaceAppProps {
   accountControl?: ReactNode;
   accountDialog?: ReactNode;
   accountNotice?: string | null;
+  enableLocalFileSync?: boolean;
 }
 
 async function initializeLocalWorkspace() {
@@ -274,7 +287,9 @@ export default function App({
   accountControl,
   accountDialog,
   accountNotice,
+  enableLocalFileSync = false,
 }: WorkspaceAppProps) {
+  const canLinkFiles = enableLocalFileSync && supportsLocalFileSync();
   const storageRef = useRef<ProjectStorePort | null>(null);
   const [storageScope, setStorageScope] = useState<StorageScope>('local');
   const flowApiRef = useRef<FlowViewportAPI | null>(null);
@@ -382,6 +397,7 @@ export default function App({
           title: t.title,
           branchName: t.branchName,
           readOnly: t.controller.isReadOnly,
+          linkedFile: Boolean(t.localFile) || undefined,
         })),
         activeTabId,
       },
@@ -458,20 +474,29 @@ export default function App({
         if (validSessionTabs.length > 0) {
           for (const st of validSessionTabs) {
             try {
-              const file = await storage.load(st.projectId);
+              if (st.linkedFile && !canLinkFiles) continue;
+              const localFile = st.linkedFile ? await restoreLocalProjectFile(st.id) : undefined;
+              const file = localFile
+                ? localFile.storage.snapshot
+                : await storage.load(st.projectId);
+              if (localFile && file?.projectId !== st.projectId) {
+                throw new Error('The linked file now contains a different project.');
+              }
               if (file) {
                 const controller = st.readOnly
                   ? EditorController.preview(file)
-                  : new EditorController(storage, file);
+                  : new EditorController(localFile?.storage ?? storage, file);
                 loadedTabs.push({
                   id: st.id,
                   title: file.domain.project.title || st.title,
                   projectId: file.projectId,
                   branchName: file.activeBranch,
                   controller,
+                  localFile,
                 });
               }
             } catch (err) {
+              if (st.linkedFile) setUiError(`${st.title}：${localFileSyncMessage(err)}`);
               console.warn(`Failed to restore tab for project ${st.projectId}:`, err);
             }
           }
@@ -509,13 +534,18 @@ export default function App({
         setBootError(cause instanceof Error ? cause.message : String(cause));
       }
     })();
-  }, [initializeWorkspace]);
+  }, [canLinkFiles, initializeWorkspace]);
 
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null,
     [tabs, activeTabId],
   );
   const tabController = activeTab?.controller;
+  const localFileIssue = useLocalFileSync(
+    tabController,
+    activeTab?.localFile,
+    Boolean(editingNodeId || editingEdge || editingTabId || connectionRequest),
+  );
 
   useEffect(() => {
     if (!tabController) return;
@@ -714,7 +744,7 @@ export default function App({
     async (projectId: string, newTitle: string) => {
       const trimmed = newTitle.trim();
       if (!trimmed) return;
-      const tab = tabs.find((t) => t.projectId === projectId);
+      const tab = tabs.find((t) => !t.localFile && t.projectId === projectId);
       if (tab) {
         const snap = tab.controller.getSnapshot();
         if (snap.file.domain.project.title !== trimmed) {
@@ -1196,6 +1226,7 @@ export default function App({
       event.stopPropagation();
       const closing = tabsRef.current.find((tab) => tab.id === tabId);
       if (closing && tabsRef.current.length > 1) {
+        if (closing.localFile) void forgetLocalProjectFile(tabId).catch(console.warn);
         setBranchClipboard((current) =>
           current && !current.copy && current.source === closing.controller ? null : current,
         );
@@ -1217,7 +1248,7 @@ export default function App({
   const handleOpenProjectById = useCallback(async (projectId: string) => {
     const storage = storageRef.current;
     if (!storage) return;
-    const existing = tabsRef.current.find((t) => t.projectId === projectId);
+    const existing = tabsRef.current.find((t) => !t.localFile && t.projectId === projectId);
     if (existing) {
       setActiveTabId(existing.id);
       return;
@@ -1244,9 +1275,8 @@ export default function App({
       const storage = storageRef.current;
       if (!storage) return;
       await storage.clear(projectId);
-      const openTabsForProject = tabsRef.current.filter((t) => t.projectId === projectId);
-      if (openTabsForProject.length > 0) {
-        const remainingTabs = tabsRef.current.filter((t) => t.projectId !== projectId);
+      const remainingTabs = tabsRef.current.filter((t) => t.localFile || t.projectId !== projectId);
+      if (remainingTabs.length !== tabsRef.current.length) {
         if (remainingTabs.length === 0) {
           const demo = await EditorController.bootstrap(
             storage,
@@ -1267,7 +1297,7 @@ export default function App({
         } else {
           tabsRef.current = remainingTabs;
           setTabs(remainingTabs);
-          if (openTabsForProject.some((t) => t.id === activeTabId)) {
+          if (!remainingTabs.some((t) => t.id === activeTabId)) {
             setActiveTabId(remainingTabs[remainingTabs.length - 1].id);
           }
         }
@@ -1340,6 +1370,54 @@ export default function App({
     setSaveModalOpen(true);
   }
 
+  async function openLinkedFile(): Promise<void> {
+    try {
+      const handle = await pickLocalProjectFile();
+      if (!handle) return;
+      const localFile = await connectLocalProjectFile(handle);
+      openQueue.current = openQueue.current.then(async () => {
+        try {
+          const file = localFile.storage.snapshot;
+          let existing: WorkspaceTab | undefined;
+          for (const tab of tabsRef.current) {
+            if (tab.localFile && (await handle.isSameEntry(tab.localFile.handle))) {
+              existing = tab;
+              break;
+            }
+          }
+          setUiError(null);
+          if (existing?.projectId === file.projectId) {
+            setActiveTabId(existing.id);
+            setProjectView('canvas');
+            return;
+          }
+          const tab: WorkspaceTab = {
+            id: existing?.id ?? makeId('tab_'),
+            title: file.domain.project.title || handle.name,
+            projectId: file.projectId,
+            branchName: file.activeBranch,
+            controller: new EditorController(localFile.storage, file),
+            localFile,
+          };
+          await rememberLocalProjectFile(tab.id, handle).catch((cause: unknown) => {
+            console.warn('Failed to remember a linked file:', cause);
+            setUiError('本地文件已连接，刷新页面后需要重新打开。');
+          });
+          const nextTabs = tabsRef.current.filter((entry) => entry.id !== tab.id).concat(tab);
+          tabsRef.current = nextTabs;
+          setTabs(nextTabs);
+          setProjectView('canvas');
+          setActiveTabId(tab.id);
+        } catch (cause) {
+          setUiError(localFileSyncMessage(cause));
+        }
+      });
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === 'AbortError') return;
+      setUiError(localFileSyncMessage(cause));
+    }
+  }
+
   function openFiles(files: readonly File[]): void {
     const storage = storageRef.current;
     if (!storage) return;
@@ -1349,7 +1427,7 @@ export default function App({
           setUiError(null);
           const opened = await openBranchFile(picked, storage);
           const sameProject = tabsRef.current.filter(
-            (tab) => tab.projectId === opened.file.projectId,
+            (tab) => !tab.localFile && tab.projectId === opened.file.projectId,
           );
           const editable = sameProject.find((tab) => !tab.controller.isReadOnly);
           // An external write can advance storage while this editor holds an older snapshot.
@@ -1791,7 +1869,7 @@ export default function App({
   ]);
 
   function resetDemo(): void {
-    if (!file || !controller) return;
+    if (!file || !controller || activeTab?.localFile) return;
     const demo = createDemoBranchFile();
     guard(async () => {
       await controller.run(replaceDomainEntry(file.domain, demo.domain));
@@ -2011,6 +2089,8 @@ export default function App({
           else setInspectorOverride(!inspectorOpen);
         }}
         onImport={() => importRef.current?.click()}
+        onLinkLocalFile={canLinkFiles ? () => void openLinkedFile() : undefined}
+        linkedFile={Boolean(activeTab?.localFile)}
         onExportJson={exportJson}
         onExportSvg={exportSvgFile}
         onResetDemo={resetDemo}
@@ -2822,9 +2902,9 @@ export default function App({
         <span data-testid="semantic-commits">语义 Commit {stats.semanticCommits}</span>
         <span data-testid="presentation-batches">呈现批次 {stats.presentationBatches}</span>
         <span data-testid="svg-meta">SVG {svgMeta}</span>
-        {(uiError || snapshot.error) && (
+        {(localFileIssue || uiError || snapshot.error) && (
           <span className="wst-error" role="alert">
-            {uiError ?? snapshot.error}
+            {localFileIssue ?? uiError ?? snapshot.error}
           </span>
         )}
         {accountNotice && (
@@ -2833,7 +2913,11 @@ export default function App({
           </span>
         )}
         <span className="wst-scope-badge" data-testid="storage-scope">
-          {storageScope === 'account' ? '账号云端项目' : '本地浏览器项目'}
+          {activeTab?.localFile
+            ? `同步文件 · ${activeTab.localFile.handle.name}`
+            : storageScope === 'account'
+              ? '账号云端项目'
+              : '本地浏览器项目'}
         </span>
       </footer>
 
@@ -2851,7 +2935,7 @@ export default function App({
         onClose={() => setProjectsOpen(false)}
         storage={storageRef.current}
         scope={storageScope}
-        openProjectIds={tabs.map((t) => t.projectId)}
+        openProjectIds={tabs.filter((t) => !t.localFile).map((t) => t.projectId)}
         onOpenProject={handleOpenProjectById}
         onCreateProject={handleNewTab}
         onDeleteProject={handleDeleteProject}

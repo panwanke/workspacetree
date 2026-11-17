@@ -679,6 +679,10 @@ export class DragCoalescer {
     return this.frames;
   }
 
+  get isActive(): boolean {
+    return this.start.size > 0;
+  }
+
   finish(direction: LayoutDirection = this.direction): DragBatch | null {
     const moves: { nodeId: string; from: Point; to: Point }[] = [];
     for (const [nodeId, to] of this.latest) {

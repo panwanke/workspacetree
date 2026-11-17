@@ -20,6 +20,7 @@ import {
   type Point,
 } from './history';
 import { translateBranchPositions } from './branch-editing';
+import { LinkedFileChangedError } from './linked-branch-file';
 
 export interface EditorStats {
   persistedBatches: number;
@@ -63,6 +64,7 @@ export class EditorController {
   private lastAction = '就绪';
   private error: string | null = null;
   private pendingEdit = Promise.resolve();
+  private fileReloads = 0;
 
   constructor(
     private readonly storage: StorageAdapter,
@@ -127,6 +129,22 @@ export class EditorController {
       lastAction: this.lastAction,
       error: this.error,
     };
+  }
+
+  refreshFromFile(read: () => Promise<BranchFile | null>): Promise<void> {
+    const refresh = this.pendingEdit.then(async () => {
+      const file = await read();
+      if (!file) return;
+      this.file = file;
+      this.fileReloads++;
+      this.undoStack.length = 0;
+      this.redoStack.length = 0;
+      this.error = null;
+      this.lastAction = '已从本地文件更新';
+      this.emit();
+    });
+    this.pendingEdit = refresh.catch(() => {});
+    return refresh;
   }
 
   private emit(): void {
@@ -227,7 +245,12 @@ export class EditorController {
         this.error = null;
         await action();
       } catch (cause) {
-        this.error = cause instanceof Error ? cause.message : String(cause);
+        this.error =
+          cause instanceof LinkedFileChangedError
+            ? '磁盘文件已更改，本次保存已停止。'
+            : cause instanceof Error
+              ? cause.message
+              : String(cause);
         if (propagateError) throw cause;
       } finally {
         this.emit();
@@ -246,7 +269,11 @@ export class EditorController {
   }
 
   run(entry: HistoryEntry): Promise<void> {
-    return this.safely(() => this.runEntry(entry));
+    const fileReloads = this.fileReloads;
+    return this.safely(() => {
+      if (fileReloads !== this.fileReloads) throw new LinkedFileChangedError();
+      return this.runEntry(entry);
+    });
   }
 
   runFromLatest(build: (file: BranchFile) => HistoryEntry | undefined): Promise<void> {
@@ -409,6 +436,10 @@ export class EditorController {
 
   get dragFrames(): number {
     return this.drag.frameCount;
+  }
+
+  get isDragging(): boolean {
+    return this.drag.isActive;
   }
 
   async dragEnd(

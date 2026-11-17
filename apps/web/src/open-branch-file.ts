@@ -26,14 +26,10 @@ export function branchSnapshotHash(file: BranchFile): string {
   });
 }
 
-export async function openBranchFile(
-  input: Pick<File, 'name' | 'text'>,
-  storage: Pick<ProjectStorePort, 'createIfAbsent'>,
-): Promise<{ file: BranchFile; readOnly: boolean; snapshotHash: string }> {
+export function parseBranchFile(name: string, content: string): BranchFile {
   try {
-    if (!input.name.toLowerCase().endsWith('.json'))
-      throw new Error('Expected a .branch.json file');
-    const raw: unknown = JSON.parse((await input.text()).replace(/^\uFEFF/, ''));
+    if (!name.toLowerCase().endsWith('.json')) throw new Error('Expected a .branch.json file');
+    const raw: unknown = JSON.parse(content.replace(/^\uFEFF/, ''));
     const parsed = BranchFileSchema.safeParse(migrateToCurrent(raw));
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -46,7 +42,6 @@ export async function openBranchFile(
       ...file.presentation,
       layoutDirection: file.presentation.layoutDirection ?? undefined,
     });
-    const snapshotHash = branchSnapshotHash(file);
     const checked = {
       ...file,
       revisions: {
@@ -57,11 +52,34 @@ export async function openBranchFile(
       },
     };
     checked.revisions.fileHash = computeFileHash(checked);
-    const persisted = await storage.createIfAbsent(checked);
+    return checked;
+  } catch (cause) {
+    throw branchFileError(name, cause);
+  }
+}
+
+function branchFileError(name: string, cause: unknown): Error {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  return new Error(`${name}: ${reason}`, { cause });
+}
+
+export async function openBranchFile(
+  input: Pick<File, 'name' | 'text'>,
+  storage: Pick<ProjectStorePort, 'createIfAbsent'>,
+): Promise<{ file: BranchFile; readOnly: boolean; snapshotHash: string }> {
+  let content;
+  try {
+    content = await input.text();
+  } catch (cause) {
+    throw branchFileError(input.name, cause);
+  }
+  const file = parseBranchFile(input.name, content);
+  const snapshotHash = branchSnapshotHash(file);
+  try {
+    const persisted = await storage.createIfAbsent(file);
     const readOnly = branchSnapshotHash(persisted) !== snapshotHash;
     return { file: readOnly ? file : persisted, readOnly, snapshotHash };
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`${input.name}: ${reason}`, { cause });
+    throw branchFileError(input.name, cause);
   }
 }

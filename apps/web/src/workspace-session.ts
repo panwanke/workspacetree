@@ -12,6 +12,7 @@ export interface SavedWorkspaceTab {
   title: string;
   branchName: string;
   readOnly?: boolean;
+  linkedFile?: boolean;
 }
 
 export interface SavedWorkspaceSession {
