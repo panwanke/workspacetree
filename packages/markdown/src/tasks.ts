@@ -1,4 +1,7 @@
 import { StartAtSchema, TAG_NAME_PATTERN } from '@workspacetree/schema';
+import type { Root } from 'mdast';
+import type { Plugin } from 'unified';
+import { visit } from 'unist-util-visit';
 import { parseMarkdown, getCodeBlockRanges, isLineInCodeBlock } from './parse.js';
 
 export type MarkdownTaskStatus = 'open' | 'done' | 'discarded' | 'paused' | 'pending';
@@ -26,6 +29,8 @@ export interface MarkdownTaskItem {
   title: string;
   tags: string[];
   scheduledAt?: string;
+  completedAt?: string;
+  hasContinuation: boolean;
   prefix: string; // e.g. '- ', '> - ', '  1. '
   raw: string;
 }
@@ -56,14 +61,54 @@ export function extractTags(text: string): { title: string; tags: string[] } {
   return { title: title.trim(), tags: [...tags] };
 }
 
-export function extractScheduledAt(text: string): { text: string; scheduledAt?: string } {
-  const dateMatch = /(?:^|\s)📅\s+(\d{4}-\d{2}-\d{2})$/.exec(text);
-  if (dateMatch && StartAtSchema.safeParse(dateMatch[1]).success) {
-    const scheduledAt = dateMatch[1];
-    const cleanedText = text.slice(0, dateMatch.index);
-    return { text: cleanedText, scheduledAt };
+const dateMarkers = { scheduledAt: '📅', completedAt: '✅' } as const;
+type TaskDate = keyof typeof dateMarkers;
+const dateSuffix = /(?:^|[ \t]+)(📅|✅)[ \t]+(\d{4}-\d{2}-\d{2})$/;
+const literalTitleEntities = {
+  '&': '&amp;',
+  '#': '&#35;',
+  '📅': '&#128197;',
+  '✅': '&#9989;',
+  '\r': '&#13;',
+  '\n': '&#10;',
+} as const;
+const literalTitleCharacters = new Map<string, string>(
+  Object.entries(literalTitleEntities).map(([character, entity]) => [entity, character]),
+);
+
+export function escapeTaskTitle(title: string): string {
+  return title.replace(
+    /[&#📅✅\r\n]/gu,
+    (character) => literalTitleEntities[character as keyof typeof literalTitleEntities],
+  );
+}
+
+export function decodeTaskTitle(title: string): string {
+  return title.replace(
+    /&(?:amp|#35|#128197|#9989|#13|#10);/g,
+    (entity) => literalTitleCharacters.get(entity) ?? entity,
+  );
+}
+
+function taskContent(content: string) {
+  let text = content.trimEnd();
+  const trailing = content.slice(text.length);
+  const dates: Partial<Record<TaskDate, string>> = {};
+  const tokens: { field: TaskDate; raw: string }[] = [];
+  for (let match = dateSuffix.exec(text); match; match = dateSuffix.exec(text)) {
+    const field = match[1] === dateMarkers.scheduledAt ? 'scheduledAt' : 'completedAt';
+    const parsed = StartAtSchema.safeParse(match[2]);
+    if (!parsed.success || dates[field]) break;
+    dates[field] = parsed.data;
+    tokens.unshift({ field, raw: match[0] });
+    text = text.slice(0, match.index);
   }
-  return { text, scheduledAt: undefined };
+  return { text, trailing, dates, tokens };
+}
+
+export function extractScheduledAt(text: string): { text: string; scheduledAt?: string } {
+  const { text: body, dates } = taskContent(text);
+  return { text: dates.scheduledAt ? body : text, scheduledAt: dates.scheduledAt };
 }
 
 function parseMarkerChar(char: string): MarkdownTaskStatus {
@@ -87,15 +132,29 @@ function parseMarkerChar(char: string): MarkdownTaskStatus {
 /**
  * 读取 Markdown 中的全部 Task 列表项（排除代码块与行内代码示例）。
  */
-export function readMarkdownTasks(markdown: string): MarkdownTaskItem[] {
+export function readMarkdownTasks(markdown: string, ast?: Root): MarkdownTaskItem[] {
   const items: MarkdownTaskItem[] = [];
   const lines = markdown.split(/\r?\n/);
   if (lines.length === 0) return items;
 
   let codeRanges: ReturnType<typeof getCodeBlockRanges> = [];
+  const continuation = new Set<number>();
   try {
-    const ast = parseMarkdown(markdown);
-    codeRanges = getCodeBlockRanges(ast);
+    const tree = ast ?? parseMarkdown(markdown);
+    codeRanges = getCodeBlockRanges(tree);
+    visit(tree, 'html', ({ position }, _index, parent) => {
+      if (
+        position &&
+        (parent?.type === 'root' || parent?.type === 'blockquote' || parent?.type === 'listItem')
+      ) {
+        codeRanges.push({ startLine: position.start.line, endLine: position.end.line });
+      }
+    });
+    visit(tree, 'listItem', ({ position }) => {
+      if (position && position.end.line > position.start.line) {
+        continuation.add(position.start.line);
+      }
+    });
   } catch {
     // AST 解析异常时回退到纯行解析
   }
@@ -115,10 +174,13 @@ export function readMarkdownTasks(markdown: string): MarkdownTaskItem[] {
     const content = match[3]!;
     const status = parseMarkerChar(markerChar);
 
-    const { text: textWithoutDate, scheduledAt } = extractScheduledAt(content);
-    const { title, tags } = extractTags(textWithoutDate);
+    const {
+      text,
+      dates: { scheduledAt, completedAt },
+    } = taskContent(content);
+    const { title, tags } = extractTags(text);
 
-    if (!title && !scheduledAt && tags.length === 0) continue;
+    if (!title && !scheduledAt && !completedAt && tags.length === 0) continue;
 
     items.push({
       lineIndex: i,
@@ -127,6 +189,8 @@ export function readMarkdownTasks(markdown: string): MarkdownTaskItem[] {
       title,
       tags,
       ...(scheduledAt ? { scheduledAt } : {}),
+      ...(status === 'done' && completedAt ? { completedAt } : {}),
+      hasContinuation: continuation.has(line1Based),
       prefix,
       raw: line,
     });
@@ -194,24 +258,10 @@ export function migrateTasksV1ToV2(markdown: string): string {
  * 点击勾选切换：普通勾选只在 未完成 [ ] 与 已完成 [x] 之间切换。
  * 若当前行是 [-] / [~] / [?]，点击后切换为已完成 [x]。
  */
-export function toggleTaskOnLine(markdown: string, lineIndex: number): string {
-  const lines = markdown.split(/\r?\n/);
-  if (lineIndex < 0 || lineIndex >= lines.length) return markdown;
-
-  const line = lines[lineIndex]!;
-  const match = V2_TASK_LINE_REGEX.exec(line);
-  if (!match) return markdown;
-
-  const prefix = match[1]!;
-  const markerChar = match[2]!;
-  const rest = match[3]!;
-
-  const currentStatus = parseMarkerChar(markerChar);
-  const nextMarker = currentStatus === 'done' ? '[ ]' : '[x]';
-
-  lines[lineIndex] = `${prefix}${nextMarker} ${rest}`;
-  const isCrlf = markdown.includes('\r\n');
-  return lines.join(isCrlf ? '\r\n' : '\n');
+export function toggleTaskOnLine(markdown: string, lineIndex: number, day?: string): string {
+  const task = readMarkdownTasks(markdown).find((item) => item.lineIndex === lineIndex);
+  if (!task) return markdown;
+  return changeStatus(markdown, task, task.status === 'done' ? 'open' : 'done', day);
 }
 
 /**
@@ -221,19 +271,129 @@ export function setTaskStatusOnLine(
   markdown: string,
   lineIndex: number,
   status: MarkdownTaskStatus,
+  day?: string,
 ): string {
-  const lines = markdown.split(/\r?\n/);
-  if (lineIndex < 0 || lineIndex >= lines.length) return markdown;
-
-  const line = lines[lineIndex]!;
-  const match = V2_TASK_LINE_REGEX.exec(line);
-  if (!match) return markdown;
-
-  const prefix = match[1]!;
-  const rest = match[3]!;
-  const marker = TASK_STATUS_CONFIG[status].marker;
-
-  lines[lineIndex] = `${prefix}${marker} ${rest}`;
-  const isCrlf = markdown.includes('\r\n');
-  return lines.join(isCrlf ? '\r\n' : '\n');
+  const task = readMarkdownTasks(markdown).find((item) => item.lineIndex === lineIndex);
+  return task ? changeStatus(markdown, task, status, day) : markdown;
 }
+
+function changeStatus(
+  markdown: string,
+  task: MarkdownTaskItem,
+  status: MarkdownTaskStatus,
+  day: string | undefined,
+): string {
+  if (task.status === status) return markdown;
+  return replaceMarkdownTaskLine(
+    markdown,
+    task,
+    editMarkdownTaskLine(task.raw, {
+      status,
+      completedAt: status === 'done' ? day : null,
+    }),
+  );
+}
+
+export function localToday(now = new Date()): string {
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+export interface MarkdownTaskUpdate {
+  title?: string;
+  tags?: readonly string[];
+  status?: MarkdownTaskStatus;
+  scheduledAt?: string | null;
+  completedAt?: string | null;
+}
+
+export function editMarkdownTaskLine(line: string, update: MarkdownTaskUpdate): string {
+  const match = V2_TASK_LINE_REGEX.exec(line);
+  if (!match) return line;
+  const [, prefix, status, content] = match;
+  const marker =
+    update.status === undefined ? `[${status}]` : TASK_STATUS_CONFIG[update.status].marker;
+  const spacing = line.slice(prefix.length + 3, line.length - content.length);
+  const { text, trailing, tokens } = taskContent(content);
+  let nextText = text;
+  if (update.title !== undefined || update.tags !== undefined) {
+    const before = extractTags(text);
+    nextText = [
+      update.title ?? before.title,
+      ...(update.tags ?? before.tags).map((tag) => '#' + tag),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+  const fields = new Set(tokens.map(({ field }) => field));
+  const metadata = tokens.map(({ field, raw }) => {
+    const value = update[field];
+    return value === undefined ? raw : value ? ` ${dateMarkers[field]} ${value}` : '';
+  });
+  for (const field of Object.keys(dateMarkers) as TaskDate[]) {
+    if (!fields.has(field) && update[field]) {
+      metadata.push(` ${dateMarkers[field]} ${update[field]}`);
+    }
+  }
+  const nextContent = (nextText + metadata.join('')).trimStart() || '未命名 TODO';
+  return prefix + marker + spacing + nextContent + trailing;
+}
+
+export function replaceMarkdownTaskLine(
+  markdown: string,
+  task: MarkdownTaskItem,
+  replacement: string,
+): string {
+  const parts = markdown.split(/(\r?\n)/);
+  parts[task.lineIndex * 2] = replacement;
+  return parts.join('');
+}
+
+export function removeMarkdownTask(markdown: string, task: MarkdownTaskItem): string {
+  if (task.hasContinuation) {
+    const content = V2_TASK_LINE_REGEX.exec(task.raw)?.[3] ?? '';
+    const { text, trailing } = taskContent(content);
+    const plainText = /^\[[ xX\-~?]\](?:[ \t]|$)/.test(text) ? '\\' + text : text;
+    return replaceMarkdownTaskLine(markdown, task, task.prefix + plainText + trailing);
+  }
+  const lines = markdown.split(/(\r?\n)/);
+  const index = task.lineIndex * 2;
+  lines.splice(index === lines.length - 1 && index > 0 ? index - 1 : index, 2);
+  return lines.join('');
+}
+
+export function appendMarkdownTask(markdown: string, line: string): string {
+  const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
+  const separator = markdown && !markdown.endsWith('\n') ? newline : '';
+  const appended = markdown + separator + line;
+  const lastLineIndex = appended.split(/\r?\n/).length - 1;
+  return readMarkdownTasks(appended).some((task) => task.lineIndex === lastLineIndex)
+    ? appended
+    : line + newline + newline + markdown;
+}
+
+export const remarkTaskCheckboxes: Plugin<[], Root> = () => (tree, file) => {
+  const tasks = new Map(
+    readMarkdownTasks(String(file), tree).map((task) => [task.lineIndex + 1, task]),
+  );
+  visit(tree, 'listItem', (node) => {
+    const task = tasks.get(node.position?.start.line ?? 0);
+    if (!task) return;
+    if (typeof node.checked !== 'boolean') {
+      const first = node.children[0];
+      const text = first?.type === 'paragraph' ? first.children[0] : undefined;
+      if (text?.type !== 'text' || !/^\[[ xX\-~?]\][ \t]+/.test(text.value)) return;
+      text.value = text.value.replace(/^\[[ xX\-~?]\][ \t]+/, '');
+    }
+    node.checked = task.status === 'done';
+    const data = (node.data ??= {});
+    data.hProperties = {
+      ...data.hProperties,
+      'data-task-line': task.lineIndex,
+      'data-task-label':
+        decodeTaskTitle(task.title) || task.tags.map((tag) => '#' + tag).join(' ') || '未命名 TODO',
+      'data-task-status': task.status,
+    };
+  });
+};

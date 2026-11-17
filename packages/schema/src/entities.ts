@@ -56,6 +56,7 @@ export const TaskSchema = z.object({
   done: z.boolean(),
   tags: TagsSchema.optional(),
   scheduledAt: StartAtSchema.optional(),
+  completedAt: StartAtSchema.optional(),
   status: TaskStatusSchema.optional(),
 });
 

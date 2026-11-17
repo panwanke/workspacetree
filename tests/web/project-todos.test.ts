@@ -157,6 +157,18 @@ describe('project TODOs', () => {
     expect(titles('leaves', 'discarded')).toEqual(['Alternate methods']);
   });
 
+  it('keeps unassigned TODOs out of terminal-node scope', () => {
+    const mixed = structuredClone(domain);
+    mixed.tasks.push({ id: 'tsk_unassigned', nodeId: null, title: 'Unassigned', done: false });
+    const groups = collectProjectTodos(mixed, { includeEmpty: true });
+    expect(
+      filterProjectTodos(groups, 'leaves', 'all')
+        .flatMap((group) => group.items)
+        .every((item) => item.nodeId !== null),
+    ).toBe(true);
+    expect(filterProjectTodos(groups, 'inbox', 'all')[0].items[0].id).toBe('tsk_unassigned');
+  });
+
   it('includes standalone branches without repeating the designated project subtree', () => {
     const mixed = structuredClone(domain);
     mixed.nodes.push({

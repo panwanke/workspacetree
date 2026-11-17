@@ -1,6 +1,7 @@
 import { buildHierarchy } from '@workspacetree/layout';
+import { indexWorkspaceTasks } from '@workspacetree/markdown';
 import type { DomainState, Task } from '@workspacetree/schema';
-import { readMarkdownTodos, type TodoStatus } from './markdown-todos';
+import type { TodoStatus } from './markdown-todos';
 
 export type TodoScope = 'leaves' | 'all' | 'inbox';
 export type TodoStatusFilter = TodoStatus | 'all';
@@ -16,6 +17,7 @@ interface TodoFields {
   nodeTags: readonly string[];
   todoTags: readonly string[];
   scheduledAt?: string;
+  completedAt?: string;
 }
 
 export type ProjectTodo = TodoFields &
@@ -47,6 +49,7 @@ function taskTodo(
     nodeTags,
     todoTags: task.tags ?? [],
     scheduledAt: task.scheduledAt,
+    completedAt: task.done ? task.completedAt : undefined,
     task,
   };
 }
@@ -58,22 +61,7 @@ export function collectProjectTodos(
   const { rootNodeId } = domain.project;
   const { children, roots } = buildHierarchy(domain.nodes, domain.edges);
   const nodes = new Map(domain.nodes.map((node) => [node.id, node]));
-  const markdownByBlock = new Map(
-    domain.blocks
-      .filter((block) => block.kind === 'text' || block.kind === 'checklist')
-      .map((block) => [block.id, (block.payload as { markdown?: unknown } | null)?.markdown]),
-  );
-  const tasksByNode = new Map<string, Task[]>();
-  const inbox: ProjectTodo[] = [];
-  for (const task of domain.tasks) {
-    if (task.nodeId === null) {
-      inbox.push(taskTodo(task, '待分配', [], false));
-      continue;
-    }
-    const tasks = tasksByNode.get(task.nodeId) ?? [];
-    tasks.push(task);
-    tasksByNode.set(task.nodeId, tasks);
-  }
+  const { byNode, inbox } = indexWorkspaceTasks(domain);
 
   function collectNode(nodeId: string): ProjectTodo[] {
     const node = nodes.get(nodeId);
@@ -84,28 +72,25 @@ export function collectProjectTodos(
       isLeaf: children.get(nodeId)?.length === 0,
       nodeTags: node.tags ?? [],
     };
-    const items: ProjectTodo[] = (tasksByNode.get(nodeId) ?? []).map((task) =>
-      taskTodo(task, context.nodeTitle, context.nodeTags, context.isLeaf),
-    );
-    for (const blockId of new Set(node.blockIds)) {
-      const markdown = markdownByBlock.get(blockId);
-      if (typeof markdown !== 'string') continue;
-      for (const todo of readMarkdownTodos(markdown)) {
-        items.push({
-          ...context,
-          id: JSON.stringify([nodeId, blockId, todo.lineIndex]),
-          title: todo.title,
-          status: todo.status,
-          source: 'markdown',
-          todoTags: todo.tags,
-          scheduledAt: todo.scheduledAt,
-          blockId,
-          lineIndex: todo.lineIndex,
-          markdown,
-        });
+    return (byNode.get(nodeId) ?? []).map((item) => {
+      if (item.source === 'task') {
+        return taskTodo(item.task, context.nodeTitle, context.nodeTags, context.isLeaf);
       }
-    }
-    return items;
+      const { task, blockId, markdown } = item;
+      return {
+        ...context,
+        id: JSON.stringify([nodeId, blockId, task.lineIndex]),
+        source: 'markdown',
+        title: task.title,
+        status: task.status,
+        todoTags: task.tags,
+        scheduledAt: task.scheduledAt,
+        completedAt: task.completedAt,
+        blockId,
+        lineIndex: task.lineIndex,
+        markdown,
+      };
+    });
   }
 
   const topics = [...(children.get(rootNodeId) ?? []), ...roots.filter((id) => id !== rootNodeId)];
@@ -123,7 +108,11 @@ export function collectProjectTodos(
     }
     groups.push({ id: topicId, title: nodes.get(topicId)?.title || '未命名分支', items });
   }
-  groups.unshift({ id: '', title: '待分配', items: inbox });
+  groups.unshift({
+    id: '',
+    title: '待分配',
+    items: inbox.map(({ task }) => taskTodo(task, '待分配', [], false)),
+  });
   return includeEmpty ? groups : groups.filter((group) => group.items.length > 0);
 }
 
@@ -135,7 +124,9 @@ export function projectTodoSections(
 ): TodoGroup[] {
   if (scope !== 'inbox' && grouping !== 'branch') return groupProjectTodos(matching, grouping);
   const byId = new Map(matching.map((group) => [group.id, group]));
-  const sections = scope === 'inbox' ? branches.filter((branch) => branch.id === '') : branches;
+  const sections = branches.filter(
+    (branch) => scope === 'all' || (scope === 'inbox' ? branch.id === '' : branch.id !== ''),
+  );
   return sections.map((branch) => byId.get(branch.id) ?? { ...branch, items: [] });
 }
 
@@ -150,7 +141,7 @@ export function filterProjectTodos(
       ...group,
       items: group.items.filter(
         (item) =>
-          (scope === 'all' || item.nodeId === null || (scope === 'leaves' && item.isLeaf)) &&
+          (scope === 'all' || (scope === 'inbox' ? item.nodeId === null : item.isLeaf)) &&
           (status === 'all' || item.status === status) &&
           (!tags.nodeTag || item.nodeTags.includes(tags.nodeTag)) &&
           (!tags.todoTag || item.todoTags.includes(tags.todoTag)),

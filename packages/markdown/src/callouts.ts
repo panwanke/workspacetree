@@ -1,5 +1,7 @@
-import type { Root, Blockquote } from 'mdast';
-import { visit } from 'unist-util-visit';
+import type { Blockquote, Definition, Paragraph, Root } from 'mdast';
+import type { Plugin } from 'unified';
+import { SKIP, visit } from 'unist-util-visit';
+import { parseMarkdown } from './parse.js';
 
 export type StandardCalloutType =
   'note' | 'info' | 'tip' | 'warning' | 'question' | 'success' | 'example';
@@ -57,47 +59,58 @@ export function formatCalloutHeader(type: string, title?: string, fold?: '+' | '
   return `> [!${type}]${foldStr}${titleStr}`;
 }
 
-/**
- * remark 插件：识别 blockquote 中首个段落以 `[!type]` 开头的情况，
- * 将其标记为 callout 节点（注入 data.callout 属性），并调整首段文本。
- */
-export function remarkCallouts() {
-  return (tree: Root) => {
-    visit(tree, 'blockquote', (node: Blockquote) => {
-      if (!node.children || node.children.length === 0) return;
-      const firstChild = node.children[0];
-      if (
-        firstChild?.type !== 'paragraph' ||
-        !firstChild.children ||
-        firstChild.children.length === 0
-      ) {
-        return;
-      }
-      const firstInline = firstChild.children[0];
-      if (firstInline?.type !== 'text') return;
-
-      const lines = firstInline.value.split(/\r?\n/);
-      const firstLine = lines[0] ?? '';
-      const meta = parseCalloutHeader(firstLine);
-      if (!meta) return;
-
-      // 标记为 callout
-      (node as any).data = {
-        ...(node as any).data,
-        callout: meta,
-      };
-
-      // 调整首行：移除 `[!type] title`，保留后续行
-      if (lines.length > 1) {
-        firstInline.value = lines.slice(1).join('\n');
-      } else {
-        // 首行如果是这一段唯一的文本，并且没有其他内联节点，则移除整个首段
-        if (firstChild.children.length === 1) {
-          node.children.shift();
-        } else {
-          firstChild.children.shift();
-        }
-      }
-    });
-  };
+function findCallouts(tree: Root, markdown: string, includeNested: boolean) {
+  const lines = markdown.split(/\r\n?|\n/);
+  const matches: { node: Blockquote; paragraph: Paragraph; line: number; meta: CalloutMeta }[] = [];
+  visit(tree, 'blockquote', (node) => {
+    const paragraph = node.children[0];
+    if (paragraph?.type !== 'paragraph' || !paragraph.position) return;
+    const { line, column } = paragraph.position.start;
+    const header = lines[line - 1]?.slice(column - 1) ?? '';
+    const meta = parseCalloutHeader(header);
+    if (!meta) return;
+    matches.push({ node, paragraph, line, meta });
+    if (!includeNested) return SKIP;
+  });
+  return matches;
 }
+
+export function countMarkdownCallouts(markdown: string): number {
+  if (!markdown.includes('[!')) return 0;
+  return findCallouts(parseMarkdown(markdown), markdown, false).length;
+}
+
+export const remarkCallouts: Plugin<[{ onlyCallouts?: boolean }?], Root> =
+  (options) => (tree, file) => {
+    const markdown = String(file);
+    if (!markdown.includes('[!')) {
+      if (options?.onlyCallouts) tree.children = [];
+      return;
+    }
+
+    const visible = options?.onlyCallouts ? findCallouts(tree, markdown, false) : undefined;
+    for (const { node, paragraph, line, meta } of findCallouts(tree, markdown, true)) {
+      node.data = Object.assign(node.data ?? {}, {
+        callout: meta,
+        hProperties: {
+          dataCalloutType: meta.normalizedType,
+          dataCalloutTitle: meta.title,
+        },
+      });
+      paragraph.children = paragraph.children.filter((part) => {
+        if (!part.position || part.position.start.line > line) return true;
+        if (part.type !== 'text' || part.position.end.line <= line) return false;
+        part.value = part.value.replace(/^[^\r\n]*\r?\n/, '');
+        return part.value.length > 0;
+      });
+      if (!paragraph.children.length) node.children.shift();
+    }
+
+    if (visible) {
+      const definitions: Definition[] = [];
+      visit(tree, 'definition', (node) => {
+        definitions.push(node);
+      });
+      tree.children = [...visible.map(({ node }) => node), ...definitions];
+    }
+  };

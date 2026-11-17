@@ -7,7 +7,6 @@ import {
   DEFAULT_VISIBLE_EDGE_TYPES,
   layoutBounds,
   pathForNodes,
-  taskStats,
   visualEdgeAnchors,
   visualEdgePath,
   type LayoutOptions,
@@ -15,7 +14,11 @@ import {
   type VisibleEdgeTypes,
   type VisualGraph,
 } from '@workspacetree/layout';
-import { extractAllImages } from '@workspacetree/markdown';
+import {
+  extractAllImages,
+  indexWorkspaceTasks,
+  workspaceTaskCounts,
+} from '@workspacetree/markdown';
 import type { AssetRecord, Block, Edge, Node, Task } from '@workspacetree/schema';
 
 export interface SvgExportInput {
@@ -68,7 +71,7 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
   const nodeWidth = cfg.nodeWidth ?? 220;
   const nodeHeight = cfg.nodeHeight ?? 76;
   const highlight = new Set(input.highlightNodeIds ?? []);
-  const tasks = input.tasks ?? [];
+  const tasks = input.graph ? undefined : indexWorkspaceTasks(input);
 
   const lines: string[] = [];
   lines.push(
@@ -155,7 +158,7 @@ export function exportSvg(input: SvgExportInput): SvgExportResult {
     const visual = input.graph?.nodeById[node.id];
     const stats = visual
       ? { done: visual.taskDone, total: visual.taskTotal }
-      : taskStats(tasks, node.id);
+      : workspaceTaskCounts(tasks?.byNode.get(node.id));
     const width = visual?.size.width ?? nodeWidth;
     const height = visual?.size.height ?? nodeHeight;
     const fill = visual?.collapsed

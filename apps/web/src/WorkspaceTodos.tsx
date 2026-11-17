@@ -1,10 +1,11 @@
 import { buildHierarchy } from '@workspacetree/layout';
+import { decodeTaskTitle } from '@workspacetree/markdown';
 import type { DomainState } from '@workspacetree/schema';
 import { useMemo, useRef, useState } from 'react';
 import { renderInlineMarkdown } from './MarkdownPreview';
 import { TODO_STATUS } from './markdown-todos';
 import { TagList } from './TagList';
-import { TodoEditor, type TodoEditField } from './TodoEditor';
+import { TodoEditor, TodoFieldEditor, type TodoEditField } from './TodoEditor';
 import {
   collectProjectTodos,
   filterProjectTodos,
@@ -19,13 +20,14 @@ import type { TodoDraft } from './todo-editing';
 import { WorkspaceIcon } from './WorkspaceIcon';
 
 const scopes = [
-  ['all', '全部节点'],
+  ['all', '全部 TODO'],
   ['leaves', '末端节点'],
   ['inbox', '待分配'],
 ] as const;
 
 type Editing = {
   groupId: string;
+  groupTitle: string;
   source: ProjectTodo | null;
   field: TodoEditField;
 };
@@ -35,7 +37,9 @@ export default function WorkspaceTodos({
   hidden,
   readOnly,
   onLocate,
-  onSave,
+  onCreate,
+  onUpdate,
+  onDelete,
   undoDepth,
   redoDepth,
   onUndo,
@@ -45,7 +49,9 @@ export default function WorkspaceTodos({
   hidden: boolean;
   readOnly: boolean;
   onLocate: (nodeId: string) => void;
-  onSave: (source: ProjectTodo | null, draft: TodoDraft) => Promise<void>;
+  onCreate: (draft: TodoDraft) => Promise<void>;
+  onUpdate: (source: ProjectTodo, changes: Partial<TodoDraft>) => Promise<void>;
+  onDelete: (source: ProjectTodo) => Promise<void>;
   undoDepth: number;
   redoDepth: number;
   onUndo: () => void;
@@ -57,6 +63,9 @@ export default function WorkspaceTodos({
   const [nodeTag, setNodeTag] = useState('');
   const [todoTag, setTodoTag] = useState('');
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  const pendingRows = useRef(new Set<string>());
+  const [notice, setNotice] = useState<{ message: string; error?: boolean } | null>(null);
   const editTrigger = useRef<{
     button: HTMLButtonElement;
     row: HTMLElement | null;
@@ -73,17 +82,33 @@ export default function WorkspaceTodos({
   const total = matching.reduce((count, group) => count + group.items.length, 0);
   const visibleGroups = projectTodoSections(groups, matching, scope, grouping);
   const branchView = grouping === 'branch' || scope === 'inbox';
+  const editLocked = readOnly || !!editing || pending.size > 0;
+  const activeSource = editing?.source;
+  if (activeSource) {
+    const index = visibleGroups.findIndex((group) => group.id === editing.groupId);
+    const group = visibleGroups[index];
+    if (!group) {
+      visibleGroups.push({ id: editing.groupId, title: editing.groupTitle, items: [activeSource] });
+    } else if (
+      !group.items.some(
+        (item) => item.source === activeSource.source && item.id === activeSource.id,
+      )
+    ) {
+      visibleGroups[index] = { ...group, items: [...group.items, activeSource] };
+    }
+  }
 
   function beginEdit(next: Editing, trigger: HTMLButtonElement) {
-    if (editing || readOnly) return;
+    if (editLocked || pendingRows.current.size) return;
     editTrigger.current = { button: trigger, row: trigger.closest('li'), field: next.field };
     setEditing(next);
   }
 
-  function closeEditor() {
+  function closeEditor(restoreFocus = true) {
     setEditing(null);
+    if (!restoreFocus) return;
+    const trigger = editTrigger.current;
     requestAnimationFrame(() => {
-      const trigger = editTrigger.current;
       const button = trigger?.button.isConnected
         ? trigger.button
         : trigger?.row?.querySelector<HTMLButtonElement>(
@@ -94,35 +119,53 @@ export default function WorkspaceTodos({
     });
   }
 
-  function editor(groupId: string, source: ProjectTodo | null) {
-    if (!editing) return null;
+  function announceUpdate(action: string, changes: Partial<TodoDraft>, source?: ProjectTodo) {
+    const target = changes.target;
+    const destination = target
+      ? target.mode === 'existing'
+        ? target.nodeId
+        : null
+      : (source?.nodeId ?? null);
+    const unassigned = target ? target.mode === 'inbox' : source?.nodeId === null;
+    const isLeaf =
+      target?.mode === 'new' ||
+      (destination !== null &&
+        (buildHierarchy(domain.nodes, domain.edges).children.get(destination)?.length ?? 0) === 0);
+    const tags = changes.tags ?? source?.todoTags ?? [];
+    const hiddenByFilter =
+      (scope === 'inbox' && !unassigned) ||
+      (scope === 'leaves' && !isLeaf) ||
+      (status !== 'all' && (changes.status ?? source?.status) !== status) ||
+      (todoTag && !tags.includes(todoTag)) ||
+      (nodeTag && !domain.nodes.find((node) => node.id === destination)?.tags?.includes(nodeTag));
+    setNotice({ message: hiddenByFilter ? action + '，当前筛选已隐藏该任务。' : action });
+  }
+
+  async function runRowAction(key: string, action: () => Promise<void>) {
+    if (pendingRows.current.has(key)) return;
+    pendingRows.current.add(key);
+    setPending(new Set(pendingRows.current));
+    setNotice(null);
+    try {
+      await action();
+    } catch (cause) {
+      setNotice({ message: cause instanceof Error ? cause.message : String(cause), error: true });
+    } finally {
+      pendingRows.current.delete(key);
+      setPending(new Set(pendingRows.current));
+    }
+  }
+
+  function addEditor(groupId: string) {
     return (
       <TodoEditor
         domain={domain}
-        source={source}
-        initialNodeId={source ? source.nodeId : branchView ? groupId || null : null}
-        initialStatus={status === 'all' ? 'open' : status}
+        initialNodeId={branchView ? groupId || null : null}
         initialTag={grouping === 'todoTag' && !branchView ? groupId || todoTag : todoTag}
-        field={editing.field}
-        onClose={closeEditor}
+        onClose={() => closeEditor()}
         onSave={async (draft) => {
-          await onSave(source, draft);
-          const destination = draft.target.mode === 'existing' ? draft.target.nodeId : null;
-          const outsideLeafScope =
-            scope === 'leaves' &&
-            destination !== null &&
-            (buildHierarchy(domain.nodes, domain.edges).children.get(destination)?.length ?? 0) > 0;
-          if ((scope === 'inbox' && draft.target.mode !== 'inbox') || outsideLeafScope) {
-            setScope('all');
-          }
-          if (status !== 'all' && draft.status !== status) setStatus('all');
-          if (todoTag && !draft.tags.includes(todoTag)) setTodoTag('');
-          if (
-            nodeTag &&
-            !domain.nodes.find((node) => node.id === destination)?.tags?.includes(nodeTag)
-          ) {
-            setNodeTag('');
-          }
+          await onCreate(draft);
+          announceUpdate('已添加', draft);
         }}
       />
     );
@@ -144,8 +187,11 @@ export default function WorkspaceTodos({
               className="wst-tool is-icon"
               aria-label="撤销"
               title="撤销"
-              disabled={!undoDepth || !!editing}
-              onClick={onUndo}
+              disabled={readOnly || !undoDepth || !!editing || !!pending.size}
+              onClick={() => {
+                setNotice(null);
+                onUndo();
+              }}
             >
               <WorkspaceIcon name="undo" />
             </button>
@@ -154,8 +200,11 @@ export default function WorkspaceTodos({
               className="wst-tool is-icon"
               aria-label="重做"
               title="重做"
-              disabled={!redoDepth || !!editing}
-              onClick={onRedo}
+              disabled={readOnly || !redoDepth || !!editing || !!pending.size}
+              onClick={() => {
+                setNotice(null);
+                onRedo();
+              }}
             >
               <WorkspaceIcon name="redo" />
             </button>
@@ -163,10 +212,13 @@ export default function WorkspaceTodos({
               <button
                 type="button"
                 className="wst-tool"
-                disabled={!!editing}
+                disabled={editLocked}
                 onClick={(event) => {
-                  setGrouping('branch');
-                  beginEdit({ groupId: '', source: null, field: 'title' }, event.currentTarget);
+                  setScope('inbox');
+                  beginEdit(
+                    { groupId: '', groupTitle: '待分配', source: null, field: 'title' },
+                    event.currentTarget,
+                  );
                 }}
               >
                 <WorkspaceIcon name="plus" size={15} /> 添加到待分配
@@ -191,6 +243,7 @@ export default function WorkspaceTodos({
           <label className="wst-todos-status-filter">
             状态
             <select
+              aria-label="状态"
               value={status}
               onChange={(event) => setStatus(event.target.value as TodoStatusFilter)}
             >
@@ -221,6 +274,14 @@ export default function WorkspaceTodos({
           <TagFilter label="TODO 标签" tags={todoTags} value={todoTag} onChange={setTodoTag} />
         </fieldset>
 
+        {notice && (
+          <p
+            className={notice.error ? 'wst-todo-notice wst-error' : 'wst-todo-notice'}
+            role={notice.error ? 'alert' : 'status'}
+          >
+            {notice.message}
+          </p>
+        )}
         {visibleGroups.map((group) => (
           <section key={group.id} className="wst-todo-group" aria-label={group.title}>
             <div className="wst-todo-group-heading">
@@ -230,128 +291,196 @@ export default function WorkspaceTodos({
             </div>
             {group.items.length > 0 && (
               <ul className="wst-todo-list">
-                {group.items.map((item) => {
-                  const key = item.source + ':' + item.id;
+                {group.items.map((row) => {
                   const current =
                     editing?.groupId === group.id &&
-                    editing.source?.id === item.id &&
-                    editing.source.source === item.source;
+                    editing.source?.id === row.id &&
+                    editing.source.source === row.source;
+                  const item = current ? editing.source! : row;
+                  const key = item.source + ':' + item.id;
                   const title =
-                    item.title ||
+                    (item.source === 'markdown' ? decodeTaskTitle(item.title) : item.title) ||
                     (item.source === 'markdown'
                       ? item.todoTags.map((tag) => '#' + tag).join(' ')
                       : '') ||
                     '未命名 TODO';
                   const nodeId = item.nodeId;
+                  const busy = pending.has(key);
                   const edit = (field: TodoEditField, trigger: HTMLButtonElement) =>
-                    beginEdit({ groupId: group.id, source: item, field }, trigger);
+                    beginEdit(
+                      { groupId: group.id, groupTitle: group.title, source: item, field },
+                      trigger,
+                    );
+                  const cell = (field: TodoEditField) =>
+                    current &&
+                    editing.field === field && (
+                      <TodoFieldEditor
+                        domain={domain}
+                        item={editing.source!}
+                        field={field}
+                        onClose={closeEditor}
+                        onUpdate={async (changes) => {
+                          await onUpdate(editing.source!, changes);
+                          announceUpdate('已更新', changes, item);
+                        }}
+                      />
+                    );
 
                   return (
-                    <li key={key} className={current ? 'wst-todo-inline-row' : 'wst-todo-row'}>
-                      {current ? (
-                        editor(group.id, item)
-                      ) : (
-                        <>
+                    <li key={key} className="wst-todo-row" aria-busy={busy}>
+                      <div className="wst-todo-status-cell">
+                        <input
+                          type="checkbox"
+                          className="wst-todo-check"
+                          checked={item.status === 'done'}
+                          disabled={readOnly || busy || !!editing}
+                          aria-label={(item.status === 'done' ? '取消完成 ' : '完成 ') + title}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            const changes = { status: checked ? 'done' : 'open' } as const;
+                            void runRowAction(key, async () => {
+                              await onUpdate(item, changes);
+                              announceUpdate(checked ? '已完成' : '已取消完成', changes, item);
+                              if (status !== 'all' && changes.status !== status)
+                                heading.current?.focus({ preventScroll: true });
+                            });
+                          }}
+                        />
+                        {cell('status') || (
                           <button
                             type="button"
                             className={`wst-todo-status is-${item.status}`}
                             data-todo-field="status"
-                            disabled={readOnly || !!editing}
+                            disabled={editLocked}
                             aria-label={'编辑状态 ' + title}
                             title={TODO_STATUS[item.status].label}
                             onClick={(event) => edit('status', event.currentTarget)}
                           >
-                            <code aria-hidden="true">{TODO_STATUS[item.status].marker}</code>
                             <span>{TODO_STATUS[item.status].label}</span>
                           </button>
-                          <button
-                            type="button"
-                            className={`wst-todo-cell wst-todo-title is-${item.status}`}
-                            data-todo-field="title"
-                            disabled={readOnly || !!editing}
-                            aria-label={'编辑 TODO ' + title}
-                            onClick={(event) => edit('title', event.currentTarget)}
-                          >
-                            {item.source === 'markdown' && item.title
-                              ? renderInlineMarkdown(item.title)
-                              : item.title || '未命名 TODO'}
-                          </button>
+                        )}
+                      </div>
+                      {cell('title') || (
+                        <button
+                          type="button"
+                          className={`wst-todo-cell wst-todo-title is-${item.status}`}
+                          data-todo-field="title"
+                          disabled={editLocked}
+                          aria-label={'编辑 TODO ' + title}
+                          onClick={(event) => edit('title', event.currentTarget)}
+                        >
+                          {item.source === 'markdown' && item.title
+                            ? renderInlineMarkdown(item.title)
+                            : title}
+                        </button>
+                      )}
+                      <div className="wst-todo-dates">
+                        {cell('date') || (
                           <button
                             type="button"
                             className="wst-todo-cell wst-todo-date-cell"
                             data-todo-field="date"
-                            disabled={readOnly || !!editing}
-                            aria-label={'编辑日期 ' + title}
+                            disabled={editLocked}
+                            aria-label={'编辑计划日期 ' + title}
                             onClick={(event) => edit('date', event.currentTarget)}
                           >
                             {item.scheduledAt ? (
-                              <time dateTime={item.scheduledAt}>{item.scheduledAt}</time>
+                              <time dateTime={item.scheduledAt}>计划 {item.scheduledAt}</time>
                             ) : (
-                              <span className="wst-todo-placeholder">设日期</span>
+                              <span className="wst-todo-placeholder">计划日期</span>
                             )}
                           </button>
-                          <button
-                            type="button"
-                            className="wst-todo-cell wst-todo-tag-cell"
-                            data-todo-field="tags"
-                            disabled={readOnly || !!editing}
-                            aria-label={'编辑标签 ' + title}
-                            onClick={(event) => edit('tags', event.currentTarget)}
-                          >
-                            {item.todoTags.length ? (
-                              <TagList tags={item.todoTags} label="TODO 标签" />
-                            ) : (
-                              <span className="wst-todo-placeholder">加标签</span>
+                        )}
+                        {item.completedAt && (
+                          <time className="wst-todo-completed" dateTime={item.completedAt}>
+                            完成 {item.completedAt}
+                          </time>
+                        )}
+                      </div>
+                      {cell('tags') || (
+                        <button
+                          type="button"
+                          className="wst-todo-cell wst-todo-tag-cell"
+                          data-todo-field="tags"
+                          disabled={editLocked}
+                          aria-label={'编辑标签 ' + title}
+                          onClick={(event) => edit('tags', event.currentTarget)}
+                        >
+                          {item.todoTags.length ? (
+                            <TagList tags={item.todoTags} label="TODO 标签" />
+                          ) : (
+                            <span className="wst-todo-placeholder">加标签</span>
+                          )}
+                        </button>
+                      )}
+                      <div className="wst-todo-origin">
+                        {cell('target') || (
+                          <div className="wst-todo-row-actions">
+                            {nodeId !== null && (
+                              <button
+                                type="button"
+                                className="wst-todo-source"
+                                disabled={!!editing}
+                                aria-label={`定位节点 ${item.nodeTitle}（${item.source === 'markdown' ? 'Markdown 笔记' : '节点任务'}）`}
+                                onClick={() => onLocate(nodeId)}
+                              >
+                                <span>{item.nodeTitle}</span>
+                                <WorkspaceIcon name="arrow" size={14} />
+                              </button>
                             )}
-                          </button>
-                          <div className="wst-todo-origin">
-                            <div className="wst-todo-row-actions">
-                              {nodeId !== null && (
-                                <button
-                                  type="button"
-                                  className="wst-todo-source"
-                                  disabled={!!editing}
-                                  aria-label={`定位节点 ${item.nodeTitle}（${item.source === 'markdown' ? 'Markdown 笔记' : '节点任务'}）`}
-                                  onClick={() => onLocate(nodeId)}
-                                >
-                                  <span>{item.nodeTitle}</span>
-                                  <WorkspaceIcon name="arrow" size={14} />
-                                </button>
-                              )}
+                            {!readOnly && (
                               <button
                                 type="button"
                                 className="wst-tool is-icon is-subtle"
                                 data-todo-field="target"
                                 title="修改归属"
-                                disabled={readOnly || !!editing}
+                                disabled={editLocked}
                                 aria-label={'修改归属 ' + title}
                                 onClick={(event) => edit('target', event.currentTarget)}
                               >
                                 <WorkspaceIcon name="route" size={15} />
                               </button>
-                            </div>
-                            <TagList tags={item.nodeTags} label="节点标签" />
+                            )}
+                            {!readOnly && (
+                              <button
+                                type="button"
+                                className="wst-tool is-icon is-subtle wst-todo-delete"
+                                title="删除 TODO"
+                                aria-label={'删除 TODO ' + title}
+                                disabled={busy || !!editing}
+                                onClick={() =>
+                                  void runRowAction(key, async () => {
+                                    await onDelete(item);
+                                    setNotice({ message: '已删除，可撤销。' });
+                                    heading.current?.focus({ preventScroll: true });
+                                  })
+                                }
+                              >
+                                <WorkspaceIcon name="trash" size={15} />
+                              </button>
+                            )}
                           </div>
-                        </>
-                      )}
+                        )}
+                        <TagList tags={item.nodeTags} label="节点标签" />
+                      </div>
                     </li>
                   );
                 })}
               </ul>
             )}
             {editing?.groupId === group.id && editing.source === null ? (
-              <div className="wst-todo-inline-row">{editor(group.id, null)}</div>
+              <div className="wst-todo-inline-row">{addEditor(group.id)}</div>
             ) : (
               !readOnly &&
               (branchView || grouping === 'todoTag') && (
                 <button
                   type="button"
                   className="wst-todo-add"
-                  disabled={!!editing}
+                  disabled={editLocked}
                   aria-label={'添加 TODO 到 ' + group.title}
                   onClick={(event) =>
                     beginEdit(
-                      { groupId: group.id, source: null, field: 'title' },
+                      { groupId: group.id, groupTitle: group.title, source: null, field: 'title' },
                       event.currentTarget,
                     )
                   }

@@ -3,8 +3,12 @@ import {
   readMarkdownTasks,
   toggleTaskOnLine,
   setTaskStatusOnLine,
+  removeMarkdownTask,
   parseCalloutHeader,
   formatCalloutHeader,
+  countMarkdownCallouts,
+  createMarkdownProcessor,
+  remarkCallouts,
   parseImageMeta,
   formatImageTag,
   extractAllImages,
@@ -12,6 +16,40 @@ import {
 } from '@workspacetree/markdown';
 
 describe('Markdown 语法与任务解析 (packages/markdown)', () => {
+  it('lists actual Callouts and preserves their body and reference definitions', () => {
+    const markdown = [
+      'Outside the callout.',
+      '',
+      '> Regular quotation.',
+      '',
+      '```markdown',
+      '> [!note] Example code',
+      '```',
+      '',
+      '> [!WARNING]+ Check **first**',
+      '> A [linked][resource] detail.',
+      '',
+      '[resource]: https://example.com',
+    ].join('\r\n');
+    expect(countMarkdownCallouts(markdown)).toBe(1);
+    const processor = createMarkdownProcessor().use(remarkCallouts, { onlyCallouts: true });
+    const tree = processor.runSync(processor.parse(markdown), markdown);
+    expect(tree.children.map((node) => node.type)).toEqual(['blockquote', 'definition']);
+    expect(tree.children[0]).toMatchObject({
+      data: { callout: { normalizedType: 'warning', title: 'Check **first**', foldable: true } },
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'text', value: 'A ' },
+            { type: 'linkReference', identifier: 'resource' },
+            { type: 'text', value: ' detail.' },
+          ],
+        },
+      ],
+    });
+  });
+
   it('支持任务五态标记，大小写 X 均为已完成，并正确跳过代码围栏', () => {
     const md = [
       '- [ ] 未完成',
@@ -138,6 +176,32 @@ describe('Markdown 语法与任务解析 (packages/markdown)', () => {
     // 直接设为 discarded [-]
     const discarded = setTaskStatusOnLine(md, 1, 'discarded');
     expect(discarded.split('\n')[1]).toBe('- [-] 任务二');
+  });
+
+  it('records a completion date without changing the plan date or surrounding Markdown', () => {
+    const before = '>  1. [?]  **Review** #study 📅 2026-11-21  \r\n>    Keep this note.\n';
+    const checked = toggleTaskOnLine(before, 0, '2026-11-17');
+    expect(checked).toBe(
+      '>  1. [x]  **Review** #study 📅 2026-11-21 ✅ 2026-11-17  \r\n>    Keep this note.\n',
+    );
+    expect(readMarkdownTasks(checked)[0]).toMatchObject({
+      title: '**Review**',
+      scheduledAt: '2026-11-21',
+      completedAt: '2026-11-17',
+    });
+    expect(toggleTaskOnLine(checked, 0, '2026-11-18')).toBe(before.replace('[?]', '[ ]'));
+  });
+
+  it('keeps checkbox-like text in a demoted parent as ordinary Markdown', () => {
+    const markdown = '- [ ] [x] checkbox docs\n  Description\n  - [ ] Subtask';
+    const next = removeMarkdownTask(markdown, readMarkdownTasks(markdown)[0]);
+    expect(readMarkdownTasks(next).map((item) => item.title)).toEqual(['Subtask']);
+  });
+
+  it('ignores commented-out checklist examples', () => {
+    expect(
+      readMarkdownTasks('<!--\n- [ ] Example\n-->\n\n- [ ] Task').map((item) => item.title),
+    ).toEqual(['Task']);
   });
 
   it('Callout 标题解析与格式化', () => {

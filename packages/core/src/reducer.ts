@@ -450,13 +450,21 @@ export function applyCommand(
     }
     case 'task.add': {
       const payload = payloadOf(envelope, ['id', 'nodeId', 'title']);
-      nextDomain.tasks.push(
-        taskOf({
-          ...payload,
-          ...(payload.tags === null ? { tags: undefined } : {}),
-          done: optionalBool(payload, 'done', false),
-        }),
-      );
+      const index = 'index' in payload ? payload.index : nextDomain.tasks.length;
+      if (
+        typeof index !== 'number' ||
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index > nextDomain.tasks.length
+      ) {
+        throw new ValidationError('Invalid task insertion index');
+      }
+      const task = taskOf({
+        ...payload,
+        ...(payload.tags === null ? { tags: undefined } : {}),
+        done: optionalBool(payload, 'done', false),
+      });
+      nextDomain.tasks.splice(index, 0, task);
       break;
     }
     case 'task.edit': {
@@ -479,6 +487,7 @@ export function applyCommand(
       if (!task) throw new ValidationError(`unknown task id: ${String(payload.id)}`);
       task.done = bool(payload, 'done');
       if (task.done) delete task.status;
+      else delete task.completedAt;
       break;
     }
     case 'edge.add': {
@@ -627,6 +636,14 @@ export function applyCommand(
     }
     case 'workspace.replace': {
       const payload = payloadOf(envelope, ['domain']);
+      if (
+        'expectedSemanticHash' in payload &&
+        str(payload, 'expectedSemanticHash') !== computeSemanticHash(nextDomain)
+      ) {
+        throw new ValidationError(
+          'Workspace content changed before this operation. Retry with the latest version.',
+        );
+      }
       const parsed = DomainStateSchema.safeParse(payload.domain);
       if (!parsed.success) {
         throw new ValidationError('command.payload.domain is not a well-formed DomainState');

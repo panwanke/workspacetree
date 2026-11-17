@@ -1,15 +1,35 @@
 import { canonicalize, makeId, newNodeId } from '@workspacetree/core';
-import { StartAtSchema, type BranchFile, type Command, type Task } from '@workspacetree/schema';
+import {
+  appendMarkdownTask,
+  decodeTaskTitle,
+  editMarkdownTaskLine,
+  escapeTaskTitle,
+  localToday,
+  readMarkdownBlocks,
+  readMarkdownTasks,
+  removeMarkdownTask,
+  replaceMarkdownTaskLine,
+  TASK_STATUS_CONFIG,
+  type MarkdownTaskItem,
+} from '@workspacetree/markdown';
+import {
+  StartAtSchema,
+  TagSchema,
+  type BranchFile,
+  type Command,
+  type DomainState,
+  type Task,
+} from '@workspacetree/schema';
 import {
   addTaskEntry,
   createNodeEntry,
   editTaskEntry,
   getNodeNoteBlock,
+  removeTaskEntry,
   setNodeNoteEntry,
   type HistoryEntry,
 } from './history';
-import { readMarkdownTodos, TODO_LINE, TODO_STATUS, type TodoStatus } from './markdown-todos';
-import type { ProjectTodo } from './project-todos';
+import type { TodoStatus } from './markdown-todos';
 
 export type TodoTarget =
   { mode: 'inbox' } | { mode: 'existing'; nodeId: string } | { mode: 'new'; parentId: string };
@@ -22,115 +42,245 @@ export interface TodoDraft {
   target: TodoTarget;
 }
 
-export function saveTodoEntry(
-  file: BranchFile,
-  source: ProjectTodo | null,
-  draft: TodoDraft,
-): HistoryEntry {
-  const { domain } = file;
-  const { target } = draft;
-  const title = draft.title.trim();
-  if (/[\r\n]/.test(title)) throw new Error('TODO 标题须在一行内。');
-  const scheduledAt =
-    draft.scheduledAt === null ? undefined : StartAtSchema.parse(draft.scheduledAt);
-  const tags = [...new Set(draft.tags)];
-  const newId = target.mode === 'new' ? newNodeId() : null;
-  const nodeId = target.mode === 'existing' ? target.nodeId : newId;
-  const forward: Command[] = [];
-  const inverse: Command[] = [];
-  function append(entry: HistoryEntry) {
-    forward.push(...entry.forward);
-    inverse.unshift(...entry.inverse);
-  }
+export type TodoSource =
+  | { source: 'task'; id: string; task: Task }
+  | { source: 'markdown'; nodeId: string; blockId: string; lineIndex: number; markdown: string };
 
-  function changeMarkdown(id: string, blockId: string, before: string, after: string) {
-    const payload = { id, blockId };
-    forward.push({ type: 'node.editMarkdownBlock', payload: { ...payload, markdown: after } });
-    inverse.unshift({ type: 'node.editMarkdownBlock', payload: { ...payload, markdown: before } });
-  }
+type LocatedTodo =
+  | { source: 'task'; nodeId: string | null; task: Task; index: number }
+  | {
+      source: 'markdown';
+      nodeId: string;
+      blockId: string;
+      markdown: string;
+      task: MarkdownTaskItem;
+    };
 
-  if (target.mode === 'new' && newId) {
-    const creation = createNodeEntry(newId, title || '未命名 TODO', target.parentId, makeId('e_'));
-    if (scheduledAt) {
-      creation.forward.push({
-        type: 'node.setStartAt',
-        payload: { id: newId, startAt: scheduledAt },
-      });
+function locateTodo(domain: DomainState, source: TodoSource, rebase = false): LocatedTodo {
+  if (source.source === 'task') {
+    const index = domain.tasks.findIndex((item) => item.id === source.id);
+    const task = domain.tasks[index];
+    if (!task || canonicalize(task) !== canonicalize(source.task)) {
+      throw new Error('这条 TODO 已变化，请重新打开后重试。');
     }
-    append(creation);
+    return { source: 'task', nodeId: task.nodeId, task, index };
   }
 
-  if (source?.source === 'markdown') {
-    const block = domain.blocks.find((item) => item.id === source.blockId);
-    const node = domain.nodes.find((item) => item.id === source.nodeId);
-    const markdown = (block?.payload as { markdown?: unknown } | null)?.markdown;
-    if (!node?.blockIds.includes(source.blockId) || markdown !== source.markdown) {
+  const node = domain.nodes.find((item) => item.id === source.nodeId);
+  const blocks = domain.blocks.filter((block) => block.id === source.blockId);
+  const markdown = readMarkdownBlocks(blocks).get(source.blockId);
+  if (!node?.blockIds.includes(source.blockId) || markdown === undefined) {
+    throw new Error('原笔记已变化，请重新打开这条 TODO。');
+  }
+  const tasks = readMarkdownTasks(markdown);
+  const task = tasks.find((item) => item.lineIndex === source.lineIndex);
+  if (markdown !== source.markdown) {
+    const previousLines = source.markdown.split(/\r?\n/);
+    const raw = previousLines[source.lineIndex];
+    if (
+      !rebase ||
+      !task ||
+      task.raw !== raw ||
+      previousLines.length !== markdown.split(/\r?\n/).length ||
+      previousLines.filter((line) => line === raw).length !== 1 ||
+      tasks.filter((item) => item.raw === raw).length !== 1
+    ) {
       throw new Error('原笔记已变化，请重新打开这条 TODO。');
     }
-
-    const parts = source.markdown.split(/(\r?\n)/);
-    const index = source.lineIndex * 2;
-    const prefix = TODO_LINE.exec(parts[index])?.[1];
-    if (!prefix) throw new Error('找不到原 TODO。');
-
-    const content =
-      [title, ...tags.map((tag) => '#' + tag), scheduledAt && '📅 ' + scheduledAt]
-        .filter(Boolean)
-        .join(' ') || '未命名 TODO';
-    const line = TODO_STATUS[draft.status].marker + ' ' + content;
-    if (nodeId === source.nodeId) {
-      parts[index] = prefix + line;
-    } else {
-      parts.splice(index === parts.length - 1 && index > 0 ? index - 1 : index, 2);
-    }
-    changeMarkdown(source.nodeId, source.blockId, markdown, parts.join(''));
-
-    if (nodeId !== null) {
-      if (nodeId !== source.nodeId) {
-        const destination = getNodeNoteBlock(domain, nodeId);
-        const before = destination?.markdown ?? '';
-        const newline = before.includes('\r\n') ? '\r\n' : '\n';
-        const separator = before && !before.endsWith('\n') ? newline : '';
-        const appended = before + separator + '- ' + line;
-        const lastIndex = appended.split(/\r?\n/).length - 1;
-        const next = readMarkdownTodos(appended).some((item) => item.lineIndex === lastIndex)
-          ? appended
-          : '- ' + line + newline + newline + before;
-        if (destination) {
-          changeMarkdown(nodeId, destination.id, before, next);
-        } else {
-          append(setNodeNoteEntry(domain, nodeId, next));
-        }
-      }
-      return { label: '编辑 TODO', stateClass: 'domain', actorKind: 'human', forward, inverse };
-    }
   }
+  if (!task) throw new Error('找不到原 TODO。');
+  return { ...source, markdown, task };
+}
 
-  const task: Task = {
-    id: source?.source === 'task' ? source.id : makeId('tsk_'),
-    title,
-    nodeId,
-    done: draft.status === 'done',
-    ...(draft.status === 'pending' || draft.status === 'discarded' || draft.status === 'paused'
-      ? { status: draft.status }
-      : {}),
-    ...(scheduledAt ? { scheduledAt } : {}),
-    ...(tags.length ? { tags } : {}),
-  };
-  if (source?.source === 'task') {
-    const before = domain.tasks.find((item) => item.id === source.id);
-    if (!before || canonicalize(before) !== canonicalize(source.task)) {
-      throw new Error('原 TODO 已变化，请重新打开后再编辑。');
-    }
-    append(editTaskEntry(before, task));
-  } else {
-    append(addTaskEntry(task));
-  }
+function fieldsOf(item: LocatedTodo): TodoDraft {
+  const { task } = item;
   return {
-    label: source ? '编辑 TODO' : '新建 TODO',
+    title: task.title,
+    tags: task.tags ?? [],
+    status:
+      item.source === 'markdown'
+        ? item.task.status
+        : (item.task.status ?? (item.task.done ? 'done' : 'open')),
+    scheduledAt: task.scheduledAt ?? null,
+    target: item.nodeId === null ? { mode: 'inbox' } : { mode: 'existing', nodeId: item.nodeId },
+  };
+}
+
+function markdownEdit(
+  nodeId: string,
+  blockId: string,
+  before: string,
+  after: string,
+): HistoryEntry {
+  const payload = { id: nodeId, blockId };
+  return {
+    label: '编辑 TODO',
+    stateClass: 'domain',
+    actorKind: 'human',
+    forward: [{ type: 'node.editMarkdownBlock', payload: { ...payload, markdown: after } }],
+    inverse: [{ type: 'node.editMarkdownBlock', payload: { ...payload, markdown: before } }],
+  };
+}
+
+export function deleteTodoEntry(file: BranchFile, source: TodoSource): HistoryEntry {
+  const original = locateTodo(file.domain, source);
+  if (original.source === 'task') return removeTaskEntry(original.task, original.index);
+  return {
+    ...markdownEdit(
+      original.nodeId,
+      original.blockId,
+      original.markdown,
+      removeMarkdownTask(original.markdown, original.task),
+    ),
+    label: '删除 TODO',
+  };
+}
+
+export function updateTodoEntry(
+  file: BranchFile,
+  source: TodoSource,
+  changes: Partial<TodoDraft>,
+  day = localToday(),
+): HistoryEntry {
+  const original = locateTodo(file.domain, source, !changes.target);
+  return buildTodoEntry(file, original, { ...fieldsOf(original), ...changes }, day);
+}
+
+export function saveTodoEntry(
+  file: BranchFile,
+  source: TodoSource | null,
+  draft: TodoDraft,
+  day = localToday(),
+): HistoryEntry {
+  const original = source ? locateTodo(file.domain, source) : null;
+  return buildTodoEntry(file, original, draft, day);
+}
+
+function buildTodoEntry(
+  file: BranchFile,
+  original: LocatedTodo | null,
+  draft: TodoDraft,
+  day: string,
+): HistoryEntry {
+  const { domain } = file;
+  const { target, status } = draft;
+  const unchangedLegacyTitle = original?.source === 'task' && draft.title === original.task.title;
+  const title = unchangedLegacyTitle ? draft.title : draft.title.trim();
+  if (!unchangedLegacyTitle && /[\r\n]/.test(title)) throw new Error('TODO 标题须在一行内。');
+  const scheduledAt =
+    draft.scheduledAt === null ? undefined : StartAtSchema.parse(draft.scheduledAt);
+  const tags = [...new Set(draft.tags.map((tag) => TagSchema.parse(tag)))];
+  const before = original && fieldsOf(original);
+  const completedAt =
+    status === 'done'
+      ? before?.status === 'done'
+        ? original?.task.completedAt
+        : StartAtSchema.parse(day)
+      : undefined;
+  const newId = target.mode === 'new' ? newNodeId() : null;
+  const nodeId = target.mode === 'existing' ? target.nodeId : newId;
+  const label = original ? '编辑 TODO' : '新建 TODO';
+  const forward: Command[] = [];
+  const inverse: Command[] = [];
+  const result: HistoryEntry = {
+    label,
     stateClass: 'domain',
     actorKind: 'human',
     forward,
     inverse,
   };
+
+  function append(entry: HistoryEntry) {
+    forward.push(...entry.forward);
+    inverse.unshift(...entry.inverse);
+  }
+
+  const titleChanged = title !== before?.title;
+  const tagsChanged = canonicalize(tags) !== canonicalize(before?.tags);
+  const statusChanged = status !== before?.status;
+  const scheduleChanged = (scheduledAt ?? null) !== before?.scheduledAt;
+  if (
+    original &&
+    nodeId === original.nodeId &&
+    !titleChanged &&
+    !tagsChanged &&
+    !statusChanged &&
+    !scheduleChanged
+  ) {
+    return result;
+  }
+
+  if (newId && target.mode === 'new') {
+    append(createNodeEntry(newId, title || '未命名 TODO', target.parentId, makeId('e_')));
+    if (scheduledAt)
+      forward.push({ type: 'node.setStartAt', payload: { id: newId, startAt: scheduledAt } });
+  }
+
+  if (original?.source === 'markdown') {
+    if (nodeId === original.nodeId) {
+      const line = editMarkdownTaskLine(original.task.raw, {
+        ...(titleChanged ? { title } : {}),
+        ...(tagsChanged ? { tags } : {}),
+        ...(statusChanged ? { status, completedAt: completedAt ?? null } : {}),
+        ...(scheduleChanged ? { scheduledAt: scheduledAt ?? null } : {}),
+      });
+      append(
+        markdownEdit(
+          nodeId,
+          original.blockId,
+          original.markdown,
+          replaceMarkdownTaskLine(original.markdown, original.task, line),
+        ),
+      );
+      return result;
+    }
+    append(
+      markdownEdit(
+        original.nodeId,
+        original.blockId,
+        original.markdown,
+        removeMarkdownTask(original.markdown, original.task),
+      ),
+    );
+  }
+
+  if (nodeId !== null) {
+    const destination = getNodeNoteBlock(domain, nodeId);
+    if (destination && original?.source === 'markdown' && destination.id === original.blockId) {
+      throw new Error('两个节点引用同一笔记，请选择另一目标节点。');
+    }
+    const content =
+      [
+        original?.source === 'task' ? escapeTaskTitle(title) : title,
+        ...tags.map((tag) => '#' + tag),
+        scheduledAt && '📅 ' + scheduledAt,
+        completedAt && '✅ ' + completedAt,
+      ]
+        .filter(Boolean)
+        .join(' ') || '未命名 TODO';
+    const markdown = appendMarkdownTask(
+      destination?.markdown ?? '',
+      '- ' + TASK_STATUS_CONFIG[status].marker + ' ' + content,
+    );
+    append(
+      destination
+        ? markdownEdit(nodeId, destination.id, destination.markdown, markdown)
+        : setNodeNoteEntry(domain, nodeId, markdown),
+    );
+    if (original?.source === 'task') append(removeTaskEntry(original.task, original.index));
+    return result;
+  }
+
+  const task: Task = {
+    id: original?.source === 'task' ? original.task.id : makeId('tsk_'),
+    title: original?.source === 'markdown' ? decodeTaskTitle(title) : title,
+    nodeId,
+    done: status === 'done',
+    ...(status === 'pending' || status === 'discarded' || status === 'paused' ? { status } : {}),
+    ...(scheduledAt ? { scheduledAt } : {}),
+    ...(completedAt ? { completedAt } : {}),
+    ...(tags.length ? { tags } : {}),
+  };
+  append(original?.source === 'task' ? editTaskEntry(original.task, task) : addTaskEntry(task));
+  return result;
 }

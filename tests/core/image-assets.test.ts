@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyCommand, ValidationError } from '@workspacetree/core';
 import type { AssetRecord, CommandEnvelope } from '@workspacetree/schema';
 import { createMinimalBranchFile } from '@workspacetree/cli';
-import { setNodeNoteEntry } from '../../apps/web/src/history.js';
+import { getNodeNote, setNodeNoteEntry } from '../../apps/web/src/history.js';
 import { transferBranch } from '../../apps/web/src/branch-editing.js';
 import { computeAssetId, createAssetRecord } from '../../apps/web/src/images/image-assets.js';
 
@@ -108,17 +108,24 @@ describe('阶段 3: 图片资产领域契约与管理 (tests/core/image-assets.t
     const targetFile = createMinimalBranchFile();
     const childId = 'n_child';
     const assetId = 'sha256_referenced';
+    const note = `包含了图片: ![图](asset:${assetId}){width=80%}\n\n- [ ] Review figure`;
 
     const noteEnv = makeEnvelope({
       type: 'node.setNoteWithAssets',
       payload: {
         id: childId,
-        markdown: `包含了图片: ![图](asset:${assetId}){width=80%}`,
+        markdown: note,
         assets: { [assetId]: sampleAsset },
       },
     });
     const step = applyCommand(sourceFile.domain, sourceFile.presentation, noteEnv);
     sourceFile.domain = step.domain;
+    sourceFile.domain.blocks.push({
+      id: 'blk_supplement',
+      kind: 'checklist',
+      payload: { markdown: '- [ ] Supplementary task' },
+    });
+    sourceFile.domain.nodes.find((node) => node.id === childId)!.blockIds.unshift('blk_supplement');
     sourceFile.domain.assets = {
       ...sourceFile.domain.assets,
       sha256_unreferenced: sampleAsset,
@@ -132,6 +139,7 @@ describe('阶段 3: 图片资产领域契约与管理 (tests/core/image-assets.t
     // 目标项目应只复制被引用的资产，未引用的不复制
     expect(targetDomain?.assets?.[assetId]).toEqual(sampleAsset);
     expect(targetDomain?.assets?.['sha256_unreferenced']).toBeUndefined();
+    expect(getNodeNote(targetDomain!, result.id)).toBe(note);
   });
 
   it('同一图片二进制内容去重计算相同的 SHA-256 ID', () => {

@@ -81,7 +81,7 @@ export class CommandService {
   }
 
   /** 批量 ChangeSet：一次 load、一次校验、一次 reduce、一次 save；失败不落盘。 */
-  async executeBatch(input: unknown): Promise<ExecuteOutcome> {
+  async executeBatch(input: unknown): Promise<ExecuteOutcome & { file?: BranchFile }> {
     const changeSet = parseChangeSet(input);
     const replayed = this.cache.get(changeSet.operationId);
     if (replayed) {
