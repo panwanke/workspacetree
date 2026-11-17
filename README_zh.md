@@ -55,18 +55,30 @@ WorkspaceTree 不只是一个简单的脑图绘制或任务看板工具，更是
 - 使用浏览器 IndexedDB 本地保存项目快照。
 - 可选的账号登录（手机号验证码 / WorkBuddy 账号 / 微信扫码）与按账号隔离的云端项目空间；未配置云服务时完全保持本地模式。
 
-## 账号与云端项目
+## 双部署方案与账号体系
 
-GitHub Pages 演示站使用独立的 `pnpm --filter @workspacetree/web build:static` 构建，项目存入浏览器 IndexedDB。构建会拒绝账号模块和云端 SDK，CI 会在发布前用浏览器验证产物。
+WorkspaceTree 采用严格分流的**双部署方案**，在代码和构建层实现物理隔离：
 
-在 WorkBuddy 部署中启用账号：
+| 方案             | 部署目标                         | 构建入口与产物                                                                                         | 账号与存储                                         | 核心特征与隔离机制                                                                                                           |
+| ---------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **纯静态单机版** | GitHub Pages 等静态托管          | `pnpm --filter @workspacetree/web build:static`<br>入口：`static/main.tsx`<br>产物：`dist-static/`     | 无账号登录<br>浏览器 IndexedDB 本地保存            | **物理隔离**：构建时通过专用插件拦截并禁止引入任何云端 SDK 与登录逻辑，不产生任何远程鉴权依赖，完全离线单机运行。            |
+| **云端账号版**   | 云托管服务（如 WorkBuddy Cloud） | `pnpm --filter @workspacetree/web build`<br>入口：`src/main.tsx`<br>产物：`dist/`（发布为 `release/`） | 支持账号登录<br>云端数据库（按账号隔离）+ 本地备用 | **服务端 RLS 隔离**：接入云端 BaaS 与数据库，支持手机号/微信/OAuth 登录；数据行通过服务端 RLS 强隔离，前端绝不发送用户凭证。 |
 
-1. 为应用激活 WorkBuddy Cloud Service，把 `endpoint`、`oauthRelayBaseUrl`、`publishableKey` 填入 `apps/web/src/cloud/public-config.ts`。
-2. 在云端 SQL 编辑器执行 [`docs/cloud-schema.sql`](docs/cloud-schema.sql)，创建 `public.workspacetree_projects` 表与 RLS 策略。前端从不发送 `owner_id`，由 `auth.uid()` 填充并按账号隔离。
-3. 执行 `pnpm --filter @workspacetree/web build` 后，将产物部署到 `publishableKey` 授权的 WorkBuddy HTTPS 域名。
-4. 重新构建后，实测登录、保存读回以及权限失败路径。OAuth 回调必须落在站点根路径（`BASE_URL`）且在同一标签页完成，WorkBuddy 登录的 PKCE 证明存在该标签页的 `sessionStorage`。
+### 本地开发与测试说明
 
-登录后使用账号项目空间与独立的标签页会话 key；由于 `EditorController` 持有 storage 引用，登录 / 登出会重载页面以重建控制器，其他标签页登出同样会触发重载。本地已有项目**不会自动迁移**，需导出并重新导入 `.branch.json`。
+- **为什么本地运行 `pnpm dev` 可以看到账号登录？**  
+  日常开发执行 `pnpm dev` 时，默认加载的是全功能开发入口（`apps/web/index.html` → `src/main.tsx`，即**云端账号版**）。若本地已注入对应的测试公开配置，应用就会激活账号服务面板；若配置为空，则会自动优雅降级为本地游客模式。
+- **如何在本地预览与测试纯静态版（GitHub Pages 镜像）？**  
+  执行 `pnpm --filter @workspacetree/web smoke:static`，即可通过独立的静态配置文件（`vite.static.config.ts`）在本地启动与 GitHub Pages 完全一致的无账号纯单机测试环境。
+
+### 在云端部署中启用账号
+
+1. 为应用激活对应云服务，将分配的公开参数（`endpoint`、`oauthRelayBaseUrl`、`publishableKey`）配置到 `apps/web/src/cloud/public-config.ts`（**安全提示**：请勿将生产环境敏感密钥提交到公开仓库）。
+2. 在云端 SQL 编辑器中执行 [`docs/cloud-schema.sql`](docs/cloud-schema.sql)，创建 `public.workspacetree_projects` 表与 RLS 策略。前端从不发送 `owner_id`，由服务端的 `auth.uid()` 自动填充并按账号隔离。
+3. 执行 `pnpm --filter @workspacetree/web build` 构建后，部署至授权的 HTTPS 域名。
+4. 部署后验证登录、云端项目读写以及未授权拦截路径。OAuth 回调需落在站点根路径并在同一标签页完成，WorkBuddy 登录的 PKCE 证明存在该标签页的 `sessionStorage`。
+
+登录后使用账号项目空间与独立的标签页会话 key；由于 `EditorController` 持有 storage 引用，登录 / 登出会重载页面以重建控制器，其他标签页登出同样会触发重载。本地已有项目**不会自动迁移**，用户可随时通过导出并在登录后重新导入 `.branch.json` 将项目同步到账号中。
 
 ## 快速开始
 

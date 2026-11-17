@@ -55,16 +55,28 @@ Both views support horizontal and vertical layouts. Undated parent nodes are pos
 - Store project snapshots locally in the browser using IndexedDB.
 - Optional account sign-in (phone OTP / WorkBuddy account / WeChat QR) with per-account cloud projects; without cloud configuration the app stays fully local.
 
-## Accounts & cloud projects
+## Dual Deployment & Account System
 
-The GitHub Pages demo uses a dedicated build (`pnpm --filter @workspacetree/web build:static`) with browser-local IndexedDB storage. Its build rejects account and cloud SDK imports, and CI checks the built site before deployment.
+WorkspaceTree maintains a strict architectural separation between two deployment models:
 
-To enable accounts in the WorkBuddy deployment:
+| Variant            | Target Environment                            | Build Command & Entry                                                                                         | Accounts & Storage                                        | Isolation Mechanism                                                                                                                        |
+| ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Static Offline** | GitHub Pages & static hosting                 | `pnpm --filter @workspacetree/web build:static`<br>Entry: `static/main.tsx`<br>Output: `dist-static/`         | No sign-in<br>Browser IndexedDB only                      | **Physical Isolation**: Build plugins strictly forbid and reject all cloud SDKs and authentication modules. Zero remote auth dependencies. |
+| **Cloud Account**  | Server / Cloud hosting (e.g. WorkBuddy Cloud) | `pnpm --filter @workspacetree/web build`<br>Entry: `src/main.tsx`<br>Output: `dist/` (packaged as `release/`) | Phone / OAuth / WeChat<br>Cloud DB (RLS) + Local fallback | **Server-side RLS**: Row-Level Security (`auth.uid()`) guarantees tenant isolation. The frontend never passes `owner_id` directly.         |
 
-1. Activate the WorkBuddy Cloud Service for this app and copy `endpoint`, `oauthRelayBaseUrl` and `publishableKey` into `apps/web/src/cloud/public-config.ts`.
-2. Run [`docs/cloud-schema.sql`](docs/cloud-schema.sql) in the cloud SQL editor to create `public.workspacetree_projects` with row-level security. The client never sends `owner_id`; RLS derives it from `auth.uid()`.
-3. Build with `pnpm --filter @workspacetree/web build`, then deploy to the WorkBuddy HTTPS origin authorized for the `publishableKey`.
-4. Rebuild, then verify real sign-in, save/read-back and a permission failure path. OAuth callbacks must land on the site root (`BASE_URL`) in the same tab; the WorkBuddy flow carries its PKCE verifier in that tab's `sessionStorage`.
+### Local Development & Testing Notes
+
+- **Why does local `pnpm dev` display the account login?**  
+  Running `pnpm dev` defaults to the full-featured root entry (`apps/web/index.html` → `src/main.tsx`, the **Cloud Account** variant). When public development configuration parameters are present, the account service panel is enabled. If left unconfigured, it gracefully falls back to local guest mode.
+- **How to test the static offline build locally?**  
+  Run `pnpm --filter @workspacetree/web smoke:static` to preview the exact static offline bundle using `vite.static.config.ts`.
+
+### Enabling Cloud Accounts
+
+1. Activate your cloud service and supply public client configuration (`endpoint`, `oauthRelayBaseUrl`, `publishableKey`) in `apps/web/src/cloud/public-config.ts` (_Security notice: never commit sensitive server secrets to public repos_).
+2. Execute [`docs/cloud-schema.sql`](docs/cloud-schema.sql) in your cloud SQL editor to initialize `public.workspacetree_projects` with row-level security. The client never sends `owner_id`; RLS derives it from `auth.uid()`.
+3. Build with `pnpm --filter @workspacetree/web build` and deploy to your authorized HTTPS origin.
+4. Verify sign-in, project save/load, and permission boundaries. OAuth callbacks must land on the site root within the same browser tab, where PKCE state is maintained in `sessionStorage`.
 
 Signed-in users get an account-scoped project store and separate tab-session keys. Signing in or out reloads the page because every `EditorController` holds a storage reference; an external sign-out from another tab also triggers this reload. Existing local projects are **not** migrated automatically — export and re-import `.branch.json` to move them into an account.
 
