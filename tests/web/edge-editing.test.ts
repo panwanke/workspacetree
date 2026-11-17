@@ -3,7 +3,11 @@ import { MemoryStorageAdapter } from '@workspacetree/storage';
 import { resolveVisualGraph } from '@workspacetree/layout';
 import { createDemoBranchFile } from '../fixtures/phase1-demo';
 import { EditorController } from '../../apps/web/src/editor';
-import { reconnectEdgeEntry, setEdgeNoteEntry } from '../../apps/web/src/edge-editing';
+import {
+  reconnectEdgeEntry,
+  saveRelationEntry,
+  setEdgeNoteEntry,
+} from '../../apps/web/src/edge-editing';
 import { addEdgeEntry, removeEdgeEntry } from '../../apps/web/src/history';
 
 async function setup() {
@@ -15,6 +19,38 @@ async function setup() {
 }
 
 describe('canvas edge editing', () => {
+  it('edits both endpoints, type and note in one undoable change', async () => {
+    const { editor, domain, edge } = await setup();
+    const before = domain().edges;
+    const [source, target] = domain().nodes.filter(
+      (node) => node.id !== edge.fromNodeId && node.id !== edge.toNodeId,
+    );
+    const changes = {
+      fromNodeId: source.id,
+      toNodeId: target.id,
+      type: 'custom' as const,
+      note: 'new note',
+    };
+    await editor.runFromLatest(({ domain }) => saveRelationEntry(domain, changes, edge.id));
+    expect(domain().edges.find((item) => item.id === edge.id)).toMatchObject(changes);
+    expect(editor.getSnapshot().undoDepth).toBe(1);
+    await editor.undo();
+    expect(domain().edges).toEqual(before);
+  });
+
+  it('rejects duplicate relation creation while allowing different relation types', async () => {
+    const { editor, edge } = await setup();
+    if (edge.type === 'hierarchy') throw new Error('Expected a relation');
+    const relation = { ...edge, type: edge.type };
+    await expect(
+      editor.runFromLatest(({ domain }) => saveRelationEntry(domain, relation)),
+    ).rejects.toThrow(/already exists/i);
+    expect(editor.getSnapshot().error).toMatch(/already exists/i);
+    expect(editor.getSnapshot().undoDepth).toBe(0);
+    const type = edge.type === 'custom' ? 'reference' : 'custom';
+    await editor.runFromLatest(({ domain }) => saveRelationEntry(domain, { ...edge, type }));
+    expect(editor.getSnapshot()).toMatchObject({ error: null, undoDepth: 1 });
+  });
   it('edits one original edge without changing the other edge in a collapsed projection', async () => {
     const { editor, domain } = await setup();
     const file = structuredClone(editor.getSnapshot().file);
