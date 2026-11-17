@@ -138,6 +138,17 @@ async function verifyConnections(page) {
   );
   await edgeInspector.getByRole('combobox', { name: '线型' }).selectOption('dotted');
   await edgeInspector.getByRole('button', { name: '应用样式' }).click();
+  // Style edits go through the async editor history (runFromLatest -> applyEntry -> save),
+  // so the edge repaint can lag behind the click on slower CI runners. Wait for the
+  // stroke-dasharray to reach the canvas instead of sampling it immediately.
+  await page.waitForFunction(
+    (testId) => {
+      const path = document.querySelector(`[data-testid="${testId}"] .react-flow__edge-path`);
+      return Boolean(path instanceof SVGElement && path.style.strokeDasharray.includes('1'));
+    },
+    `rf__edge-visual:hierarchy:n_child:${id}`,
+    { timeout: 5000 },
+  );
   const dashArray = await hierarchy
     .locator('.react-flow__edge-path')
     .evaluate((element) => element.style.strokeDasharray);
