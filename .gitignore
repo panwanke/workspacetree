@@ -11,7 +11,12 @@ apps/web/public/sql-wasm.wasm
 .workbuddy-ai/
 
 # ara/ 为本地治理/目标文档区，整个目录不入库（与代码仓库分离）
-/ara/
+ara.yaml
+trace/
+evidence/
+logic/
+arc
+AGENTS.md
 
 # WorkBuddy 发布用的静态构建产物副本（由 apps/web/dist 复制，不入库）
 /release/
