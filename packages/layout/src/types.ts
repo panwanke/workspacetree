@@ -56,10 +56,26 @@ export interface VisualNode {
   id: string;
   position: Point;
   size: Size;
-  /** 卡片最终显示比例，包含祖先分支比例和单节点比例。 */
+  /** 内部排版基准尺寸 (DOM 内部尺寸，由 effectiveLayoutScale 决定) */
+  layoutSize?: Size;
+  /** 物理外接边界尺寸 (考虑 effectiveVisualScale 后的实际占位边界) */
+  visualSize?: Size;
+  /** 卡片最终显示比例，包含祖先分支比例和单节点比例（向后兼容）。 */
   scale: number;
-  /** 分支几何比例，不含单节点比例。 */
+  /** 分支几何比例，不含单节点比例（向后兼容）。 */
   branchScale: number;
+  /** 有效排版缩放 (字号与折行) */
+  effectiveLayoutScale: number;
+  /** 有效几何缩放 (CSS Transform 整体变换) */
+  effectiveVisualScale: number;
+  /** 节点自身排版缩放 */
+  layoutScale: number;
+  /** 节点自身几何缩放 */
+  visualScale: number;
+  /** 分支继承有效排版缩放 */
+  branchLayoutScale: number;
+  /** 分支继承有效几何缩放 */
+  branchVisualScale: number;
   depth: number;
   startAt: string | null;
   collapsed: boolean;
@@ -102,6 +118,8 @@ export interface VisualGraph {
   positions: Record<string, Point>;
   sizes: Record<string, Size>;
   scales: Record<string, number>;
+  effectiveLayoutScales?: Record<string, number>;
+  effectiveVisualScales?: Record<string, number>;
   locked: string[];
   order: string[];
   dateAnchors: DateAnchor[];

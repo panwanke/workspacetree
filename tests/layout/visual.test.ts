@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainState } from '@workspacetree/schema';
-import { resolveVisualGraph, visualEdgeAnchors, visualEdgePath } from '@workspacetree/layout';
+import {
+  anchorScaleMatrix,
+  branchAnchorPoint,
+  identityMatrix,
+  invertMatrix,
+  multiplyMatrix,
+  resolveVisualGraph,
+  scaleMatrix,
+  transformPoint,
+  translateMatrix,
+  visualEdgeAnchors,
+  visualEdgePath,
+} from '@workspacetree/layout';
 import { createDemoDomain } from '../fixtures/phase1-demo';
 
 function presentation(overrides: Record<string, unknown> = {}) {
@@ -730,5 +742,68 @@ describe('Phase 2 统一视觉几何', () => {
     expect(aggregate.mixedStyleFields).toEqual(['color', 'width', 'lineStyle']);
     expect(aggregate.style2d).toMatchObject({ width: 2, lineStyle: 'dashed' });
     expect(aggregate.color).not.toBe('#ff0000');
+  });
+
+  describe('双层缩放几何与变换矩阵', () => {
+    it('2D 仿射变换与锚点缩放自洽可逆', () => {
+      const anchor = { x: 200, y: 150 };
+      const m = anchorScaleMatrix(anchor, 0.8);
+      // 锚点自身变换后世界坐标严格不变
+      const transformedAnchor = transformPoint(m, anchor);
+      expect(transformedAnchor).toEqual(anchor);
+
+      const p = { x: 300, y: 250 };
+      const pTransformed = transformPoint(m, p);
+      // p' = anchor + 0.8 * (p - anchor) = 200 + 80 = 280, 150 + 80 = 230
+      expect(pTransformed).toEqual({ x: 280, y: 230 });
+
+      // 逆矩阵准确还原
+      const inv = invertMatrix(m);
+      const pRestored = transformPoint(inv, pTransformed);
+      expect(pRestored).toEqual(p);
+    });
+
+    it('branchAnchorPoint 随生长方向自适应', () => {
+      const pos = { x: 100, y: 100 };
+      const size = { width: 200, height: 80 };
+
+      // 水平 LTR: 左侧中点 (100, 140)
+      expect(branchAnchorPoint(pos, size, 'horizontal', false)).toEqual({ x: 100, y: 140 });
+      // 水平 RTL: 右侧中点 (300, 140)
+      expect(branchAnchorPoint(pos, size, 'horizontal', true)).toEqual({ x: 300, y: 140 });
+      // 垂直 TTB: 顶部中点 (200, 100)
+      expect(branchAnchorPoint(pos, size, 'vertical')).toEqual({ x: 200, y: 100 });
+    });
+
+    it('双层缩放：排版缩放与几何缩放正交独立，分离 layoutSize 与 visualSize', () => {
+      const domain = createDemoDomain();
+      // 给 n_writing_init 增加 0.8 分支几何缩放，给 n_exp 增加 1.5 节点几何缩放
+      const g = resolveVisualGraph(
+        domain,
+        presentation({
+          branchScales: { n_writing_init: 0.5 },       // 排版分支缩放
+          branchVisualScales: { n_writing_init: 0.8 }, // 几何分支缩放
+          nodeScales: { n_exp: 1.2 },                  // 节点排版缩放
+          nodeVisualScales: { n_exp: 1.5 },            // 节点几何缩放
+        }),
+      );
+
+      const writingNode = g.nodeById.n_writing_init;
+      expect(writingNode.effectiveLayoutScale).toBe(0.5);
+      expect(writingNode.effectiveVisualScale).toBe(0.8);
+      expect(writingNode.branchLayoutScale).toBe(0.5);
+      expect(writingNode.branchVisualScale).toBe(0.8);
+      // visualSize 等于 layoutSize 乘以 0.8
+      expect(writingNode.visualSize!.width).toBe(Math.round(writingNode.layoutSize!.width * 0.8 * 100) / 100);
+      expect(writingNode.visualSize!.height).toBe(Math.round(writingNode.layoutSize!.height * 0.8 * 100) / 100);
+
+      const expNode = g.nodeById.n_exp;
+      expect(expNode.effectiveLayoutScale).toBe(1.2);
+      expect(expNode.effectiveVisualScale).toBe(1.5);
+      expect(expNode.layoutScale).toBe(1.2);
+      expect(expNode.visualScale).toBe(1.5);
+      expect(expNode.visualSize!.width).toBe(Math.round(expNode.layoutSize!.width * 1.5 * 100) / 100);
+      expect(expNode.visualSize!.height).toBe(Math.round(expNode.layoutSize!.height * 1.5 * 100) / 100);
+    });
   });
 });

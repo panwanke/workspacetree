@@ -29,11 +29,14 @@ type Presentation = Pick<
   SavedPresentation,
   | 'nodePositions'
   | 'branchScales'
+  | 'branchVisualScales'
   | 'branchScaleCompensation'
   | 'collapsedByDefault'
   | 'layoutDirection'
   | 'verticalNodePositions'
   | 'nodeScales'
+  | 'nodeVisualScales'
+  | 'scaleSettings'
   | 'edgeStyles'
 > & {
   nodeSizes?: SavedPresentation['nodeSizes'];
@@ -178,58 +181,94 @@ export function resolveVisualGraph(
   for (const id of collapsed) hideDescendants(id);
   const visibleNodes = domain.nodes.filter((node) => !hidden.has(node.id));
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
-  const rawBranchScales = new Map<string, number>();
-  const branchScales = new Map<string, number>();
+  const rawBranchLayoutScales = new Map<string, number>();
+  const branchLayoutScales = new Map<string, number>();
+  const rawBranchVisualScales = new Map<string, number>();
+  const branchVisualScales = new Map<string, number>();
   const depths = new Map<string, number>();
   const visiting = new Set<string>();
-  const resolveBranchScale = (id: string): number => {
-    const cached = rawBranchScales.get(id);
-    if (cached !== undefined) return cached;
-    if (visiting.has(id)) return 1;
+
+  const resolveBranchScales = (id: string): { layout: number; visual: number } => {
+    const cachedL = rawBranchLayoutScales.get(id);
+    const cachedV = rawBranchVisualScales.get(id);
+    if (cachedL !== undefined && cachedV !== undefined) return { layout: cachedL, visual: cachedV };
+    if (visiting.has(id)) return { layout: 1, visual: 1 };
     visiting.add(id);
+
     const parent = hierarchy.parents.get(id) ?? null;
-    const parentRaw = parent && visibleIds.has(parent) ? resolveBranchScale(parent) : 1;
-    const inherited = parentRaw * (presentation.branchScaleCompensation?.[id] ?? 1);
-    const raw = inherited * (presentation.branchScales[id] ?? 1);
-    rawBranchScales.set(id, raw);
-    branchScales.set(id, Math.max(0.1, raw));
+    const parentRaw =
+      parent && visibleIds.has(parent) ? resolveBranchScales(parent) : { layout: 1, visual: 1 };
+
+    // 1. 排版分支缩放 (Layout Scale)
+    const inheritedL = parentRaw.layout * (presentation.branchScaleCompensation?.[id] ?? 1);
+    const rawL = inheritedL * (presentation.branchScales[id] ?? 1);
+    rawBranchLayoutScales.set(id, rawL);
+    branchLayoutScales.set(id, Math.max(0.1, rawL));
+
+    // 2. 几何分支缩放 (Visual Scale)
+    const rawV = parentRaw.visual * (presentation.branchVisualScales?.[id] ?? 1);
+    rawBranchVisualScales.set(id, rawV);
+    branchVisualScales.set(id, Math.max(0.1, rawV));
+
     depths.set(id, parent && visibleIds.has(parent) ? (depths.get(parent) ?? 0) + 1 : 0);
     visiting.delete(id);
-    return raw;
+    return { layout: rawL, visual: rawV };
   };
-  for (const node of visibleNodes) resolveBranchScale(node.id);
+  for (const node of visibleNodes) resolveBranchScales(node.id);
 
+  const layoutSizes: Record<string, Size> = {};
+  const visualSizes: Record<string, Size> = {};
   const sizes: Record<string, Size> = {};
-  const scales: Record<string, number> = {};
+  const effectiveLayoutScales: Record<string, number> = {};
+  const effectiveVisualScales: Record<string, number> = {};
   const lodById = new Map<string, 'full' | 'summary'>();
   const taskIndex = indexWorkspaceTasks(domain);
+
   for (const node of visibleNodes) {
-    const branchScale = branchScales.get(node.id) ?? 1;
-    const scale = Math.max(0.1, branchScale * ((presentation.nodeScales ?? {})[node.id] ?? 1));
-    const lod = scale < LOD_SCALE_THRESHOLD ? 'summary' : 'full';
-    scales[node.id] = scale;
+    const branchLayout = branchLayoutScales.get(node.id) ?? 1;
+    const branchVisual = branchVisualScales.get(node.id) ?? 1;
+
+    const nodeLayout = (presentation.nodeScales ?? {})[node.id] ?? 1;
+    const nodeVisual = (presentation.nodeVisualScales ?? {})[node.id] ?? 1;
+
+    const effLayout = Math.max(0.1, branchLayout * nodeLayout);
+    const effVisual = Math.max(0.1, branchVisual * nodeVisual);
+
+    effectiveLayoutScales[node.id] = effLayout;
+    effectiveVisualScales[node.id] = effVisual;
+
+    const lod = effLayout < LOD_SCALE_THRESHOLD ? 'summary' : 'full';
     lodById.set(node.id, lod);
+
     const customSize = (presentation.nodeSizes ?? {})[node.id];
+    let baseWidth: number;
+    let baseHeight: number;
+
     if (customSize) {
-      sizes[node.id] = {
-        width: Math.max(LOD_MIN_WIDTH * 0.5, customSize.width * branchScale),
-        height: Math.max(LOD_MIN_HEIGHT * 0.7, customSize.height * branchScale),
-      };
+      baseWidth = Math.max(LOD_MIN_WIDTH * 0.5, customSize.width * branchLayout);
+      baseHeight = Math.max(LOD_MIN_HEIGHT * 0.7, customSize.height * branchLayout);
     } else {
-      sizes[node.id] = {
-        width:
-          lod === 'summary'
-            ? Math.max(LOD_MIN_WIDTH, cfg.nodeWidth * scale)
-            : cfg.nodeWidth * scale,
-        height:
-          lod === 'summary'
-            ? Math.max(LOD_MIN_HEIGHT, cfg.nodeHeight * scale)
-            : cfg.nodeHeight * scale,
-      };
+      baseWidth =
+        lod === 'summary'
+          ? Math.max(LOD_MIN_WIDTH, cfg.nodeWidth * effLayout)
+          : cfg.nodeWidth * effLayout;
+      baseHeight =
+        lod === 'summary'
+          ? Math.max(LOD_MIN_HEIGHT, cfg.nodeHeight * effLayout)
+          : cfg.nodeHeight * effLayout;
     }
     if (lod === 'full' && selectNodeNote(node, taskIndex.markdownByBlock)?.markdown.trim()) {
-      sizes[node.id].height = Math.max(sizes[node.id].height, markdownPreviewMinHeight(scale));
+      baseHeight = Math.max(baseHeight, markdownPreviewMinHeight(effLayout));
     }
+
+    layoutSizes[node.id] = { width: round(baseWidth), height: round(baseHeight) };
+    visualSizes[node.id] = {
+      width: round(baseWidth * effVisual),
+      height: round(baseHeight * effVisual),
+    };
+
+    // 树布局器采用实际几何占位边界 (visualSizes)，使绝对缩放后的实际物理边界参与外部空间与碰撞分配
+    sizes[node.id] = visualSizes[node.id];
   }
 
   const { positions, order, dateAnchors } =
@@ -272,12 +311,27 @@ export function resolveVisualGraph(
   const subtreeStats = computeSubtreeStats(domain, hierarchy, ownTasks);
   const visualNodes: VisualNode[] = visibleNodes.map((node) => {
     const isCollapsed = collapsed.has(node.id);
+    const effL = effectiveLayoutScales[node.id];
+    const effV = effectiveVisualScales[node.id];
+    const bL = branchLayoutScales.get(node.id) ?? 1;
+    const bV = branchVisualScales.get(node.id) ?? 1;
+    const nL = (presentation.nodeScales ?? {})[node.id] ?? 1;
+    const nV = (presentation.nodeVisualScales ?? {})[node.id] ?? 1;
+
     return {
       id: node.id,
       position: positions[node.id],
       size: sizes[node.id],
-      scale: scales[node.id],
-      branchScale: branchScales.get(node.id) ?? 1,
+      layoutSize: layoutSizes[node.id],
+      visualSize: visualSizes[node.id],
+      scale: effL,
+      branchScale: bL,
+      effectiveLayoutScale: effL,
+      effectiveVisualScale: effV,
+      layoutScale: nL,
+      visualScale: nV,
+      branchLayoutScale: bL,
+      branchVisualScale: bV,
       depth: depths.get(node.id) ?? 0,
       startAt: node.startAt ?? null,
       collapsed: isCollapsed,
@@ -310,7 +364,9 @@ export function resolveVisualGraph(
     edges,
     positions,
     sizes,
-    scales,
+    scales: effectiveLayoutScales,
+    effectiveLayoutScales,
+    effectiveVisualScales,
     locked: locked.sort(),
     order,
     dateAnchors,
