@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const ID_PREFIX = {
   project: 'prj_',

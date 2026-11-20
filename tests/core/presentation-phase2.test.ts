@@ -5,6 +5,7 @@ import {
   CommandService,
   computePresentationHash,
   computeSemanticHash,
+  createChildScale,
   validatePresentation,
 } from '@workspacetree/core';
 import { createMinimalBranchFile } from '@workspacetree/cli';
@@ -386,5 +387,57 @@ describe('Phase 2 history 与 EditorController', () => {
     expect(computePresentationHash(cleared.presentation)).toBe(
       computePresentationHash(fileWithoutField.presentation),
     );
+  });
+
+  it('dual-layer scaling: presentation commands modify visual scales independently', () => {
+    const file = createMinimalBranchFile();
+    const beforeSemantic = computeSemanticHash(file.domain);
+
+    const bRes = reduce(file, 'presentation.setVisualScale', { nodeId: 'n_root', scale: 0.8 });
+    expect(bRes.commit).toBeNull();
+    expect(computeSemanticHash(bRes.domain)).toBe(beforeSemantic);
+    expect(bRes.presentation.branchVisualScales?.n_root).toBe(0.8);
+    expect(() => validatePresentation(bRes.presentation)).not.toThrow();
+
+    const nRes = reduce(file, 'presentation.setNodeVisualScale', { nodeId: 'n_root', scale: 1.25 });
+    expect(nRes.commit).toBeNull();
+    expect(nRes.presentation.nodeVisualScales?.n_root).toBe(1.25);
+    expect(() => validatePresentation(nRes.presentation)).not.toThrow();
+  });
+
+  it('createChildScale respects scale settings and boundaries', () => {
+    const parent = { layoutScale: 1.0, visualScale: 1.0 };
+
+    // 默认模式: layout (-0.1 递减, visual 保持)
+    const childLayout = createChildScale(parent);
+    expect(childLayout.layoutScale).toBe(0.9);
+    expect(childLayout.visualScale).toBe(1.0);
+
+    // visual 模式 (乘法 0.9 递减)
+    const childVisual = createChildScale(parent, {
+      defaultChildMode: 'visual',
+      childLayoutStep: -0.1,
+      childVisualRatio: 0.9,
+      minLayoutScale: 0.6,
+      maxLayoutScale: 2.0,
+      minVisualScale: 0.4,
+      maxVisualScale: 2.0,
+    });
+    expect(childVisual.layoutScale).toBe(1.0);
+    expect(childVisual.visualScale).toBe(0.9);
+
+    // 下限截断测试
+    const smallParent = { layoutScale: 0.62, visualScale: 0.42 };
+    const bounded = createChildScale(smallParent, {
+      defaultChildMode: 'both',
+      childLayoutStep: -0.1,
+      childVisualRatio: 0.9,
+      minLayoutScale: 0.6,
+      maxLayoutScale: 2.0,
+      minVisualScale: 0.4,
+      maxVisualScale: 2.0,
+    });
+    expect(bounded.layoutScale).toBe(0.6);
+    expect(bounded.visualScale).toBe(0.4);
   });
 });

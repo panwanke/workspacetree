@@ -195,6 +195,14 @@ export function validatePresentation(presentation: SavedPresentation): void {
     }
   };
   validateScales(presentation.branchScales, MIN_DISPLAY_SCALE, MAX_DISPLAY_SCALE, 'branch');
+  if (presentation.branchVisualScales) {
+    validateScales(
+      presentation.branchVisualScales,
+      MIN_DISPLAY_SCALE,
+      MAX_DISPLAY_SCALE,
+      'branch visual',
+    );
+  }
   validateScales(
     presentation.branchScaleCompensation ?? {},
     Number.MIN_VALUE,
@@ -202,6 +210,9 @@ export function validatePresentation(presentation: SavedPresentation): void {
     'branch compensation',
   );
   validateScales(presentation.nodeScales ?? {}, MIN_NODE_SCALE, MAX_NODE_SCALE, 'node');
+  if (presentation.nodeVisualScales) {
+    validateScales(presentation.nodeVisualScales, MIN_DISPLAY_SCALE, MAX_DISPLAY_SCALE, 'node visual');
+  }
   if (
     presentation.layoutDirection != null &&
     presentation.layoutDirection !== 'horizontal' &&

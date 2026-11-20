@@ -12,6 +12,7 @@ import {
   NodeScaleSchema,
   SavedPresentationSchema,
   ScaleSchema,
+  ScaleSettingsSchema,
   StartAtSchema,
   TagsSchema,
   TaskSchema,
@@ -70,7 +71,10 @@ export const DOMAIN_COMMAND_TYPES = new Set([
 export const PRESENTATION_COMMAND_TYPES = new Set([
   'presentation.moveNode',
   'presentation.setScale',
+  'presentation.setVisualScale',
   'presentation.setNodeScale',
+  'presentation.setNodeVisualScale',
+  'presentation.setScaleSettings',
   'presentation.setNodeSize',
   'presentation.collapse',
   'presentation.setDefaultSpine',
@@ -223,16 +227,25 @@ function clonePresentation(presentation: SavedPresentation): SavedPresentation {
     nodePositions: cloneRecords(presentation.nodePositions),
     verticalNodePositions: cloneRecords(presentation.verticalNodePositions ?? {}),
     branchScales: { ...presentation.branchScales },
+    ...(presentation.branchVisualScales === undefined
+      ? {}
+      : { branchVisualScales: { ...presentation.branchVisualScales } }),
     ...(presentation.branchScaleCompensation === undefined
       ? {}
       : { branchScaleCompensation: { ...presentation.branchScaleCompensation } }),
     nodeScales: { ...presentation.nodeScales },
+    ...(presentation.nodeVisualScales === undefined
+      ? {}
+      : { nodeVisualScales: { ...presentation.nodeVisualScales } }),
     ...(presentation.nodeSizes === undefined
       ? {}
       : { nodeSizes: presentation.nodeSizes && cloneRecords(presentation.nodeSizes) }),
     ...(presentation.edgeStyles === undefined
       ? {}
       : { edgeStyles: cloneRecords(presentation.edgeStyles) }),
+    ...(presentation.scaleSettings === undefined
+      ? {}
+      : { scaleSettings: { ...presentation.scaleSettings } }),
     collapsedByDefault: [...presentation.collapsedByDefault],
     savedSpineDisplay: presentation.savedSpineDisplay,
     ...(presentation.layoutDirection === undefined
@@ -245,6 +258,7 @@ function removePresentationNode(presentation: SavedPresentation, id: string): vo
   delete presentation.nodePositions[id];
   if (presentation.verticalNodePositions) delete presentation.verticalNodePositions[id];
   delete presentation.branchScales[id];
+  if (presentation.branchVisualScales) delete presentation.branchVisualScales[id];
   if (presentation.branchScaleCompensation) {
     delete presentation.branchScaleCompensation[id];
     if (Object.keys(presentation.branchScaleCompensation).length === 0) {
@@ -252,6 +266,7 @@ function removePresentationNode(presentation: SavedPresentation, id: string): vo
     }
   }
   if (presentation.nodeScales) delete presentation.nodeScales[id];
+  if (presentation.nodeVisualScales) delete presentation.nodeVisualScales[id];
   if (presentation.nodeSizes) delete presentation.nodeSizes[id];
   presentation.collapsedByDefault = presentation.collapsedByDefault.filter(
     (nodeId) => nodeId !== id,
@@ -673,9 +688,31 @@ export function applyCommand(
       nextPresentation.branchScales[str(payload, 'nodeId')] = scaleOf(payload, false);
       break;
     }
+    case 'presentation.setVisualScale': {
+      const payload = payloadOf(envelope, ['nodeId', 'scale']);
+      if (!nextPresentation.branchVisualScales) nextPresentation.branchVisualScales = {};
+      nextPresentation.branchVisualScales[str(payload, 'nodeId')] = scaleOf(payload, false);
+      break;
+    }
     case 'presentation.setNodeScale': {
       const payload = payloadOf(envelope, ['nodeId', 'scale']);
-      nextPresentation.nodeScales![str(payload, 'nodeId')] = scaleOf(payload, true);
+      if (!nextPresentation.nodeScales) nextPresentation.nodeScales = {};
+      nextPresentation.nodeScales[str(payload, 'nodeId')] = scaleOf(payload, true);
+      break;
+    }
+    case 'presentation.setNodeVisualScale': {
+      const payload = payloadOf(envelope, ['nodeId', 'scale']);
+      if (!nextPresentation.nodeVisualScales) nextPresentation.nodeVisualScales = {};
+      nextPresentation.nodeVisualScales[str(payload, 'nodeId')] = scaleOf(payload, true);
+      break;
+    }
+    case 'presentation.setScaleSettings': {
+      const payload = payloadOf(envelope, ['settings']);
+      const parsed = ScaleSettingsSchema.safeParse(payload.settings);
+      if (!parsed.success) {
+        throw new ValidationError('command.payload.settings is invalid scale settings');
+      }
+      nextPresentation.scaleSettings = parsed.data;
       break;
     }
     case 'presentation.setNodeSize': {

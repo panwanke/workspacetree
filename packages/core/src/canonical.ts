@@ -86,6 +86,8 @@ function canonicalPresentation(presentation: SavedPresentation): SavedPresentati
   const verticalNodePositions = presentation.verticalNodePositions ?? {};
   const nodeScales = presentation.nodeScales ?? {};
   const edgeStyles = presentation.edgeStyles ?? {};
+  const nodeVisualScales = presentation.nodeVisualScales ?? {};
+  const branchVisualScales = presentation.branchVisualScales ?? {};
   const hasPhase2State =
     layoutDirection !== 'horizontal' ||
     Object.keys(verticalNodePositions).length > 0 ||
@@ -96,6 +98,8 @@ function canonicalPresentation(presentation: SavedPresentation): SavedPresentati
     verticalNodePositions,
     nodeScales,
     edgeStyles,
+    nodeVisualScales,
+    branchVisualScales,
   };
   if (!hasPhase2State) {
     delete normalized.layoutDirection;
@@ -103,6 +107,9 @@ function canonicalPresentation(presentation: SavedPresentation): SavedPresentati
     delete normalized.nodeScales;
   }
   if (Object.keys(edgeStyles).length === 0) delete normalized.edgeStyles;
+  if (Object.keys(nodeVisualScales).length === 0) delete normalized.nodeVisualScales;
+  if (Object.keys(branchVisualScales).length === 0) delete normalized.branchVisualScales;
+  if (!normalized.scaleSettings) delete normalized.scaleSettings;
   return normalized;
 }
 

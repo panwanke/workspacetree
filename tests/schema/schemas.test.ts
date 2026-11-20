@@ -93,17 +93,32 @@ describe('T-03 schemaVersion 迁移', () => {
     expect(() => migrateToCurrent({})).toThrow(SchemaMigrationError);
   });
 
-  it('v2 迁移到 v3 初始化 edgeStyles 并保留未知字段', () => {
+  it('v2 迁移到 v4 初始化 edgeStyles / visualScales 并保留未知字段', () => {
     const input = {
       schemaVersion: 2,
       presentation: { customView: 'keep-me' },
       customRoot: 'keep-root',
     };
     const migrated = migrateToCurrent(input) as Record<string, any>;
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated.presentation.edgeStyles).toEqual({});
+    expect(migrated.presentation.branchVisualScales).toEqual({});
+    expect(migrated.presentation.nodeVisualScales).toEqual({});
     expect(migrated.presentation.customView).toBe('keep-me');
     expect(migrated.customRoot).toBe('keep-root');
+  });
+
+  it('v3 迁移到 v4 初始化 branchVisualScales 与 nodeVisualScales', () => {
+    const input = {
+      schemaVersion: 3,
+      presentation: { branchScales: { n_1: 0.8 }, nodeScales: { n_1: 1.2 } },
+    };
+    const migrated = migrateToCurrent(input) as Record<string, any>;
+    expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.presentation.branchScales).toEqual({ n_1: 0.8 });
+    expect(migrated.presentation.nodeScales).toEqual({ n_1: 1.2 });
+    expect(migrated.presentation.branchVisualScales).toEqual({});
+    expect(migrated.presentation.nodeVisualScales).toEqual({});
   });
 
   it('EdgeStyle 约束颜色、宽度和枚举', () => {

@@ -69,14 +69,37 @@ export const EdgeStyleSchema = z.object({
   arrow: EdgeArrowSchema.optional(),
 });
 
+export const ScaleSettingsSchema = z.object({
+  defaultChildMode: z.enum(['layout', 'visual', 'both']).default('layout'),
+  childLayoutStep: z.number().default(-0.1),
+  childVisualRatio: z.number().positive().default(0.9),
+  minLayoutScale: z.number().positive().default(0.6),
+  maxLayoutScale: z.number().positive().default(2.0),
+  minVisualScale: z.number().positive().default(0.4),
+  maxVisualScale: z.number().positive().default(2.0),
+});
+
+export const DEFAULT_SCALE_SETTINGS: z.infer<typeof ScaleSettingsSchema> = {
+  defaultChildMode: 'layout',
+  childLayoutStep: -0.1,
+  childVisualRatio: 0.9,
+  minLayoutScale: 0.6,
+  maxLayoutScale: 2.0,
+  minVisualScale: 0.4,
+  maxVisualScale: 2.0,
+};
+
 export const SavedPresentationSchema = z.object({
   nodePositions: z.record(z.string(), PositionSchema),
   verticalNodePositions: z.record(z.string(), PositionSchema).nullish(),
   branchScales: z.record(z.string(), ScaleSchema),
+  branchVisualScales: z.record(z.string(), ScaleSchema).optional(),
   branchScaleCompensation: z.record(z.string(), z.number().positive()).optional(),
   nodeScales: z.record(z.string(), NodeScaleSchema).nullish(),
+  nodeVisualScales: z.record(z.string(), NodeScaleSchema).nullish(),
   nodeSizes: z.record(z.string(), NodeSizeSchema).nullish(),
   edgeStyles: z.record(z.string(), EdgeStyleSchema).optional(),
+  scaleSettings: ScaleSettingsSchema.optional(),
   collapsedByDefault: z.array(z.string()),
   savedSpineDisplay: z.string().nullable(),
   layoutDirection: LayoutDirectionSchema.nullish(),
@@ -111,6 +134,7 @@ export type AssetRecord = z.infer<typeof AssetRecordSchema>;
 export type DomainState = z.infer<typeof DomainStateSchema>;
 export type EdgeStyle = z.infer<typeof EdgeStyleSchema>;
 export type LayoutDirection = z.infer<typeof LayoutDirectionSchema>;
+export type ScaleSettings = z.infer<typeof ScaleSettingsSchema>;
 export type SavedPresentation = z.infer<typeof SavedPresentationSchema>;
 export type SessionView = z.infer<typeof SessionViewSchema>;
 export type Revisions = z.infer<typeof RevisionsSchema>;

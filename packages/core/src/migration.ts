@@ -2,7 +2,13 @@
  * schemaVersion 迁移框架（契约 1）。
  * 旧版本正确迁移或明确拒绝；迁移必须保留未知字段，不得静默丢字段（06 §二 验收 3）。
  */
-import { MIGRATIONS, SCHEMA_VERSION, registerMigration } from '@workspacetree/schema';
+import {
+  DEFAULT_SCALE_SETTINGS,
+  MIGRATIONS,
+  SCHEMA_VERSION,
+  registerMigration,
+  type ScaleSettings,
+} from '@workspacetree/schema';
 import { migrateTasksV1ToV2 } from '@workspacetree/markdown';
 import { computeSemanticHash, computePresentationHash, computeFileHash } from './canonical.js';
 import { SchemaMigrationError } from './errors.js';
@@ -135,6 +141,90 @@ export function migrateV2ToV3(input: Record<string, unknown>): Record<string, un
 }
 
 registerMigration(2, migrateV2ToV3);
+
+export function migrateV3ToV4(input: Record<string, unknown>): Record<string, unknown> {
+  const output = { ...input };
+
+  if (
+    output.presentation &&
+    typeof output.presentation === 'object' &&
+    !Array.isArray(output.presentation)
+  ) {
+    const presentation = { ...(output.presentation as Record<string, unknown>) };
+    if (
+      !presentation.branchVisualScales ||
+      typeof presentation.branchVisualScales !== 'object' ||
+      Array.isArray(presentation.branchVisualScales)
+    ) {
+      presentation.branchVisualScales = {};
+    }
+    if (
+      !presentation.nodeVisualScales ||
+      typeof presentation.nodeVisualScales !== 'object' ||
+      Array.isArray(presentation.nodeVisualScales)
+    ) {
+      presentation.nodeVisualScales = {};
+    }
+    output.presentation = presentation;
+  }
+
+  if (
+    output.domain &&
+    output.presentation &&
+    output.revisions &&
+    typeof output.revisions === 'object'
+  ) {
+    const revisions = { ...(output.revisions as Record<string, unknown>) };
+    try {
+      const semanticHash = computeSemanticHash(output.domain as any);
+      const presentationHash = computePresentationHash(output.presentation as any);
+      revisions.semanticHash = semanticHash;
+      revisions.presentationHash = presentationHash;
+      revisions.fileHash = '';
+      const tempFile = { ...output, schemaVersion: 4, revisions } as any;
+      revisions.fileHash = computeFileHash(tempFile);
+      output.revisions = revisions;
+    } catch {
+      // 不完整对象交给后续 Schema 校验明确报错。
+    }
+  }
+  return output;
+}
+
+registerMigration(3, migrateV3ToV4);
+
+export function createChildScale(
+  parent: { layoutScale?: number; visualScale?: number },
+  settings: ScaleSettings = DEFAULT_SCALE_SETTINGS,
+): { layoutScale: number; visualScale: number } {
+  const mode = settings.defaultChildMode;
+  const parentLayout = parent.layoutScale ?? 1.0;
+  const parentVisual = parent.visualScale ?? 1.0;
+
+  const layoutScale =
+    mode === 'layout' || mode === 'both'
+      ? Math.max(
+          settings.minLayoutScale,
+          Math.min(
+            settings.maxLayoutScale,
+            Number((parentLayout + settings.childLayoutStep).toFixed(3)),
+          ),
+        )
+      : parentLayout;
+
+  const visualScale =
+    mode === 'visual' || mode === 'both'
+      ? Math.max(
+          settings.minVisualScale,
+          Math.min(
+            settings.maxVisualScale,
+            Number((parentVisual * settings.childVisualRatio).toFixed(3)),
+          ),
+        )
+      : parentVisual;
+
+  return { layoutScale, visualScale };
+}
 
 export function migrateToCurrent(input: unknown): Record<string, unknown> {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {

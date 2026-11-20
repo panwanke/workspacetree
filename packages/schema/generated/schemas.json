@@ -645,6 +645,17 @@
             "maximum": 2
           }
         },
+        "branchVisualScales": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 2
+          }
+        },
         "branchScaleCompensation": {
           "type": "object",
           "propertyNames": {
@@ -656,6 +667,24 @@
           }
         },
         "nodeScales": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0.35,
+                "maximum": 2
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nodeVisualScales": {
           "anyOf": [
             {
               "type": "object",
@@ -737,6 +766,49 @@
                   "both"
                 ]
               }
+            }
+          }
+        },
+        "scaleSettings": {
+          "type": "object",
+          "properties": {
+            "defaultChildMode": {
+              "default": "layout",
+              "type": "string",
+              "enum": [
+                "layout",
+                "visual",
+                "both"
+              ]
+            },
+            "childLayoutStep": {
+              "default": -0.1,
+              "type": "number"
+            },
+            "childVisualRatio": {
+              "default": 0.9,
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "minLayoutScale": {
+              "default": 0.6,
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "maxLayoutScale": {
+              "default": 2,
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "minVisualScale": {
+              "default": 0.4,
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "maxVisualScale": {
+              "default": 2,
+              "type": "number",
+              "exclusiveMinimum": 0
             }
           }
         },
@@ -1611,6 +1683,17 @@
                 "maximum": 2
               }
             },
+            "branchVisualScales": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0.1,
+                "maximum": 2
+              }
+            },
             "branchScaleCompensation": {
               "type": "object",
               "propertyNames": {
@@ -1622,6 +1705,24 @@
               }
             },
             "nodeScales": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0.35,
+                    "maximum": 2
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "nodeVisualScales": {
               "anyOf": [
                 {
                   "type": "object",
@@ -1703,6 +1804,49 @@
                       "both"
                     ]
                   }
+                }
+              }
+            },
+            "scaleSettings": {
+              "type": "object",
+              "properties": {
+                "defaultChildMode": {
+                  "default": "layout",
+                  "type": "string",
+                  "enum": [
+                    "layout",
+                    "visual",
+                    "both"
+                  ]
+                },
+                "childLayoutStep": {
+                  "default": -0.1,
+                  "type": "number"
+                },
+                "childVisualRatio": {
+                  "default": 0.9,
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "minLayoutScale": {
+                  "default": 0.6,
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "maxLayoutScale": {
+                  "default": 2,
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "minVisualScale": {
+                  "default": 0.4,
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "maxVisualScale": {
+                  "default": 2,
+                  "type": "number",
+                  "exclusiveMinimum": 0
                 }
               }
             },
