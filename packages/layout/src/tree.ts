@@ -10,6 +10,7 @@ import {
   type LayoutOptions,
   type LayoutResult,
   type Point,
+  type Size,
 } from './types.js';
 
 export interface Hierarchy {
@@ -150,20 +151,32 @@ export function pathToRoot(
   return path;
 }
 
-/** 验收 4「布局无明显重叠」：任意两节点矩形相交即视为重叠（手动锁点除外）。 */
+/** 验收 4「布局无明显重叠」：任意两节点矩形相交即视为重叠（手动锁点除外）。支持传入布局选项或节点真实尺寸表。 */
 export function hasOverlap(
   positions: Record<string, Point>,
-  options: LayoutOptions = {},
+  options: LayoutOptions | Record<string, Size> = {},
   ignoreIds: readonly string[] = [],
 ): boolean {
-  const cfg = { ...DEFAULT_LAYOUT_OPTIONS, ...options };
+  const isLayoutOptions =
+    'nodeWidth' in options ||
+    'nodeHeight' in options ||
+    'levelGap' in options ||
+    'siblingGap' in options;
+  const cfg = isLayoutOptions
+    ? { ...DEFAULT_LAYOUT_OPTIONS, ...(options as LayoutOptions) }
+    : DEFAULT_LAYOUT_OPTIONS;
+  const sizeMap = isLayoutOptions ? undefined : (options as Record<string, Size>);
   const ignore = new Set(ignoreIds);
   const entries = Object.entries(positions).filter(([id]) => !ignore.has(id));
   for (let i = 0; i < entries.length; i += 1) {
     for (let j = i + 1; j < entries.length; j += 1) {
-      const a = entries[i][1];
-      const b = entries[j][1];
-      if (Math.abs(a.x - b.x) < cfg.nodeWidth && Math.abs(a.y - b.y) < cfg.nodeHeight) {
+      const [idA, a] = entries[i];
+      const [idB, b] = entries[j];
+      const sizeA = sizeMap?.[idA] ?? { width: cfg.nodeWidth, height: cfg.nodeHeight };
+      const sizeB = sizeMap?.[idB] ?? { width: cfg.nodeWidth, height: cfg.nodeHeight };
+      const overlapX = a.x < b.x + sizeB.width && a.x + sizeA.width > b.x;
+      const overlapY = a.y < b.y + sizeB.height && a.y + sizeA.height > b.y;
+      if (overlapX && overlapY) {
         return true;
       }
     }

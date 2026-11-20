@@ -569,12 +569,12 @@ function ScaleField({
   const displayLabel =
     label ??
     (kind === 'node'
-      ? '单节点排版修正 (U)'
+      ? '当前节点文字排版修正'
       : kind === 'branch'
-        ? '分支排版缩放 (B^L)'
+        ? '整条分支文字排版缩放'
         : kind === 'node-visual'
-          ? '单节点等比几何缩放 (V)'
-          : '分支整体等比几何缩放 (B^V)');
+          ? '当前节点等比几何缩放'
+          : '整条分支等比几何缩放');
 
   return (
     <div className="wst-field wst-scale-field">
@@ -708,208 +708,285 @@ function NodeLayout({
   const collapsed = presentation.collapsedByDefault.includes(node.id);
   const hasChildren = file.domain.nodes.some((item) => item.parentId === node.id);
 
+  const [scope, setScope] = useState<'node' | 'branch'>('node');
+  const [mode, setMode] = useState<'layout' | 'visual'>('layout');
+
   const metrics = visualNode?.scaleMetrics;
   const growthEnabled = Boolean(presentation.scaleSettings?.growth?.enabled);
   const depth = metrics?.depth ?? 0;
-  const depthRatio = metrics?.depthRatio ?? 1.0;
   const topologyRatio = metrics?.topologyRatio ?? 1.0;
   const autoRatio = metrics?.autoLayoutRatio ?? 1.0;
   const effLayout = visualNode?.effectiveLayoutScale ?? metrics?.effectiveLayoutRatio ?? 1.0;
   const effVisual = visualNode?.effectiveVisualScale ?? metrics?.effectiveVisualRatio ?? 1.0;
 
+  const nodeScale = presentation.nodeScales?.[node.id] ?? 1;
+  const branchScale = presentation.branchScales[node.id] ?? 1;
+  const nodeVisualScale = presentation.nodeVisualScales?.[node.id] ?? 1;
+  const branchVisualScale = presentation.branchVisualScales?.[node.id] ?? 1;
+
+  let activeKind: ScaleKind = 'node';
+  let activeValue = nodeScale;
+  let activeMin = 0.5;
+  let activeMax = 2.0;
+  let activeLabel = '当前节点文字排版修正';
+  let activeDesc = '微调卡片内字号与边距，文本自适应折行 (默认 100%)';
+
+  if (scope === 'node' && mode === 'layout') {
+    activeKind = 'node';
+    activeValue = nodeScale;
+    activeMin = 0.5;
+    activeMax = 2.0;
+    activeLabel = '当前节点文字排版修正';
+    activeDesc = '微调卡片内字号与边距，文本自适应折行 (默认 100%)';
+  } else if (scope === 'branch' && mode === 'layout') {
+    activeKind = 'branch';
+    activeValue = branchScale;
+    activeMin = 0.5;
+    activeMax = 2.0;
+    activeLabel = '整条分支文字排版缩放';
+    activeDesc = '递归影响该分支所有下级节点的排版基准 (默认 100%)';
+  } else if (scope === 'node' && mode === 'visual') {
+    activeKind = 'node-visual';
+    activeValue = nodeVisualScale;
+    activeMin = 0.25;
+    activeMax = 5.0;
+    activeLabel = '当前节点等比几何缩放';
+    activeDesc = '锁定长宽比整体等比缩放，不改变内部排版 (默认 100%)';
+  } else if (scope === 'branch' && mode === 'visual') {
+    activeKind = 'branch-visual';
+    activeValue = branchVisualScale;
+    activeMin = 0.25;
+    activeMax = 5.0;
+    activeLabel = '整条分支等比几何缩放';
+    activeDesc = '整条分支作为图形组整体等比缩放 (默认 100%)';
+  }
+
+  const hasActiveCustomization = activeValue !== 1;
+  const hasAnyCustomization =
+    presentation.nodeSizes?.[node.id] !== undefined ||
+    presentation.nodeScales?.[node.id] !== undefined ||
+    presentation.branchScales[node.id] !== undefined ||
+    presentation.nodeVisualScales?.[node.id] !== undefined ||
+    presentation.branchVisualScales?.[node.id] !== undefined;
+
+  let topologyBadge = <span className="wst-badge-pill wst-badge-standard">🌿 标准分支</span>;
+  if (depth === 0) {
+    topologyBadge = <span className="wst-badge-pill wst-badge-spine">🌱 根节点</span>;
+  } else if (topologyRatio >= 1.02) {
+    topologyBadge = (
+      <span
+        className="wst-badge-pill wst-badge-spine"
+        title={`结构主枝（拓扑权重 +${((topologyRatio - 1) * 100).toFixed(0)}%）`}
+      >
+        🌟 结构主枝
+      </span>
+    );
+  } else if (topologyRatio <= 0.98) {
+    topologyBadge = (
+      <span
+        className="wst-badge-pill wst-badge-leaf"
+        title={`紧凑旁枝（拓扑精简 -${((1 - topologyRatio) * 100).toFixed(0)}%）`}
+      >
+        🍃 紧凑旁枝
+      </span>
+    );
+  }
+
   return (
     <>
+      {/* 1. 结构层级状态卡片 (极简优雅，无晦涩数学术语) */}
       <section className="wst-inspector-section">
-        <div className="wst-section-heading">
-          <h3>位置与显示</h3>
-        </div>
-        <button
-          type="button"
-          className="wst-menu-action"
-          data-testid="reset-node-position"
-          onClick={() => guard(() => controller.run(clearPositionEntry(file, node.id, direction)))}
-        >
-          <WorkspaceIcon name="reset" /> 恢复节点自动位置
-        </button>
-        <button
-          type="button"
-          className="wst-menu-action"
-          data-testid="toggle-collapse"
-          disabled={!hasChildren && !collapsed}
-          onClick={() => guard(() => controller.run(setCollapsedEntry(file, node.id, !collapsed)))}
-        >
-          <WorkspaceIcon name="tree" /> {collapsed ? '展开分支' : '折叠分支'}
-        </button>
-      </section>
-
-      {/* A. 自动尺寸 (Auto Size, 只读) */}
-      <section className="wst-inspector-section">
-        <div className="wst-section-heading">
-          <h3>层级拓扑自动尺寸</h3>
-          {growthEnabled ? (
-            <span className="wst-badge is-success">已启用生长</span>
-          ) : (
-            <span className="wst-badge">未启用生长 (旧模式)</span>
-          )}
-        </div>
-        <div className="wst-auto-scale-metrics">
-          <div className="wst-metric-row">
-            <span className="wst-metric-label">语义结构深度</span>
-            <span className="wst-metric-val">第 {depth} 层</span>
+        <div className="wst-scale-status-card">
+          <div className="wst-status-badges">
+            <span className="wst-badge-pill wst-badge-depth">第 {depth} 层</span>
+            {topologyBadge}
+            {growthEnabled ? (
+              <span className="wst-badge-auto-ratio">自动基准 {Math.round(autoRatio * 100)}%</span>
+            ) : (
+              <span className="wst-badge-auto-ratio">常规基准 100%</span>
+            )}
           </div>
-          {growthEnabled && (
-            <>
+        </div>
+
+        {/* 2. 交互分段切换器 (Scope & Mode) */}
+        <div className="wst-segmented-group">
+          <div className="wst-segmented-row">
+            <span className="wst-segmented-label">作用范围</span>
+            <div className="wst-segmented-control" role="tablist" aria-label="缩放作用范围">
+              <button
+                type="button"
+                className={`wst-segment-btn${scope === 'node' ? ' is-active' : ''}`}
+                onClick={() => setScope('node')}
+              >
+                当前节点
+              </button>
+              <button
+                type="button"
+                className={`wst-segment-btn${scope === 'branch' ? ' is-active' : ''}`}
+                onClick={() => setScope('branch')}
+              >
+                整条分支
+              </button>
+            </div>
+          </div>
+
+          <div className="wst-segmented-row">
+            <span className="wst-segmented-label">缩放类型</span>
+            <div className="wst-segmented-control" role="tablist" aria-label="缩放机制类型">
+              <button
+                type="button"
+                className={`wst-segment-btn${mode === 'layout' ? ' is-active' : ''}`}
+                onClick={() => setMode('layout')}
+              >
+                文字排版 (自适应)
+              </button>
+              <button
+                type="button"
+                className={`wst-segment-btn${mode === 'visual' ? ' is-active' : ''}`}
+                onClick={() => setMode('visual')}
+              >
+                等比几何 (锁定排版)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. 单一核心滑块 */}
+        <ScaleField
+          key={`${scope}-${mode}`}
+          kind={activeKind}
+          label={activeLabel}
+          description={activeDesc}
+          value={activeValue}
+          min={activeMin}
+          max={activeMax}
+          onPreview={(value) => onScalePreview(node.id, activeKind, value)}
+          onApply={(value) => onScaleApply(node.id, activeKind, value)}
+        />
+
+        {hasActiveCustomization && (
+          <button
+            type="button"
+            className="wst-tool is-small"
+            style={{ marginTop: 8 }}
+            onClick={() =>
+              guard(async () => {
+                onScalePreview(node.id, activeKind, null);
+                if (activeKind === 'node') {
+                  await controller.run(
+                    setNodeScaleEntry(controller.getSnapshot().file, node.id, 1),
+                  );
+                } else if (activeKind === 'branch') {
+                  await controller.run(
+                    setBranchScaleEntry(controller.getSnapshot().file, node.id, 1),
+                  );
+                } else if (activeKind === 'node-visual') {
+                  await controller.run(
+                    setNodeVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
+                  );
+                } else if (activeKind === 'branch-visual') {
+                  await controller.run(
+                    setBranchVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
+                  );
+                }
+              })
+            }
+          >
+            恢复为 100% 默认大小
+          </button>
+        )}
+
+        {/* 4. 高级几何与排版细节 (默认折叠) */}
+        <details className="wst-advanced-accordion">
+          <summary>📐 高级几何与快捷操作</summary>
+          <div className="wst-advanced-accordion-content">
+            <div className="wst-auto-scale-metrics">
               <div className="wst-metric-row">
-                <span className="wst-metric-label">深度衰减 (G)</span>
-                <span className="wst-metric-val">{(depthRatio * 100).toFixed(1)}%</span>
+                <span className="wst-metric-label">最终合成排版比例</span>
+                <span className="wst-metric-val">{(effLayout * 100).toFixed(1)}%</span>
               </div>
               <div className="wst-metric-row">
-                <span className="wst-metric-label">拓扑修正 (T)</span>
+                <span className="wst-metric-label">最终几何缩放倍率</span>
                 <span className="wst-metric-val">
-                  {topologyRatio >= 1 ? `+${((topologyRatio - 1) * 100).toFixed(1)}%` : `${((topologyRatio - 1) * 100).toFixed(1)}%`} ({topologyRatio.toFixed(2)}×)
+                  {(effVisual * 100).toFixed(1)}% ({effVisual.toFixed(2)}×)
                 </span>
               </div>
-            </>
-          )}
-          <div className="wst-metric-row is-highlight">
-            <span className="wst-metric-label">自动排版基准 (G×T)</span>
-            <span className="wst-metric-val">{(autoRatio * 100).toFixed(1)}%</span>
-          </div>
-        </div>
-      </section>
+              <div className="wst-metric-row">
+                <span className="wst-metric-label">参考字号 (标题 / 正文)</span>
+                <span className="wst-metric-val">
+                  {(18 * effLayout * effVisual).toFixed(0)}px /{' '}
+                  {(14 * effLayout * effVisual).toFixed(0)}px
+                </span>
+              </div>
+              <div className="wst-metric-row">
+                <span className="wst-metric-label">物理卡片边界</span>
+                <span className="wst-metric-val">
+                  {visualNode?.visualSize
+                    ? `${visualNode.visualSize.width} × ${visualNode.visualSize.height} px`
+                    : '测量中…'}
+                </span>
+              </div>
+            </div>
 
-      {/* B. 手动排版修正 (Layout Override, 可调) */}
-      <section className="wst-inspector-section">
-        <div className="wst-section-heading">
-          <h3>手动排版修正 (Layout Scale)</h3>
-        </div>
-        <ScaleField
-          kind="node"
-          label="单节点排版修正 (U)"
-          description="基于自动基准微调；重新自适应换行，默认 100%"
-          value={presentation.nodeScales?.[node.id] ?? 1}
-          min={0.5}
-          max={2.0}
-          onPreview={(value) => onScalePreview(node.id, 'node', value)}
-          onApply={(value) => onScaleApply(node.id, 'node', value)}
-        />
-        <ScaleField
-          kind="branch"
-          label="分支排版缩放 (B^L)"
-          description="作用于当前整条子树的排版基准，默认 100%"
-          value={presentation.branchScales[node.id] ?? 1}
-          min={0.5}
-          max={2.0}
-          onPreview={(value) => onScalePreview(node.id, 'branch', value)}
-          onApply={(value) => onScaleApply(node.id, 'branch', value)}
-        />
-        <button
-          type="button"
-          className="wst-tool is-small"
-          onClick={() =>
-            guard(async () => {
-              if (presentation.nodeScales?.[node.id] !== undefined) {
-                await controller.run(setNodeScaleEntry(controller.getSnapshot().file, node.id, 1));
-              }
-            })
-          }
-        >
-          恢复单节点 100% 自动基准 (U=1)
-        </button>
-      </section>
-
-      {/* C. 等比几何缩放 (Visual Scale, 可调) */}
-      <section className="wst-inspector-section">
-        <div className="wst-section-heading">
-          <h3>等比几何缩放 (Visual Scale)</h3>
-        </div>
-        <ScaleField
-          kind="node-visual"
-          label="单节点等比几何缩放 (V)"
-          description="整体等比放大/缩小，锁死卡片内部排版，默认 100%"
-          value={presentation.nodeVisualScales?.[node.id] ?? 1}
-          min={0.25}
-          max={5.0}
-          onPreview={(value) => onScalePreview(node.id, 'node-visual', value)}
-          onApply={(value) => onScaleApply(node.id, 'node-visual', value)}
-        />
-        <ScaleField
-          kind="branch-visual"
-          label="分支整体等比几何缩放 (B^V)"
-          description="子树作为一个图形组整体等比几何缩放，默认 100%"
-          value={presentation.branchVisualScales?.[node.id] ?? 1}
-          min={0.25}
-          max={5.0}
-          onPreview={(value) => onScalePreview(node.id, 'branch-visual', value)}
-          onApply={(value) => onScaleApply(node.id, 'branch-visual', value)}
-        />
-        <button
-          type="button"
-          className="wst-tool"
-          onClick={() =>
-            guard(async () => {
-              if (presentation.nodeSizes?.[node.id] !== undefined) {
-                await controller.run(
-                  setNodeSizeEntry(controller.getSnapshot().file, node.id, null),
-                );
-              }
-              if (presentation.nodeScales?.[node.id] !== undefined) {
-                await controller.run(setNodeScaleEntry(controller.getSnapshot().file, node.id, 1));
-              }
-              if (presentation.branchScales[node.id] !== undefined) {
-                await controller.run(
-                  setBranchScaleEntry(controller.getSnapshot().file, node.id, 1),
-                );
-              }
-              if (presentation.nodeVisualScales?.[node.id] !== undefined) {
-                await controller.run(
-                  setNodeVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
-                );
-              }
-              if (presentation.branchVisualScales?.[node.id] !== undefined) {
-                await controller.run(
-                  setBranchVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
-                );
-              }
-            })
-          }
-        >
-          恢复全部 100% / 默认方框
-        </button>
-      </section>
-
-      {/* D. 最终实际尺寸 (Final Effective Dimensions, 只读可折叠) */}
-      <section className="wst-inspector-section">
-        <details className="wst-dimensions-details" open>
-          <summary className="wst-section-heading" style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <h3>最终合成尺寸与字号</h3>
-          </summary>
-          <div className="wst-auto-scale-metrics" style={{ marginTop: 8 }}>
-            <div className="wst-metric-row">
-              <span className="wst-metric-label">有效排版比例 (G×T×U×ΠB^L)</span>
-              <span className="wst-metric-val">{(effLayout * 100).toFixed(1)}%</span>
-            </div>
-            <div className="wst-metric-row">
-              <span className="wst-metric-label">有效几何倍率 (V×ΠB^V)</span>
-              <span className="wst-metric-val">{(effVisual * 100).toFixed(1)}% ({effVisual.toFixed(2)}×)</span>
-            </div>
-            <div className="wst-metric-row">
-              <span className="wst-metric-label">参考排版字号 (标题 / 正文)</span>
-              <span className="wst-metric-val">
-                {(18 * effLayout).toFixed(0)}px / {(14 * effLayout).toFixed(0)}px
-              </span>
-            </div>
-            <div className="wst-metric-row">
-              <span className="wst-metric-label">视觉等效字号 (排版×几何)</span>
-              <span className="wst-metric-val">
-                {(18 * effLayout * effVisual).toFixed(0)}px / {(14 * effLayout * effVisual).toFixed(0)}px
-              </span>
-            </div>
-            <div className="wst-metric-row">
-              <span className="wst-metric-label">物理占位边界 (宽×高)</span>
-              <span className="wst-metric-val">
-                {visualNode?.visualSize ? `${visualNode.visualSize.width} × ${visualNode.visualSize.height} px` : '测量中…'}
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+              <button
+                type="button"
+                className="wst-menu-action"
+                data-testid="reset-node-position"
+                onClick={() =>
+                  guard(() => controller.run(clearPositionEntry(file, node.id, direction)))
+                }
+              >
+                <WorkspaceIcon name="reset" /> 恢复节点自动位置
+              </button>
+              <button
+                type="button"
+                className="wst-menu-action"
+                data-testid="toggle-collapse"
+                disabled={!hasChildren && !collapsed}
+                onClick={() =>
+                  guard(() => controller.run(setCollapsedEntry(file, node.id, !collapsed)))
+                }
+              >
+                <WorkspaceIcon name="tree" /> {collapsed ? '展开分支' : '折叠分支'}
+              </button>
+              {hasAnyCustomization && (
+                <button
+                  type="button"
+                  className="wst-menu-action"
+                  onClick={() =>
+                    guard(async () => {
+                      if (presentation.nodeSizes?.[node.id] !== undefined) {
+                        await controller.run(
+                          setNodeSizeEntry(controller.getSnapshot().file, node.id, null),
+                        );
+                      }
+                      if (presentation.nodeScales?.[node.id] !== undefined) {
+                        await controller.run(
+                          setNodeScaleEntry(controller.getSnapshot().file, node.id, 1),
+                        );
+                      }
+                      if (presentation.branchScales[node.id] !== undefined) {
+                        await controller.run(
+                          setBranchScaleEntry(controller.getSnapshot().file, node.id, 1),
+                        );
+                      }
+                      if (presentation.nodeVisualScales?.[node.id] !== undefined) {
+                        await controller.run(
+                          setNodeVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
+                        );
+                      }
+                      if (presentation.branchVisualScales?.[node.id] !== undefined) {
+                        await controller.run(
+                          setBranchVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
+                        );
+                      }
+                    })
+                  }
+                >
+                  <WorkspaceIcon name="reset" /> 重置该节点所有自定义缩放与尺寸
+                </button>
+              )}
             </div>
           </div>
         </details>

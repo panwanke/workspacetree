@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  computeSubtreeMasses,
-  computeTopologyFactors,
   deriveTopology,
   type Hierarchy,
 } from '@workspacetree/layout';

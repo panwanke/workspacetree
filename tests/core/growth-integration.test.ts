@@ -4,7 +4,6 @@ import {
   applyGrowthAppearance,
   buildHierarchy,
   compensateScaleForGrowth,
-  deriveEffectiveScales,
   resolveVisualGraph,
 } from '@workspacetree/layout';
 import { createNodeEntry } from '../../apps/web/src/history.js';
