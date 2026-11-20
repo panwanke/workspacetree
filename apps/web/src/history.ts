@@ -608,7 +608,7 @@ export function setBranchVisualScaleEntry(
   const before = file.presentation.branchVisualScales?.[nodeId];
   const inverse =
     before === undefined
-      ? [cmd('presentation.setVisualScale', { nodeId, scale: 1.0 })]
+      ? [cmd('presentation.replace', { presentation: structuredClone(file.presentation) })]
       : [cmd('presentation.setVisualScale', { nodeId, scale: before })];
   return entry(
     '设置分支几何缩放',
@@ -626,7 +626,7 @@ export function setNodeVisualScaleEntry(
   const before = file.presentation.nodeVisualScales?.[nodeId];
   const inverse =
     before === undefined
-      ? [cmd('presentation.setNodeVisualScale', { nodeId, scale: 1.0 })]
+      ? [cmd('presentation.replace', { presentation: structuredClone(file.presentation) })]
       : [cmd('presentation.setNodeVisualScale', { nodeId, scale: before })];
   return entry(
     '设置节点几何缩放',

@@ -102,6 +102,7 @@ import { isEventMatchingKeybinding, loadKeybindings, type KeybindingAction } fro
 import { loadSettings, type WorkspaceSettings } from './settings';
 import { useMarkdownCss } from './markdown/custom-css';
 import SettingsModal from './SettingsModal';
+import { NodeEditorOverlay } from './NodeEditorOverlay';
 import ProjectsModal from './ProjectsModal';
 import SaveProjectModal from './SaveProjectModal';
 import SearchModal from './SearchModal';
@@ -356,7 +357,7 @@ export default function App({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const clearFocus = useCallback(() => setFocusNodeId(null), []);
-  const [fitTrigger, setFitTrigger] = useState(0);
+  const [fitTrigger, setFitTrigger] = useState(1);
   const [layoutStrategy, setLayoutStrategy] = useState<LayoutStrategy>('date-constrained');
   const [scalePreview, setScalePreview] = useState<{
     controller: EditorController;
@@ -940,9 +941,8 @@ export default function App({
       const note = selectNodeNote(node, notes);
       const hasChildren = (childHierarchyMap.get(visual.id) ?? []).length > 0 || visual.collapsed;
       const isEditing = editingNodeId === visual.id;
-      const editorWidth = compactWorkspace ? 320 : 640;
-      const width = isEditing ? Math.max(editorWidth, visual.size.width) : visual.size.width;
-      const height = isEditing ? Math.max(280, visual.size.height) : visual.size.height;
+      const width = visual.size.width;
+      const height = visual.size.height;
       return {
         id: visual.id,
         type: 'card',
@@ -950,7 +950,7 @@ export default function App({
         style: {
           width,
           height,
-          zIndex: isEditing ? 1000 : undefined,
+          zIndex: isEditing ? 100 : undefined,
         },
         sourcePosition: graph.direction === 'horizontal' ? Position.Right : Position.Bottom,
         targetPosition: graph.direction === 'horizontal' ? Position.Left : Position.Top,
@@ -3153,6 +3153,25 @@ export default function App({
           guard(() => controller.run(setScaleSettingsEntry(file, nextScaleSettings)));
         }}
       />
+
+      {editingNodeId &&
+        (() => {
+          const editingNode = file?.domain.nodes.find((n) => n.id === editingNodeId);
+          if (!editingNode || !file) return null;
+          const note = getNodeNote(file.domain, editingNode.id);
+          return (
+            <NodeEditorOverlay
+              id={editingNode.id}
+              title={editingNode.title}
+              note={note}
+              assets={file.domain.assets}
+              autoSaveEnabled={settings.autoSaveNode}
+              autoSaveInterval={settings.autoSaveInterval}
+              onSave={persistNodeDraft}
+              onClose={() => setEditingNodeId(null)}
+            />
+          );
+        })()}
 
       <ProjectsModal
         open={projectsOpen}

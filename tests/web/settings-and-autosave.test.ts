@@ -175,7 +175,15 @@ describe('双层缩放设置与历史条目 (Dual-Layer Scale Settings & History
   });
 
   it('setNodeVisualScaleEntry 与 setBranchVisualScaleEntry 生成正反向命令', () => {
-    const nodeEntry = setNodeVisualScaleEntry(dummyFile, 'n_1', 1.25);
+    const fileWithScales: BranchFile = {
+      ...dummyFile,
+      presentation: {
+        ...dummyFile.presentation,
+        nodeVisualScales: { n_1: 1.0 },
+        branchVisualScales: { n_root: 1.0 },
+      },
+    };
+    const nodeEntry = setNodeVisualScaleEntry(fileWithScales, 'n_1', 1.25);
     expect(nodeEntry.forward).toEqual([
       { type: 'presentation.setNodeVisualScale', payload: { nodeId: 'n_1', scale: 1.25 } },
     ]);
@@ -183,13 +191,17 @@ describe('双层缩放设置与历史条目 (Dual-Layer Scale Settings & History
       { type: 'presentation.setNodeVisualScale', payload: { nodeId: 'n_1', scale: 1.0 } },
     ]);
 
-    const branchEntry = setBranchVisualScaleEntry(dummyFile, 'n_root', 0.8);
+    const branchEntry = setBranchVisualScaleEntry(fileWithScales, 'n_root', 0.8);
     expect(branchEntry.forward).toEqual([
       { type: 'presentation.setVisualScale', payload: { nodeId: 'n_root', scale: 0.8 } },
     ]);
     expect(branchEntry.inverse).toEqual([
       { type: 'presentation.setVisualScale', payload: { nodeId: 'n_root', scale: 1.0 } },
     ]);
+
+    // 未初始化的条目使用 presentation.replace 进行精确无损逆向回退
+    const emptyEntry = setNodeVisualScaleEntry(dummyFile, 'n_1', 1.5);
+    expect(emptyEntry.inverse[0]?.type).toBe('presentation.replace');
   });
 
   it('createNodeEntry 根据 scaleSettings.defaultChildMode 适配子节点缩放', () => {

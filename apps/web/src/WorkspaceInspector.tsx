@@ -601,6 +601,26 @@ function ScaleField({
           }
         }}
       />
+      <div className="wst-scale-presets">
+        {[0.5, 0.75, 1.0, 1.25, 1.5].map((preset) => {
+          if (preset < minimum) return null;
+          const isActive = Math.abs(draft - preset) < 0.02;
+          return (
+            <button
+              key={preset}
+              type="button"
+              className={`wst-scale-preset-btn${isActive ? ' is-active' : ''}`}
+              onClick={(e) => {
+                e.preventDefault();
+                preview(preset);
+                onApply(preset);
+              }}
+            >
+              {Math.round(preset * 100)}%
+            </button>
+          );
+        })}
+      </div>
     </label>
   );
 }

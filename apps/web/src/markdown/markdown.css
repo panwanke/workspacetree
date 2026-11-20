@@ -104,7 +104,7 @@
   overflow-wrap: anywhere;
 }
 
-.wst-markdown-preview :where(p, blockquote, pre, h1, h2, h3, h4, h5, h6) {
+.wst-markdown-preview :where(p, .wst-md-p, blockquote, pre, h1, h2, h3, h4, h5, h6) {
   margin-block: 0.45em;
 }
 

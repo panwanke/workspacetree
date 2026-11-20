@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import {
   Handle,
   NodeResizer,
@@ -14,7 +14,6 @@ import {
 } from '@workspacetree/layout';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownPreview } from './MarkdownPreview';
-import { MarkdownEditor } from './markdown/MarkdownEditor';
 import {
   calculateResizeScale,
   resolveEffectiveResizeMode,
@@ -22,14 +21,6 @@ import {
   type ResizeModifiers,
 } from './node-resize';
 import { TagList } from './TagList';
-
-type SaveDraft = (
-  id: string,
-  title: string,
-  note: string,
-  baseNote: string,
-  assets?: Record<string, AssetRecord>,
-) => Promise<boolean>;
 
 export interface CardNodeData extends Record<string, unknown> {
   title: string;
@@ -70,9 +61,6 @@ export interface CardNodeData extends Record<string, unknown> {
   onToggleCollapse?: (id: string) => void;
   onStartEdit?: (id: string) => void;
   onToggleTodo?: (lineIndex: number, checked: boolean) => void;
-  onSaveDraft?: SaveDraft;
-  onFinishEdit?: (id: string) => void;
-  onCancelEdit?: () => void;
   onResizeBox?: (id: string, width: number, height: number) => void;
   onResizeScale?: (
     id: string,
@@ -83,14 +71,11 @@ export interface CardNodeData extends Record<string, unknown> {
 
 export type CardNode = Node<CardNodeData, 'card'>;
 
-/** 普通节点与折叠摘要共用卡片；支持 Excalidraw/Canvas 双模式缩放、缩小时标题自动放大与行内 Markdown 编辑。 */
+/** 普通节点与折叠摘要共用卡片；支持双层缩放架构、动态标题字号补偿与独立编辑浮层交互。 */
 export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) {
   const horizontal = data.direction === 'horizontal';
   const accent = data.accentColor ?? '#475569';
   const { zoom } = useViewport();
-  const [titleDraft, setTitleDraft] = useState(data.title);
-  const [noteDraft, setNoteDraft] = useState(data.note ?? '');
-  const [draftAssets, setDraftAssets] = useState<Record<string, AssetRecord>>({});
   const [modifierKeys, setModifierKeys] = useState<ResizeModifiers>({
     shiftKey: false,
     altKey: false,
@@ -99,146 +84,8 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
   });
   const [resizeTooltip, setResizeTooltip] = useState<string | null>(null);
 
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const isCancellingRef = useRef(false);
-  const committingRef = useRef(false);
-  const autoSaveRef = useRef<Promise<void> | null>(null);
-  const wasEditingRef = useRef(false);
-  const titleDraftRef = useRef(titleDraft);
-  const noteDraftRef = useRef(noteDraft);
-  const draftAssetsRef = useRef(draftAssets);
-  const lastSavedSnapshotRef = useRef<{
-    title: string;
-    note: string;
-    assets: Record<string, AssetRecord>;
-  }>({
-    title: data.title,
-    note: data.note ?? '',
-    assets: {},
-  });
-
-  titleDraftRef.current = titleDraft;
-  noteDraftRef.current = noteDraft;
-  draftAssetsRef.current = draftAssets;
-
   useEffect(() => {
-    if (data.isEditing && !wasEditingRef.current) {
-      setTitleDraft(data.title);
-      setNoteDraft(data.note ?? '');
-      setDraftAssets({});
-      titleDraftRef.current = data.title;
-      noteDraftRef.current = data.note ?? '';
-      draftAssetsRef.current = {};
-      lastSavedSnapshotRef.current = {
-        title: data.title,
-        note: data.note ?? '',
-        assets: {},
-      };
-      isCancellingRef.current = false;
-    }
-    wasEditingRef.current = Boolean(data.isEditing);
-  }, [data.isEditing, data.title, data.note]);
-
-  // 提交并保存当前草稿
-  const commitCurrentDraft = useCallback(() => {
-    if (isCancellingRef.current || committingRef.current) return;
-    committingRef.current = true;
-    void (async () => {
-      try {
-        if (autoSaveRef.current) await autoSaveRef.current;
-        if (isCancellingRef.current) return;
-        const title = titleDraftRef.current.trim() || data.title;
-        const note = noteDraftRef.current;
-        const assets = draftAssetsRef.current;
-        const saved = await data.onSaveDraft?.(
-          id,
-          title,
-          note,
-          lastSavedSnapshotRef.current.note,
-          assets,
-        );
-        if (!saved) return;
-        lastSavedSnapshotRef.current = { title, note, assets };
-        if (
-          (titleDraftRef.current.trim() || data.title) === title &&
-          noteDraftRef.current === note &&
-          draftAssetsRef.current === assets
-        ) {
-          data.onFinishEdit?.(id);
-        }
-      } finally {
-        committingRef.current = false;
-      }
-    })();
-  }, [data, id]);
-
-  // 离开节点自动保存：在编辑状态下，点击编辑器外部时自动保存并退出编辑
-  useEffect(() => {
-    if (!data.isEditing || !data.autoSaveEnabled) return;
-
-    const handlePointerDownOutside = (event: PointerEvent) => {
-      if (isCancellingRef.current) return;
-      const container = editorContainerRef.current;
-      if (!container) return;
-
-      if (event.target && !container.contains(event.target as unknown as globalThis.Node)) {
-        commitCurrentDraft();
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDownOutside, true);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDownOutside, true);
-    };
-  }, [data.isEditing, data.autoSaveEnabled, commitCurrentDraft]);
-
-  // 每 5s 自动保存：在编辑过程中持续保存草稿到项目中，且不退出编辑状态
-  useEffect(() => {
-    if (!data.isEditing || !data.autoSaveEnabled || !data.onSaveDraft) return;
-
-    const intervalMs = data.autoSaveInterval ?? 5000;
-    const save = data.onSaveDraft;
-    const timer = setInterval(() => {
-      if (isCancellingRef.current || committingRef.current || autoSaveRef.current) return;
-      const currentTitle = titleDraftRef.current.trim() || data.title;
-      const currentNote = noteDraftRef.current;
-      const currentAssets = draftAssetsRef.current;
-      const last = lastSavedSnapshotRef.current;
-
-      const hasChanged =
-        currentTitle !== last.title ||
-        currentNote !== last.note ||
-        JSON.stringify(currentAssets) !== JSON.stringify(last.assets);
-
-      if (hasChanged) {
-        autoSaveRef.current = save(id, currentTitle, currentNote, last.note, currentAssets)
-          .then((saved) => {
-            if (saved) {
-              lastSavedSnapshotRef.current = {
-                title: currentTitle,
-                note: currentNote,
-                assets: { ...currentAssets },
-              };
-            }
-          })
-          .finally(() => {
-            autoSaveRef.current = null;
-          });
-      }
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [
-    data.isEditing,
-    data.autoSaveEnabled,
-    data.autoSaveInterval,
-    id,
-    data.title,
-    data.onSaveDraft,
-  ]);
-
-  useEffect(() => {
-    if (!selected || data.isEditing || data.readOnly) {
+    if (!selected || data.readOnly) {
       setModifierKeys({ shiftKey: false, altKey: false, ctrlKey: false, metaKey: false });
       return;
     }
@@ -256,7 +103,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
       window.removeEventListener('keydown', updateModifiers);
       window.removeEventListener('keyup', updateModifiers);
     };
-  }, [selected, data.isEditing, data.readOnly]);
+  }, [selected, data.readOnly]);
 
   const effectiveResize = resolveEffectiveResizeMode(
     data.resizeMode ?? 'box',
@@ -276,15 +123,15 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   const cardStyle = {
     '--wst-card-accent': accent,
-    fontSize: data.isEditing ? '13px' : `${data.lod === 'summary' ? 0.9 : effLayout}em`,
-    padding: data.isEditing
-      ? '10px 12px'
-      : data.lod === 'summary'
+    fontSize: `${data.lod === 'summary' ? 0.9 : effLayout}em`,
+    padding:
+      data.lod === 'summary'
         ? '6px 10px'
         : `${verticalPadding}px ${Math.max(9, 12 * effLayout)}px`,
   } as CSSProperties;
 
-  if (!data.isEditing && data.layoutSize && effVisual !== 1) {
+  // 几何缩放应用：在非编辑状态下应用 transform 缩放，内部尺寸维持 layoutSize，长宽比与换行严格保持
+  if (data.layoutSize && effVisual !== 1) {
     cardStyle.width = `${data.layoutSize.width}px`;
     cardStyle.height = `${data.layoutSize.height}px`;
     cardStyle.transform = `scale(${effVisual})`;
@@ -303,29 +150,21 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
       }}
     >
       <NodeResizer
-        isVisible={Boolean(selected || data.isEditing) && !data.readOnly}
-        minWidth={data.isEditing ? 360 : effectiveResize.mode === 'branch' ? 22 : 77}
-        maxWidth={data.isEditing ? 1400 : 560}
+        isVisible={Boolean(selected) && !data.readOnly}
+        minWidth={effectiveResize.mode === 'branch' ? 22 : 77}
+        maxWidth={560}
         minHeight={
-          data.isEditing
-            ? 200
-            : effectiveResize.mode === 'branch'
-              ? 16
-              : effectiveResize.mode === 'box' && hasNote
-                ? markdownPreviewMinHeight(effLayout)
-                : 36
+          effectiveResize.mode === 'branch'
+            ? 16
+            : effectiveResize.mode === 'box' && hasNote
+              ? markdownPreviewMinHeight(effLayout)
+              : 36
         }
-        maxHeight={data.isEditing ? 1000 : 380}
-        keepAspectRatio={!data.isEditing && effectiveResize.isProportional}
+        maxHeight={380}
+        keepAspectRatio={effectiveResize.isProportional}
         lineClassName="wst-resizer-line"
         handleClassName="wst-resizer-handle"
         onResize={(event, params) => {
-          if (data.isEditing) {
-            setResizeTooltip(
-              `📐 编辑尺寸: ${Math.round(params.width)} × ${Math.round(params.height)}`,
-            );
-            return;
-          }
           const mouse = event.sourceEvent as MouseEvent | undefined;
           const currentModifiers: Partial<ResizeModifiers> = mouse
             ? {
@@ -364,10 +203,6 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         }}
         onResizeEnd={(event, params) => {
           setResizeTooltip(null);
-          if (data.isEditing) {
-            data.onResizeBox?.(id, Math.round(params.width), Math.round(params.height));
-            return;
-          }
           const mouse = event.sourceEvent as MouseEvent | undefined;
           const endModifiers: Partial<ResizeModifiers> = mouse
             ? {
@@ -392,12 +227,12 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
         }}
       />
       {resizeTooltip && <div className="wst-resize-tooltip nodrag nopan">{resizeTooltip}</div>}
-      {!data.isEditing && data.startAt && (
+      {data.startAt && (
         <span className="wst-card-border-date" title={`开始日期：${data.startAt}`}>
           {data.startAt}
         </span>
       )}
-      {!data.isEditing &&
+      {!data.readOnly &&
         Object.values(Position).flatMap((position) =>
           (['source', 'target'] as const).map((type) => {
             const isPrimary = type === 'source' && position === primaryPosition;
@@ -407,114 +242,33 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
                 id={`${type}-${position}`}
                 type={type}
                 position={position}
-                isConnectable={!data.readOnly && !data.isEditing}
-                isConnectableStart={!data.readOnly && !data.isEditing}
-                isConnectableEnd={!data.readOnly && !data.isEditing}
+                isConnectable={!data.readOnly}
+                isConnectableStart={!data.readOnly}
+                isConnectableEnd={!data.readOnly}
                 className={`wst-handle${isPrimary ? ' is-primary' : ''}`}
                 title={isPrimary ? '拖拽连接到其他节点' : undefined}
               />
             );
           }),
         )}
-      {data.isEditing ? (
-        <div
-          ref={editorContainerRef}
-          className="wst-card-editor nodrag nopan nowheel"
-          onClick={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          <input
-            className="wst-card-edit-title"
-            value={titleDraft}
-            autoFocus
-            placeholder="节点标题"
-            onChange={(event) => setTitleDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                (event.key === 'Enter' && !event.shiftKey) ||
-                ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's')
-              ) {
-                event.preventDefault();
-                commitCurrentDraft();
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                isCancellingRef.current = true;
-                data.onCancelEdit?.();
-              }
-            }}
-          />
-          <MarkdownEditor
-            value={noteDraft}
-            assets={data.assets}
-            onChange={(val) => setNoteDraft(val)}
-            onAssetsChange={(assets) => setDraftAssets(assets)}
-            onSave={(assets) => {
-              if (assets) {
-                draftAssetsRef.current = assets;
-                setDraftAssets(assets);
-              }
-              commitCurrentDraft();
-            }}
-            onCancel={() => {
-              isCancellingRef.current = true;
-              data.onCancelEdit?.();
-            }}
-            autoFocus={false}
-            placeholder="例如 - [ ] 核对招募条件 #招募"
-          />
-          <div className="wst-card-edit-actions">
-            {data.autoSaveEnabled && (
-              <div
-                className="wst-card-autosave-tip"
-                title="离开节点自动保存；持续编辑期间每5秒自动保存"
-              >
-                <span className="wst-card-autosave-dot" /> 自动保存已开启
-              </div>
-            )}
-            <button
-              type="button"
-              className="wst-card-btn-cancel"
-              onPointerDown={() => {
-                isCancellingRef.current = true;
-              }}
-              onClick={() => {
-                isCancellingRef.current = true;
-                data.onCancelEdit?.();
-              }}
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              className="wst-card-btn-save"
-              onClick={() => commitCurrentDraft()}
-            >
-              保存
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div
-            className={`wst-card-title${zoomBoost > 1.15 ? ' is-zoom-boosted' : ''}`}
-            style={{ fontSize: titleFontSize }}
-            title={data.title}
-          >
-            {data.title}
-          </div>
-          {data.tags && (
-            <TagList tags={data.tags} label="节点标签" limit={data.lod === 'summary' ? 1 : 2} />
-          )}
-          {note && (
-            <MarkdownPreview
-              markdown={note}
-              assets={data.assets}
-              className="wst-card-markdown nowheel"
-              maxLines={8}
-              onToggleTask={data.onToggleTodo}
-            />
-          )}
-        </>
+      <div
+        className={`wst-card-title${zoomBoost > 1.15 ? ' is-zoom-boosted' : ''}`}
+        style={{ fontSize: titleFontSize }}
+        title={data.title}
+      >
+        {data.title}
+      </div>
+      {data.tags && (
+        <TagList tags={data.tags} label="节点标签" limit={data.lod === 'summary' ? 1 : 2} />
+      )}
+      {note && (
+        <MarkdownPreview
+          markdown={note}
+          assets={data.assets}
+          className="wst-card-markdown nowheel"
+          maxLines={8}
+          onToggleTask={data.onToggleTodo}
+        />
       )}
       {(data.collapsed || zoom >= 0.36) && (
         <div className="wst-card-meta">

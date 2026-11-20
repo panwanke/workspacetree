@@ -306,7 +306,7 @@ export function applyCommand(
   }
 
   const nextDomain = cloneDomain(domain);
-  const nextPresentation = clonePresentation(presentation);
+  let nextPresentation = clonePresentation(presentation);
 
   switch (type) {
     case 'node.add': {
@@ -805,11 +805,7 @@ export function applyCommand(
           'command.payload.presentation is not a well-formed SavedPresentation',
         );
       }
-      delete nextPresentation.nodeSizes;
-      delete nextPresentation.branchScaleCompensation;
-      delete nextPresentation.layoutDirection;
-      delete nextPresentation.edgeStyles;
-      Object.assign(nextPresentation, clonePresentation(parsed.data));
+      nextPresentation = clonePresentation(parsed.data);
       break;
     }
     default:

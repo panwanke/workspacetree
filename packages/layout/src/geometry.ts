@@ -126,3 +126,63 @@ export function branchAnchorPoint(
     y: round(nodePosition.y + nodeSize.height / 2),
   };
 }
+
+export interface BranchBox {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * 沿兄弟分支分布轴计算避让推挤偏移（Pushout）：
+ * - 水平树（horizontal，生长轴为 X）：兄弟分支沿 Y 轴排列，推挤方向严格沿 Y 轴；
+ * - 垂直树（vertical，生长轴为 Y）：兄弟分支沿 X 轴排列，推挤方向严格沿 X 轴。
+ */
+export function computeSiblingPushout(
+  branches: readonly BranchBox[],
+  direction: 'horizontal' | 'vertical' = 'horizontal',
+  gap = 24,
+): Record<string, Point> {
+  const offsets: Record<string, Point> = {};
+  for (const b of branches) {
+    offsets[b.id] = { x: 0, y: 0 };
+  }
+  if (branches.length <= 1) return offsets;
+
+  const horizontal = direction === 'horizontal';
+
+  // 按分布轴坐标排序
+  const sorted = [...branches].sort((a, b) =>
+    horizontal ? a.y - b.y || a.x - b.x : a.x - b.x || a.y - b.y,
+  );
+
+  let cumulativeOffset = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+
+    if (horizontal) {
+      // 检查 X 轴是否有投影重叠
+      const xOverlap = prev.x < curr.x + curr.width && prev.x + prev.width > curr.x;
+      const prevBottom = prev.y + offsets[prev.id].y + prev.height;
+      const currTop = curr.y + cumulativeOffset;
+      if (xOverlap && currTop < prevBottom + gap) {
+        cumulativeOffset += prevBottom + gap - currTop;
+      }
+      offsets[curr.id] = { x: 0, y: round(cumulativeOffset) };
+    } else {
+      // 检查 Y 轴是否有投影重叠
+      const yOverlap = prev.y < curr.y + curr.height && prev.y + prev.height > curr.y;
+      const prevRight = prev.x + offsets[prev.id].x + prev.width;
+      const currLeft = curr.x + cumulativeOffset;
+      if (yOverlap && currLeft < prevRight + gap) {
+        cumulativeOffset += prevRight + gap - currLeft;
+      }
+      offsets[curr.id] = { x: round(cumulativeOffset), y: 0 };
+    }
+  }
+
+  return offsets;
+}

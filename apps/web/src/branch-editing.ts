@@ -92,6 +92,20 @@ function inheritedScale(
     );
 }
 
+function inheritedVisualScale(
+  parents: ReadonlyMap<string, string | null>,
+  parentId: string | null,
+  presentation: SavedPresentation,
+): number {
+  let scale = 1.0;
+  for (let id = parentId; id !== null; id = parents.get(id) ?? null) {
+    scale *= presentation.branchVisualScales?.[id] ?? 1.0;
+  }
+  return scale;
+}
+
+export type ReparentScaleMode = 'keep-appearance' | 'inherit-branch-style';
+
 function branchDestination(
   source: VisualGraph,
   destination: VisualGraph,
@@ -378,6 +392,7 @@ export function reparentBranchEntry(
   parentId: string | null,
   strategy: LayoutStrategy = 'timeline',
   keepPosition = false,
+  scaleMode: ReparentScaleMode = 'keep-appearance',
 ): HistoryEntry | null {
   const { domain, presentation } = file;
   const edgeId = makeId('e_');
@@ -397,23 +412,40 @@ export function reparentBranchEntry(
     delete nextPresentation.edgeStyles[oldEdge.id];
   }
   nextPresentation.layoutDirection = resolveLayoutDirection(presentation);
-  const oldInherited = inheritedScale(parents, parents.get(nodeId) ?? null, presentation);
-  const newInherited = inheritedScale(parents, parentId, presentation);
-  const compensation =
-    (presentation.branchScaleCompensation?.[nodeId] ?? 1) * (oldInherited / newInherited);
-  if (oldInherited !== newInherited) {
-    if (!Number.isFinite(compensation) || compensation <= 0)
-      throw new Error('Invalid inherited branch scale');
-    if (compensation === 1) {
-      if (nextPresentation.branchScaleCompensation) {
-        delete nextPresentation.branchScaleCompensation[nodeId];
-        if (!Object.keys(nextPresentation.branchScaleCompensation).length) {
-          delete nextPresentation.branchScaleCompensation;
+
+  // 跨分支缩放守恒模型
+  if (scaleMode === 'keep-appearance') {
+    // 1. 排版缩放补偿
+    const oldInherited = inheritedScale(parents, parents.get(nodeId) ?? null, presentation);
+    const newInherited = inheritedScale(parents, parentId, presentation);
+    const compensation =
+      (presentation.branchScaleCompensation?.[nodeId] ?? 1) * (oldInherited / newInherited);
+    if (oldInherited !== newInherited) {
+      if (!Number.isFinite(compensation) || compensation <= 0)
+        throw new Error('Invalid inherited branch scale');
+      if (compensation === 1) {
+        if (nextPresentation.branchScaleCompensation) {
+          delete nextPresentation.branchScaleCompensation[nodeId];
+          if (!Object.keys(nextPresentation.branchScaleCompensation).length) {
+            delete nextPresentation.branchScaleCompensation;
+          }
         }
+      } else {
+        nextPresentation.branchScaleCompensation ??= {};
+        nextPresentation.branchScaleCompensation[nodeId] = compensation;
       }
-    } else {
-      nextPresentation.branchScaleCompensation ??= {};
-      nextPresentation.branchScaleCompensation[nodeId] = compensation;
+    }
+
+    // 2. 几何缩放守恒补偿 (V_new = V_orig * (B_V_source / B_V_target))
+    const oldVisualInherited = inheritedVisualScale(parents, parents.get(nodeId) ?? null, presentation);
+    const newVisualInherited = inheritedVisualScale(parents, parentId, presentation);
+    if (oldVisualInherited !== newVisualInherited && newVisualInherited > 0) {
+      const currentVisual = presentation.nodeVisualScales?.[nodeId] ?? 1.0;
+      const compensatedVisual = Number(
+        (currentVisual * (oldVisualInherited / newVisualInherited)).toFixed(4),
+      );
+      nextPresentation.nodeVisualScales ??= {};
+      nextPresentation.nodeVisualScales[nodeId] = compensatedVisual;
     }
   }
   if (parentId !== null) {

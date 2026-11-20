@@ -178,6 +178,21 @@ export function MarkdownPreview({
             [remarkCallouts, { onlyCallouts }],
           ]}
           components={{
+            p({ children, node, ...props }) {
+              const hasBlockChild = node?.children?.some(
+                (child: any) =>
+                  child.type === 'element' &&
+                  (child.tagName === 'img' || child.tagName === 'div' || child.tagName === 'pre'),
+              );
+              if (hasBlockChild) {
+                return (
+                  <div className="wst-md-p" {...props}>
+                    {children}
+                  </div>
+                );
+              }
+              return <p {...props}>{children}</p>;
+            },
             li: PreviewListItem,
             input: PreviewInput,
             blockquote({ children, node }) {
