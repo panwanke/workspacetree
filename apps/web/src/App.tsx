@@ -3038,6 +3038,7 @@ export default function App({
           inert={projectView === 'todos'}
           file={file}
           node={selectedNode}
+          visualNode={selectedNode && derived?.graph ? (derived.graph.nodeById[selectedNode.id] ?? null) : null}
           visualEdge={selectedVisualEdge ?? null}
           selectedEdges={selectedEdgeDetails}
           focusEdgeId={selectedOriginalEdge?.id ?? null}

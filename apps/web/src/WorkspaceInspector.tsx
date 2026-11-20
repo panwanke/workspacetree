@@ -1,8 +1,11 @@
 import {
   buildHierarchy,
+  scaleFromSlider,
+  sliderFromScale,
   type LayoutDirection,
   type ResolvedEdgeStyle,
   type VisualEdge,
+  type VisualNode,
 } from '@workspacetree/layout';
 import {
   prependMarkdownTask,
@@ -51,6 +54,7 @@ export type ScaleKind = 'node' | 'branch' | 'node-visual' | 'branch-visual';
 type NodePanelProps = {
   file: BranchFile;
   node: Node;
+  visualNode?: VisualNode | null;
   controller: EditorController;
   guard: Guard;
   direction?: LayoutDirection;
@@ -64,6 +68,7 @@ interface InspectorProps {
   inert: boolean;
   file: BranchFile;
   node: Node | null;
+  visualNode?: VisualNode | null;
   visualEdge: VisualEdge | null;
   selectedEdges: readonly Edge[];
   focusEdgeId: string | null;
@@ -495,115 +500,179 @@ function NodeOverview({ file, node, controller, guard, onLocate, autoSave }: Nod
 
 function ScaleField({
   kind,
+  label,
+  description,
   value,
+  min = 0.5,
+  max = 2.0,
   onPreview,
   onApply,
 }: {
   kind: ScaleKind;
+  label?: string;
+  description?: string;
   value: number;
+  min?: number;
+  max?: number;
   onPreview: (value: number | null) => void;
   onApply: (value: number) => void;
 }) {
   const [draft, setDraft] = useState(value);
+  const [editingInput, setEditingInput] = useState(false);
+  const [textInput, setTextInput] = useState(`${Math.round(value * 100)}%`);
   const input = useRef<HTMLInputElement>(null);
   const pending = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const minimum = kind === 'node' || kind === 'node-visual' ? 0.35 : 0.1;
+
   useEffect(() => {
-    if (pending.current === null) setDraft(value);
-  }, [value]);
+    if (pending.current === null) {
+      setDraft(value);
+      if (!editingInput) {
+        setTextInput(`${Math.round(value * 100)}%`);
+      }
+    }
+  }, [value, editingInput]);
+
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function preview(next: number) {
-    pending.current = next;
-    setDraft(next);
-    onPreview(next);
+    const clamped = Math.max(min, Math.min(max, next));
+    pending.current = clamped;
+    setDraft(clamped);
+    setTextInput(`${Math.round(clamped * 100)}%`);
+    onPreview(clamped);
   }
 
-  function apply() {
+  function apply(explicitVal?: number) {
     clearTimeout(timer.current);
-    const next = pending.current;
+    const next = explicitVal !== undefined ? explicitVal : pending.current;
     pending.current = null;
-    if (next !== null) onApply(next);
+    if (next !== null && Number.isFinite(next)) {
+      const clamped = Math.max(min, Math.min(max, next));
+      setDraft(clamped);
+      setTextInput(`${Math.round(clamped * 100)}%`);
+      onApply(clamped);
+    }
   }
 
   function cancel() {
     clearTimeout(timer.current);
     pending.current = null;
     setDraft(value);
+    setTextInput(`${Math.round(value * 100)}%`);
     onPreview(null);
   }
 
-  useEffect(() => {
-    const slider = input.current;
-    if (!slider) return;
-    const wheel = (event: WheelEvent) => {
-      if (event.deltaY === 0 || event.ctrlKey || event.metaKey) return;
-      event.preventDefault();
-      const current = pending.current ?? slider.valueAsNumber;
-      const next = Number(
-        Math.max(minimum, Math.min(2, current - Math.sign(event.deltaY) * 0.05)).toFixed(2),
-      );
-      if (next === current) return;
-      preview(next);
-      clearTimeout(timer.current);
-      timer.current = setTimeout(apply, 250);
-    };
-    slider.addEventListener('wheel', wheel, { passive: false });
-    return () => slider.removeEventListener('wheel', wheel);
-  });
+  // 非对称对数映射：100% 对应轨道 75%
+  const sliderPos = sliderFromScale(draft, min, max, 0.75);
+
+  const displayLabel =
+    label ??
+    (kind === 'node'
+      ? '单节点排版修正 (U)'
+      : kind === 'branch'
+        ? '分支排版缩放 (B^L)'
+        : kind === 'node-visual'
+          ? '单节点等比几何缩放 (V)'
+          : '分支整体等比几何缩放 (B^V)');
 
   return (
-    <label className="wst-field wst-scale-field">
-      <span>
-        {kind === 'node'
-          ? '单节点排版缩放'
-          : kind === 'branch'
-            ? '分支排版缩放'
-            : kind === 'node-visual'
-              ? '单节点几何缩放'
-              : '分支几何缩放'}{' '}
-        <output>{draft.toFixed(2)}×</output>
-      </span>
-      <input
-        ref={input}
-        type="range"
-        min={minimum}
-        max="2"
-        step="0.01"
-        value={draft}
-        data-testid={`${kind}-scale`}
-        title="拖动或滚动调整"
-        onChange={(event) => preview(event.target.valueAsNumber)}
-        onPointerDown={apply}
-        onPointerUp={apply}
-        onPointerCancel={cancel}
-        onBlur={apply}
-        onKeyDown={(event) => {
-          if (event.key !== 'Escape') return;
-          event.stopPropagation();
-          cancel();
-        }}
-        onKeyUp={(event) => {
-          if (
-            [
-              'ArrowLeft',
-              'ArrowRight',
-              'ArrowDown',
-              'ArrowUp',
-              'Home',
-              'End',
-              'PageDown',
-              'PageUp',
-            ].includes(event.key)
-          ) {
-            apply();
-          }
-        }}
-      />
+    <div className="wst-field wst-scale-field">
+      <div className="wst-scale-field-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span className="wst-scale-title">{displayLabel}</span>
+        <div className="wst-scale-numeric-wrap">
+          <input
+            type="text"
+            className="wst-scale-number-input"
+            style={{ width: 68, textAlign: 'right', padding: '2px 4px', fontSize: 12 }}
+            value={textInput}
+            onFocus={() => setEditingInput(true)}
+            onChange={(e) => setTextInput(e.target.value)}
+            onBlur={() => {
+              setEditingInput(false);
+              const clean = textInput.replace('%', '').trim();
+              const parsed = Number(clean);
+              if (Number.isFinite(parsed) && parsed > 0) {
+                const ratio = clean.includes('%') || parsed > 10 ? parsed / 100 : parsed;
+                preview(ratio);
+                apply(ratio);
+              } else {
+                setTextInput(`${Math.round(draft * 100)}%`);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              } else if (e.key === 'Escape') {
+                setEditingInput(false);
+                setTextInput(`${Math.round(draft * 100)}%`);
+              }
+            }}
+          />
+        </div>
+      </div>
+      {description && <span className="wst-field-desc" style={{ fontSize: 11, color: '#64748b', display: 'block', margin: '2px 0 6px' }}>{description}</span>}
+      <div className="wst-slider-track-wrap" style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}>
+        <input
+          ref={input}
+          type="range"
+          min="0"
+          max="1"
+          step="0.001"
+          value={sliderPos}
+          data-testid={`${kind}-scale`}
+          className="wst-scale-range-slider"
+          style={{ width: '100%' }}
+          title="拖动调整（100% 位于 75% 刻度处）"
+          onChange={(event) => {
+            const pos = event.target.valueAsNumber;
+            const nextScale = scaleFromSlider(pos, min, max, 0.75);
+            preview(Number(nextScale.toFixed(4)));
+          }}
+          onDoubleClick={() => {
+            preview(1.0);
+            apply(1.0);
+          }}
+          onPointerDown={() => apply()}
+          onPointerUp={() => apply()}
+          onPointerCancel={cancel}
+          onBlur={() => apply()}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              cancel();
+            } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              const next = Number((draft - 0.05).toFixed(2));
+              preview(next);
+              apply(next);
+            } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              const next = Number((draft + 0.05).toFixed(2));
+              preview(next);
+              apply(next);
+            }
+          }}
+        />
+        <div
+          className="wst-slider-anchor-mark"
+          style={{
+            position: 'absolute',
+            left: '75%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 2,
+            height: 10,
+            background: 'var(--accent, #3b82f6)',
+            pointerEvents: 'none',
+            opacity: 0.6,
+          }}
+          title="100% 原始大小基准"
+        />
+      </div>
       <div className="wst-scale-presets">
         {[0.5, 0.75, 1.0, 1.25, 1.5].map((preset) => {
-          if (preset < minimum) return null;
+          if (preset < min || preset > max) return null;
           const isActive = Math.abs(draft - preset) < 0.02;
           return (
             <button
@@ -613,7 +682,7 @@ function ScaleField({
               onClick={(e) => {
                 e.preventDefault();
                 preview(preset);
-                onApply(preset);
+                apply(preset);
               }}
             >
               {Math.round(preset * 100)}%
@@ -621,13 +690,14 @@ function ScaleField({
           );
         })}
       </div>
-    </label>
+    </div>
   );
 }
 
 function NodeLayout({
   file,
   node,
+  visualNode,
   controller,
   guard,
   direction,
@@ -637,6 +707,15 @@ function NodeLayout({
   const { presentation } = file;
   const collapsed = presentation.collapsedByDefault.includes(node.id);
   const hasChildren = file.domain.nodes.some((item) => item.parentId === node.id);
+
+  const metrics = visualNode?.scaleMetrics;
+  const growthEnabled = Boolean(presentation.scaleSettings?.growth?.enabled);
+  const depth = metrics?.depth ?? 0;
+  const depthRatio = metrics?.depthRatio ?? 1.0;
+  const topologyRatio = metrics?.topologyRatio ?? 1.0;
+  const autoRatio = metrics?.autoLayoutRatio ?? 1.0;
+  const effLayout = visualNode?.effectiveLayoutScale ?? metrics?.effectiveLayoutRatio ?? 1.0;
+  const effVisual = visualNode?.effectiveVisualScale ?? metrics?.effectiveVisualRatio ?? 1.0;
 
   return (
     <>
@@ -662,36 +741,105 @@ function NodeLayout({
           <WorkspaceIcon name="tree" /> {collapsed ? '展开分支' : '折叠分支'}
         </button>
       </section>
+
+      {/* A. 自动尺寸 (Auto Size, 只读) */}
       <section className="wst-inspector-section">
         <div className="wst-section-heading">
-          <h3>排版缩放 (Layout Scale)</h3>
+          <h3>层级拓扑自动尺寸</h3>
+          {growthEnabled ? (
+            <span className="wst-badge is-success">已启用生长</span>
+          ) : (
+            <span className="wst-badge">未启用生长 (旧模式)</span>
+          )}
+        </div>
+        <div className="wst-auto-scale-metrics">
+          <div className="wst-metric-row">
+            <span className="wst-metric-label">语义结构深度</span>
+            <span className="wst-metric-val">第 {depth} 层</span>
+          </div>
+          {growthEnabled && (
+            <>
+              <div className="wst-metric-row">
+                <span className="wst-metric-label">深度衰减 (G)</span>
+                <span className="wst-metric-val">{(depthRatio * 100).toFixed(1)}%</span>
+              </div>
+              <div className="wst-metric-row">
+                <span className="wst-metric-label">拓扑修正 (T)</span>
+                <span className="wst-metric-val">
+                  {topologyRatio >= 1 ? `+${((topologyRatio - 1) * 100).toFixed(1)}%` : `${((topologyRatio - 1) * 100).toFixed(1)}%`} ({topologyRatio.toFixed(2)}×)
+                </span>
+              </div>
+            </>
+          )}
+          <div className="wst-metric-row is-highlight">
+            <span className="wst-metric-label">自动排版基准 (G×T)</span>
+            <span className="wst-metric-val">{(autoRatio * 100).toFixed(1)}%</span>
+          </div>
+        </div>
+      </section>
+
+      {/* B. 手动排版修正 (Layout Override, 可调) */}
+      <section className="wst-inspector-section">
+        <div className="wst-section-heading">
+          <h3>手动排版修正 (Layout Scale)</h3>
         </div>
         <ScaleField
           kind="node"
+          label="单节点排版修正 (U)"
+          description="基于自动基准微调；重新自适应换行，默认 100%"
           value={presentation.nodeScales?.[node.id] ?? 1}
+          min={0.5}
+          max={2.0}
           onPreview={(value) => onScalePreview(node.id, 'node', value)}
           onApply={(value) => onScaleApply(node.id, 'node', value)}
         />
         <ScaleField
           kind="branch"
+          label="分支排版缩放 (B^L)"
+          description="作用于当前整条子树的排版基准，默认 100%"
           value={presentation.branchScales[node.id] ?? 1}
+          min={0.5}
+          max={2.0}
           onPreview={(value) => onScalePreview(node.id, 'branch', value)}
           onApply={(value) => onScaleApply(node.id, 'branch', value)}
         />
+        <button
+          type="button"
+          className="wst-tool is-small"
+          onClick={() =>
+            guard(async () => {
+              if (presentation.nodeScales?.[node.id] !== undefined) {
+                await controller.run(setNodeScaleEntry(controller.getSnapshot().file, node.id, 1));
+              }
+            })
+          }
+        >
+          恢复单节点 100% 自动基准 (U=1)
+        </button>
       </section>
+
+      {/* C. 等比几何缩放 (Visual Scale, 可调) */}
       <section className="wst-inspector-section">
         <div className="wst-section-heading">
           <h3>等比几何缩放 (Visual Scale)</h3>
         </div>
         <ScaleField
           kind="node-visual"
+          label="单节点等比几何缩放 (V)"
+          description="整体等比放大/缩小，锁死卡片内部排版，默认 100%"
           value={presentation.nodeVisualScales?.[node.id] ?? 1}
+          min={0.25}
+          max={5.0}
           onPreview={(value) => onScalePreview(node.id, 'node-visual', value)}
           onApply={(value) => onScaleApply(node.id, 'node-visual', value)}
         />
         <ScaleField
           kind="branch-visual"
+          label="分支整体等比几何缩放 (B^V)"
+          description="子树作为一个图形组整体等比几何缩放，默认 100%"
           value={presentation.branchVisualScales?.[node.id] ?? 1}
+          min={0.25}
+          max={5.0}
           onPreview={(value) => onScalePreview(node.id, 'branch-visual', value)}
           onApply={(value) => onScaleApply(node.id, 'branch-visual', value)}
         />
@@ -726,8 +874,45 @@ function NodeLayout({
             })
           }
         >
-          恢复 100% / 默认方框
+          恢复全部 100% / 默认方框
         </button>
+      </section>
+
+      {/* D. 最终实际尺寸 (Final Effective Dimensions, 只读可折叠) */}
+      <section className="wst-inspector-section">
+        <details className="wst-dimensions-details" open>
+          <summary className="wst-section-heading" style={{ cursor: 'pointer', userSelect: 'none' }}>
+            <h3>最终合成尺寸与字号</h3>
+          </summary>
+          <div className="wst-auto-scale-metrics" style={{ marginTop: 8 }}>
+            <div className="wst-metric-row">
+              <span className="wst-metric-label">有效排版比例 (G×T×U×ΠB^L)</span>
+              <span className="wst-metric-val">{(effLayout * 100).toFixed(1)}%</span>
+            </div>
+            <div className="wst-metric-row">
+              <span className="wst-metric-label">有效几何倍率 (V×ΠB^V)</span>
+              <span className="wst-metric-val">{(effVisual * 100).toFixed(1)}% ({effVisual.toFixed(2)}×)</span>
+            </div>
+            <div className="wst-metric-row">
+              <span className="wst-metric-label">参考排版字号 (标题 / 正文)</span>
+              <span className="wst-metric-val">
+                {(18 * effLayout).toFixed(0)}px / {(14 * effLayout).toFixed(0)}px
+              </span>
+            </div>
+            <div className="wst-metric-row">
+              <span className="wst-metric-label">视觉等效字号 (排版×几何)</span>
+              <span className="wst-metric-val">
+                {(18 * effLayout * effVisual).toFixed(0)}px / {(14 * effLayout * effVisual).toFixed(0)}px
+              </span>
+            </div>
+            <div className="wst-metric-row">
+              <span className="wst-metric-label">物理占位边界 (宽×高)</span>
+              <span className="wst-metric-val">
+                {visualNode?.visualSize ? `${visualNode.visualSize.width} × ${visualNode.visualSize.height} px` : '测量中…'}
+              </span>
+            </div>
+          </div>
+        </details>
       </section>
     </>
   );
@@ -1044,6 +1229,7 @@ export default function WorkspaceInspector(props: InspectorProps) {
                 {id === 'layout' && (
                   <NodeLayout
                     {...nodeProps}
+                    visualNode={props.visualNode}
                     direction={props.direction}
                     onScalePreview={props.onScalePreview}
                     onScaleApply={props.onScaleApply}

@@ -245,7 +245,7 @@ function clonePresentation(presentation: SavedPresentation): SavedPresentation {
       : { edgeStyles: cloneRecords(presentation.edgeStyles) }),
     ...(presentation.scaleSettings === undefined
       ? {}
-      : { scaleSettings: { ...presentation.scaleSettings } }),
+      : { scaleSettings: structuredClone(presentation.scaleSettings) }),
     collapsedByDefault: [...presentation.collapsedByDefault],
     savedSpineDisplay: presentation.savedSpineDisplay,
     ...(presentation.layoutDirection === undefined

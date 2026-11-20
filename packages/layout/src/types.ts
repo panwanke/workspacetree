@@ -52,6 +52,9 @@ export const LOD_SCALE_THRESHOLD = 0.35;
 export const LOD_MIN_WIDTH = 140;
 export const LOD_MIN_HEIGHT = 44;
 
+import type { DerivedNodeScale } from './effective-scale.js';
+export type { DerivedNodeScale };
+
 export interface VisualNode {
   id: string;
   position: Point;
@@ -76,6 +79,8 @@ export interface VisualNode {
   branchLayoutScale: number;
   /** 分支继承有效几何缩放 */
   branchVisualScale: number;
+  /** 层级拓扑生长合成指标 */
+  scaleMetrics?: DerivedNodeScale;
   depth: number;
   startAt: string | null;
   collapsed: boolean;
@@ -120,6 +125,7 @@ export interface VisualGraph {
   scales: Record<string, number>;
   effectiveLayoutScales?: Record<string, number>;
   effectiveVisualScales?: Record<string, number>;
+  derivedScaleMetrics?: Record<string, DerivedNodeScale>;
   locked: string[];
   order: string[];
   dateAnchors: DateAnchor[];

@@ -193,36 +193,55 @@ export function createNodeEntry(
     );
   }
   if (parentId !== null) {
+    const isGrowthEnabled = presentation?.scaleSettings?.growth?.enabled;
     if (presentation) {
-      const parentLayout = presentation.nodeScales?.[parentId] ?? 1.0;
-      const parentVisual = presentation.nodeVisualScales?.[parentId] ?? 1.0;
-      const childScale = createChildScale(
-        { layoutScale: parentLayout, visualScale: parentVisual },
-        presentation.scaleSettings,
-      );
-      if (childScale.layoutScale !== 1) {
-        presentationCmds.push(
-          cmd('presentation.setNodeScale', { nodeId: id, scale: childScale.layoutScale }),
+      if (!isGrowthEnabled) {
+        // legacy 模式：继续沿用原有父级缩放继承与递减逻辑
+        const parentLayout = presentation.nodeScales?.[parentId] ?? 1.0;
+        const parentVisual = presentation.nodeVisualScales?.[parentId] ?? 1.0;
+        const childScale = createChildScale(
+          { layoutScale: parentLayout, visualScale: parentVisual },
+          presentation.scaleSettings,
         );
-      }
-      if (childScale.visualScale !== 1) {
-        presentationCmds.push(
-          cmd('presentation.setNodeVisualScale', { nodeId: id, scale: childScale.visualScale }),
-        );
+        if (childScale.layoutScale !== 1) {
+          presentationCmds.push(
+            cmd('presentation.setNodeScale', { nodeId: id, scale: childScale.layoutScale }),
+          );
+        }
+        if (childScale.visualScale !== 1) {
+          presentationCmds.push(
+            cmd('presentation.setNodeVisualScale', { nodeId: id, scale: childScale.visualScale }),
+          );
+        }
       }
     }
-    const parentBaseWidth =
-      presentation?.nodeSizes?.[parentId]?.width ?? DEFAULT_LAYOUT_OPTIONS.nodeWidth;
-    const parentBaseHeight =
-      presentation?.nodeSizes?.[parentId]?.height ?? DEFAULT_LAYOUT_OPTIONS.nodeHeight;
-    const defaultWidth = Math.max(LOD_MIN_WIDTH, Math.round(parentBaseWidth * 0.85));
-    const defaultHeight = Math.max(LOD_MIN_HEIGHT, Math.round(parentBaseHeight * 0.85));
-    presentationCmds.push(
-      cmd('presentation.setNodeSize', {
-        nodeId: id,
-        size: { width: defaultWidth, height: defaultHeight },
-      }),
-    );
+    if (isGrowthEnabled) {
+      // 生长模式下：仅当父节点有显式自定义固定尺寸时才继承比例方框；常规节点由流式生长算法决定尺寸
+      if (presentation?.nodeSizes?.[parentId]) {
+        const parentBox = presentation.nodeSizes[parentId]!;
+        const defaultWidth = Math.max(LOD_MIN_WIDTH, Math.round(parentBox.width * 0.85));
+        const defaultHeight = Math.max(LOD_MIN_HEIGHT, Math.round(parentBox.height * 0.85));
+        presentationCmds.push(
+          cmd('presentation.setNodeSize', {
+            nodeId: id,
+            size: { width: defaultWidth, height: defaultHeight },
+          }),
+        );
+      }
+    } else {
+      const parentBaseWidth =
+        presentation?.nodeSizes?.[parentId]?.width ?? DEFAULT_LAYOUT_OPTIONS.nodeWidth;
+      const parentBaseHeight =
+        presentation?.nodeSizes?.[parentId]?.height ?? DEFAULT_LAYOUT_OPTIONS.nodeHeight;
+      const defaultWidth = Math.max(LOD_MIN_WIDTH, Math.round(parentBaseWidth * 0.85));
+      const defaultHeight = Math.max(LOD_MIN_HEIGHT, Math.round(parentBaseHeight * 0.85));
+      presentationCmds.push(
+        cmd('presentation.setNodeSize', {
+          nodeId: id,
+          size: { width: defaultWidth, height: defaultHeight },
+        }),
+      );
+    }
   }
   if (presentationCmds.length > 0) {
     creation.chained = entry('初始化节点位置与样式', 'presentation', presentationCmds, []);

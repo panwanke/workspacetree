@@ -69,6 +69,54 @@ export const EdgeStyleSchema = z.object({
   arrow: EdgeArrowSchema.optional(),
 });
 
+export const GrowthAlgorithmSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('linear'),
+    step: z.number().default(0.1),
+    minRatio: z.number().default(0.55),
+  }),
+  z.object({
+    type: z.literal('exponential'),
+    ratio: z.number().default(0.9),
+    minRatio: z.number().default(0.55),
+  }),
+  z.object({
+    type: z.literal('asymptotic'),
+    decay: z.number().default(0.25),
+    minRatio: z.number().default(0.55),
+  }),
+]);
+
+export const TopologyGrowthSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  massDecay: z.number().default(0.75),
+  strength: z.number().default(0.12),
+  localMin: z.number().default(0.92),
+  localMax: z.number().default(1.08),
+  lineageMemory: z.number().default(0.70),
+  lineageMin: z.number().default(0.88),
+  lineageMax: z.number().default(1.12),
+});
+
+export const ProjectGrowthSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  algorithm: GrowthAlgorithmSchema.default({
+    type: 'asymptotic',
+    decay: 0.25,
+    minRatio: 0.55,
+  }),
+  topology: TopologyGrowthSettingsSchema.default({
+    enabled: true,
+    massDecay: 0.75,
+    strength: 0.12,
+    localMin: 0.92,
+    localMax: 1.08,
+    lineageMemory: 0.70,
+    lineageMin: 0.88,
+    lineageMax: 1.12,
+  }),
+});
+
 export const ScaleSettingsSchema = z.object({
   defaultChildMode: z.enum(['layout', 'visual', 'both']).default('layout'),
   childLayoutStep: z.number().default(-0.1),
@@ -77,6 +125,7 @@ export const ScaleSettingsSchema = z.object({
   maxLayoutScale: z.number().positive().default(2.0),
   minVisualScale: z.number().positive().default(0.4),
   maxVisualScale: z.number().positive().default(2.0),
+  growth: ProjectGrowthSettingsSchema.optional(),
 });
 
 export const DEFAULT_SCALE_SETTINGS: z.infer<typeof ScaleSettingsSchema> = {
@@ -87,6 +136,24 @@ export const DEFAULT_SCALE_SETTINGS: z.infer<typeof ScaleSettingsSchema> = {
   maxLayoutScale: 2.0,
   minVisualScale: 0.4,
   maxVisualScale: 2.0,
+  growth: {
+    enabled: false,
+    algorithm: {
+      type: 'asymptotic',
+      decay: 0.25,
+      minRatio: 0.55,
+    },
+    topology: {
+      enabled: true,
+      massDecay: 0.75,
+      strength: 0.12,
+      localMin: 0.92,
+      localMax: 1.08,
+      lineageMemory: 0.70,
+      lineageMin: 0.88,
+      lineageMax: 1.12,
+    },
+  },
 };
 
 export const SavedPresentationSchema = z.object({
@@ -134,6 +201,9 @@ export type AssetRecord = z.infer<typeof AssetRecordSchema>;
 export type DomainState = z.infer<typeof DomainStateSchema>;
 export type EdgeStyle = z.infer<typeof EdgeStyleSchema>;
 export type LayoutDirection = z.infer<typeof LayoutDirectionSchema>;
+export type GrowthAlgorithm = z.infer<typeof GrowthAlgorithmSchema>;
+export type TopologyGrowthSettings = z.infer<typeof TopologyGrowthSettingsSchema>;
+export type ProjectGrowthSettings = z.infer<typeof ProjectGrowthSettingsSchema>;
 export type ScaleSettings = z.infer<typeof ScaleSettingsSchema>;
 export type SavedPresentation = z.infer<typeof SavedPresentationSchema>;
 export type SessionView = z.infer<typeof SessionViewSchema>;

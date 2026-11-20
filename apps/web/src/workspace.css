@@ -1401,6 +1401,88 @@ button.wst-date-todo-title {
   font-weight: 600;
 }
 
+.wst-scale-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.wst-scale-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink, #1e293b);
+}
+
+.wst-scale-number-input {
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 4px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #1e293b);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 5px;
+}
+
+.wst-slider-track-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  margin: 3px 0 6px;
+}
+
+.wst-slider-anchor-mark {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 12px;
+  background: var(--accent, #3b82f6);
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+.wst-auto-scale-metrics {
+  background: var(--wash, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.wst-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted, #64748b);
+}
+
+.wst-metric-row.is-highlight {
+  font-weight: 600;
+  color: var(--accent, #3b82f6);
+  border-top: 1px dashed var(--line, #e2e8f0);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.wst-metric-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--ink, #1e293b);
+}
+
+.wst-metric-row.is-highlight .wst-metric-val {
+  color: var(--accent, #3b82f6);
+  font-weight: 600;
+}
+
+.wst-dimensions-details summary h3 {
+  display: inline;
+}
+
 .wst-relation-list li {
   display: flex;
   min-height: 47px;

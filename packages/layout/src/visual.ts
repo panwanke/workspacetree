@@ -7,6 +7,7 @@ import { indexWorkspaceTasks, selectNodeNote, workspaceTaskCounts } from '@works
 import { resolveGraphBranchColors } from './roles.js';
 import { placeStructure } from './structure.js';
 import { buildHierarchy } from './tree.js';
+import { deriveEffectiveScales } from './effective-scale.js';
 import { isDirectVisualEdge, resolveAggregatedEdgeStyle, resolveEdgeStyle } from './edge-style.js';
 import {
   DEFAULT_LAYOUT_OPTIONS,
@@ -223,6 +224,11 @@ export function resolveVisualGraph(
   const effectiveVisualScales: Record<string, number> = {};
   const lodById = new Map<string, 'full' | 'summary'>();
   const taskIndex = indexWorkspaceTasks(domain);
+  const derivedScaleMetrics = deriveEffectiveScales(
+    domain.nodes,
+    hierarchy,
+    presentation as SavedPresentation,
+  );
 
   for (const node of visibleNodes) {
     const branchLayout = branchLayoutScales.get(node.id) ?? 1;
@@ -231,8 +237,9 @@ export function resolveVisualGraph(
     const nodeLayout = (presentation.nodeScales ?? {})[node.id] ?? 1;
     const nodeVisual = (presentation.nodeVisualScales ?? {})[node.id] ?? 1;
 
-    const effLayout = Math.max(0.1, branchLayout * nodeLayout);
-    const effVisual = Math.max(0.1, branchVisual * nodeVisual);
+    const metrics = derivedScaleMetrics[node.id];
+    const effLayout = metrics ? metrics.effectiveLayoutRatio : Math.max(0.1, branchLayout * nodeLayout);
+    const effVisual = metrics ? metrics.effectiveVisualRatio : Math.max(0.1, branchVisual * nodeVisual);
 
     effectiveLayoutScales[node.id] = effLayout;
     effectiveVisualScales[node.id] = effVisual;
@@ -332,6 +339,7 @@ export function resolveVisualGraph(
       visualScale: nV,
       branchLayoutScale: bL,
       branchVisualScale: bV,
+      scaleMetrics: derivedScaleMetrics[node.id],
       depth: depths.get(node.id) ?? 0,
       startAt: node.startAt ?? null,
       collapsed: isCollapsed,
@@ -367,6 +375,7 @@ export function resolveVisualGraph(
     scales: effectiveLayoutScales,
     effectiveLayoutScales,
     effectiveVisualScales,
+    derivedScaleMetrics,
     locked: locked.sort(),
     order,
     dateAnchors,

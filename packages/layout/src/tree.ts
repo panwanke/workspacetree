@@ -12,7 +12,7 @@ import {
   type Point,
 } from './types.js';
 
-interface Hierarchy {
+export interface Hierarchy {
   children: Map<string, string[]>;
   parents: Map<string, string | null>;
   roots: string[];

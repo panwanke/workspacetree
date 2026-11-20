@@ -11,3 +11,7 @@ export * from './geometry.js';
 export * from './edges.js';
 export * from './visual.js';
 export * from './roles.js';
+export * from './growth-algorithms.js';
+export * from './topology-metrics.js';
+export * from './slider-mapping.js';
+export * from './effective-scale.js';
