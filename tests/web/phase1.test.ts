@@ -105,7 +105,8 @@ describe('T-33 Undo / Redo 反向命令栈', () => {
     await editor.run(createNodeEntry(id, '继承样式', 'n_root', 'e_h_inherited', presentation));
     const created = editor.getSnapshot();
     expect(created.undoDepth).toBe(1);
-    expect(created.file.presentation.nodeScales?.[id]).toBe(presentation.nodeScales?.n_root);
+    // 遵循双层缩放架构：新建子节点默认按相对排版步长递减（1.15 - 0.10 = 1.05）
+    expect(created.file.presentation.nodeScales?.[id]).toBe(1.05);
     const parentSize = presentation.nodeSizes?.n_root ?? { width: 220, height: 76 };
     const expectedChildSize = {
       width: Math.max(140, Math.round(parentSize.width * 0.85)),

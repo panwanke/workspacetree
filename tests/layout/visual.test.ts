@@ -761,6 +761,14 @@ describe('Phase 2 统一视觉几何', () => {
       const inv = invertMatrix(m);
       const pRestored = transformPoint(inv, pTransformed);
       expect(pRestored).toEqual(p);
+
+      // 验证基础矩阵构建及组合
+      const idMat = identityMatrix();
+      expect(transformPoint(idMat, p)).toEqual(p);
+      const tMat = translateMatrix(10, 20);
+      const sMat = scaleMatrix(2, 2);
+      const combined = multiplyMatrix(tMat, sMat);
+      expect(transformPoint(combined, { x: 5, y: 5 })).toEqual({ x: 20, y: 30 });
     });
 
     it('branchAnchorPoint 随生长方向自适应', () => {

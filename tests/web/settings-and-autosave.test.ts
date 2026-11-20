@@ -5,6 +5,18 @@ import {
   saveSettings,
   type WorkspaceSettings,
 } from '../../apps/web/src/settings.js';
+import {
+  createNodeEntry,
+  setBranchVisualScaleEntry,
+  setNodeVisualScaleEntry,
+  setScaleSettingsEntry,
+} from '../../apps/web/src/history.js';
+import { createMinimalBranchFile } from '@workspacetree/cli';
+import {
+  DEFAULT_SCALE_SETTINGS,
+  type BranchFile,
+  type SavedPresentation,
+} from '@workspacetree/schema';
 
 describe('设置系统 (settings.ts)', () => {
   const originalLocalStorage = globalThis.localStorage;
@@ -130,5 +142,89 @@ describe('节点编辑自动保存策略模拟', () => {
     // onCommit 依然只有之前的 1 次，没有被再次调用
     expect(onCommit).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('双层缩放设置与历史条目 (Dual-Layer Scale Settings & History)', () => {
+  const dummyFile: BranchFile = (() => {
+    const file = createMinimalBranchFile();
+    file.presentation.scaleSettings = DEFAULT_SCALE_SETTINGS;
+    return file;
+  })();
+
+  it('setScaleSettingsEntry 生成合法的正向与逆向命令', () => {
+    const nextSettings = {
+      ...DEFAULT_SCALE_SETTINGS,
+      defaultChildMode: 'visual' as const,
+      childVisualRatio: 0.85,
+    };
+    const historyEntry = setScaleSettingsEntry(dummyFile, nextSettings);
+    expect(historyEntry.label).toBe('更新缩放设置');
+    expect(historyEntry.forward).toEqual([
+      {
+        type: 'presentation.setScaleSettings',
+        payload: { settings: nextSettings },
+      },
+    ]);
+    expect(historyEntry.inverse).toEqual([
+      {
+        type: 'presentation.setScaleSettings',
+        payload: { settings: DEFAULT_SCALE_SETTINGS },
+      },
+    ]);
+  });
+
+  it('setNodeVisualScaleEntry 与 setBranchVisualScaleEntry 生成正反向命令', () => {
+    const nodeEntry = setNodeVisualScaleEntry(dummyFile, 'n_1', 1.25);
+    expect(nodeEntry.forward).toEqual([
+      { type: 'presentation.setNodeVisualScale', payload: { nodeId: 'n_1', scale: 1.25 } },
+    ]);
+    expect(nodeEntry.inverse).toEqual([
+      { type: 'presentation.setNodeVisualScale', payload: { nodeId: 'n_1', scale: 1.0 } },
+    ]);
+
+    const branchEntry = setBranchVisualScaleEntry(dummyFile, 'n_root', 0.8);
+    expect(branchEntry.forward).toEqual([
+      { type: 'presentation.setVisualScale', payload: { nodeId: 'n_root', scale: 0.8 } },
+    ]);
+    expect(branchEntry.inverse).toEqual([
+      { type: 'presentation.setVisualScale', payload: { nodeId: 'n_root', scale: 1.0 } },
+    ]);
+  });
+
+  it('createNodeEntry 根据 scaleSettings.defaultChildMode 适配子节点缩放', () => {
+    const presentation: SavedPresentation = {
+      ...dummyFile.presentation,
+      nodeScales: { n_root: 1.0 },
+      nodeVisualScales: { n_root: 1.0 },
+      scaleSettings: {
+        ...DEFAULT_SCALE_SETTINGS,
+        defaultChildMode: 'both',
+        childLayoutStep: -0.15,
+        childVisualRatio: 0.8,
+      },
+    };
+
+    const entryWithBoth = createNodeEntry(
+      'n_child',
+      '子节点',
+      'n_root',
+      'e_h_1',
+      presentation,
+    );
+
+    // chained presentation 命令中应包含 layout 缩放 (1.0 - 0.15 = 0.85) 与 visual 缩放 (1.0 * 0.8 = 0.8)
+    const chainedCmds = entryWithBoth.chained?.forward ?? [];
+    const scaleCmd = chainedCmds.find((c) => c.type === 'presentation.setNodeScale');
+    const visualScaleCmd = chainedCmds.find((c) => c.type === 'presentation.setNodeVisualScale');
+
+    expect(scaleCmd).toEqual({
+      type: 'presentation.setNodeScale',
+      payload: { nodeId: 'n_child', scale: 0.85 },
+    });
+    expect(visualScaleCmd).toEqual({
+      type: 'presentation.setNodeVisualScale',
+      payload: { nodeId: 'n_child', scale: 0.8 },
+    });
   });
 });

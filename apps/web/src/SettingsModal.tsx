@@ -8,25 +8,30 @@ import {
 } from './keybindings';
 import { DEFAULT_SETTINGS, saveSettings, type WorkspaceSettings } from './settings';
 import { createMarkdownStyleSheet } from './markdown/custom-css';
+import { DEFAULT_SCALE_SETTINGS, type ScaleSettings } from '@workspacetree/schema';
 
 export interface SettingsModalProps {
   open: boolean;
   settings?: WorkspaceSettings;
   keybindings: Record<KeybindingAction, string>;
+  scaleSettings?: ScaleSettings;
   onClose: () => void;
   onChangeSettings?: (next: WorkspaceSettings) => void;
   onChangeKeybindings: (next: Record<KeybindingAction, string>) => void;
+  onChangeScaleSettings?: (next: ScaleSettings) => void;
 }
 
-type SettingsTab = 'all' | 'general' | 'keybindings';
+type SettingsTab = 'all' | 'general' | 'scale' | 'keybindings';
 
 export default function SettingsModal({
   open,
   settings = DEFAULT_SETTINGS,
   keybindings,
+  scaleSettings = DEFAULT_SCALE_SETTINGS,
   onClose,
   onChangeSettings,
   onChangeKeybindings,
+  onChangeScaleSettings,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('all');
   const [recordingAction, setRecordingAction] = useState<KeybindingAction | null>(null);
@@ -111,6 +116,7 @@ export default function SettingsModal({
     const nextSettings = { ...DEFAULT_SETTINGS };
     onChangeSettings?.(nextSettings);
     saveSettings(nextSettings);
+    onChangeScaleSettings?.(DEFAULT_SCALE_SETTINGS);
     setDraftMarkdownCss(null);
     setMarkdownCssError(false);
   }
@@ -181,6 +187,7 @@ export default function SettingsModal({
   };
 
   const showGeneral = activeTab === 'all' || activeTab === 'general';
+  const showScale = activeTab === 'all' || activeTab === 'scale';
   const showKeybindings = activeTab === 'all' || activeTab === 'keybindings';
 
   return (
@@ -231,6 +238,15 @@ export default function SettingsModal({
               onClick={() => setActiveTab('general')}
             >
               通用
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'scale'}
+              className={`wst-settings-tab-btn${activeTab === 'scale' ? ' is-active' : ''}`}
+              onClick={() => setActiveTab('scale')}
+            >
+              缩放规则
             </button>
             <button
               type="button"
@@ -319,6 +335,96 @@ export default function SettingsModal({
                   >
                     应用 CSS
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showScale && (
+            <div className="wst-settings-section" style={{ marginBottom: 20 }}>
+              <div className="wst-keybindings-section-title">新建子节点缩放策略</div>
+              <p className="wst-settings-desc">
+                定义在脑图树中创建子节点时的默认缩放行为。支持相对排版缩放与绝对几何缩放。
+              </p>
+
+              <div className="wst-setting-item">
+                <div className="wst-setting-info">
+                  <span className="wst-setting-title">默认缩放模式</span>
+                  <span className="wst-setting-desc">
+                    相对排版缩放：文字依层级步进变小，重新排版自适应换行；
+                    <br />
+                    绝对几何缩放：整体等比缩小，保持排版结构不变；
+                    <br />
+                    双层组合：同时应用排版与几何缩放。
+                  </span>
+                </div>
+                <div className="wst-scale-mode-select">
+                  <select
+                    className="wst-select"
+                    value={scaleSettings.defaultChildMode}
+                    onChange={(event) =>
+                      onChangeScaleSettings?.({
+                        ...scaleSettings,
+                        defaultChildMode: event.target.value as 'layout' | 'visual' | 'both',
+                      })
+                    }
+                  >
+                    <option value="layout">相对排版缩放 (默认推荐)</option>
+                    <option value="visual">绝对几何缩放</option>
+                    <option value="both">双层组合缩放</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="wst-setting-item">
+                <div className="wst-setting-info">
+                  <span className="wst-setting-title">排版缩放递减步长 (Layout Step)</span>
+                  <span className="wst-setting-desc">
+                    每深入一层子节点，字体排版缩放的减小量（默认 -0.10，范围 -0.30 ~ 0）
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="number"
+                    className="wst-input"
+                    style={{ width: 80, textAlign: 'right' }}
+                    min="-0.3"
+                    max="0"
+                    step="0.05"
+                    value={scaleSettings.childLayoutStep}
+                    onChange={(event) =>
+                      onChangeScaleSettings?.({
+                        ...scaleSettings,
+                        childLayoutStep: Number(event.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="wst-setting-item">
+                <div className="wst-setting-info">
+                  <span className="wst-setting-title">几何缩放衰减比率 (Visual Ratio)</span>
+                  <span className="wst-setting-desc">
+                    每深入一层子节点，等比几何缩放的倍率（默认 0.90，范围 0.50 ~ 1.00）
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="number"
+                    className="wst-input"
+                    style={{ width: 80, textAlign: 'right' }}
+                    min="0.5"
+                    max="1"
+                    step="0.05"
+                    value={scaleSettings.childVisualRatio}
+                    onChange={(event) =>
+                      onChangeScaleSettings?.({
+                        ...scaleSettings,
+                        childVisualRatio: Number(event.target.value),
+                      })
+                    }
+                  />
                 </div>
               </div>
             </div>

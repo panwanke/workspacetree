@@ -37,12 +37,13 @@ import {
 } from '@workspacetree/layout';
 import { exportSvg } from '@workspacetree/export';
 import { localToday, readMarkdownBlocks, selectNodeNote } from '@workspacetree/markdown';
-import type {
-  AssetRecord,
-  BranchFile,
-  Edge,
-  EdgeStyle,
-  HierarchyEdgeRole,
+import {
+  DEFAULT_SCALE_SETTINGS,
+  type AssetRecord,
+  type BranchFile,
+  type Edge,
+  type EdgeStyle,
+  type HierarchyEdgeRole,
 } from '@workspacetree/schema';
 import { createBrowserStorageAdapter } from '@workspacetree/storage';
 import type { ProjectStorePort } from './project-store';
@@ -127,6 +128,9 @@ import {
   replacePresentationEntry,
   scaledCustomSize,
   setBranchScaleEntry,
+  setBranchVisualScaleEntry,
+  setNodeVisualScaleEntry,
+  setScaleSettingsEntry,
   setCollapsedEntry,
   setCollapsedNodesEntry,
   setEdgeStyleEntry,
@@ -640,6 +644,10 @@ export default function App({
         const size = scaledCustomSize(presentation, id, value);
         if (size) presentation.nodeSizes = { ...presentation.nodeSizes, [id]: size };
         presentation.nodeScales = { ...presentation.nodeScales, [id]: value };
+      } else if (kind === 'node-visual') {
+        presentation.nodeVisualScales = { ...presentation.nodeVisualScales, [id]: value };
+      } else if (kind === 'branch-visual') {
+        presentation.branchVisualScales = { ...presentation.branchVisualScales, [id]: value };
       } else {
         presentation.branchScales = { ...presentation.branchScales, [id]: value };
       }
@@ -814,15 +822,25 @@ export default function App({
   );
 
   const handleResizeScale = useCallback(
-    (id: string, nextScale: number, kind: 'node' | 'branch' = 'node') => {
+    (
+      id: string,
+      nextScale: number,
+      kind: 'node' | 'branch' | 'node-visual' | 'branch-visual' = 'node',
+    ) => {
       if (!controller || !file) return;
-      guard(() =>
-        controller.run(
-          kind === 'branch'
-            ? setBranchScaleEntry(file, id, nextScale)
-            : setNodeScaleEntry(file, id, nextScale),
-        ),
-      );
+      guard(() => {
+        let entry: any;
+        if (kind === 'branch') {
+          entry = setBranchScaleEntry(file, id, nextScale);
+        } else if (kind === 'branch-visual') {
+          entry = setBranchVisualScaleEntry(file, id, nextScale);
+        } else if (kind === 'node-visual') {
+          entry = setNodeVisualScaleEntry(file, id, nextScale);
+        } else {
+          entry = setNodeScaleEntry(file, id, nextScale);
+        }
+        return controller.run(entry);
+      });
     },
     [controller, file, guard],
   );
@@ -837,16 +855,23 @@ export default function App({
     guard(async () => {
       try {
         const current = controller.getSnapshot().file;
-        const saved =
-          kind === 'branch'
-            ? current.presentation.branchScales[id]
-            : current.presentation.nodeScales?.[id];
+        let saved: number | undefined;
+        let entry: any;
+        if (kind === 'branch') {
+          saved = current.presentation.branchScales[id];
+          entry = setBranchScaleEntry(current, id, value);
+        } else if (kind === 'branch-visual') {
+          saved = current.presentation.branchVisualScales?.[id];
+          entry = setBranchVisualScaleEntry(current, id, value);
+        } else if (kind === 'node-visual') {
+          saved = current.presentation.nodeVisualScales?.[id];
+          entry = setNodeVisualScaleEntry(current, id, value);
+        } else {
+          saved = current.presentation.nodeScales?.[id];
+          entry = setNodeScaleEntry(current, id, value, true);
+        }
         if ((saved ?? 1) !== value) {
-          await controller.run(
-            kind === 'branch'
-              ? setBranchScaleEntry(current, id, value)
-              : setNodeScaleEntry(current, id, value, true),
-          );
+          await controller.run(entry);
         }
       } finally {
         setScalePreview((latest) =>
@@ -941,6 +966,14 @@ export default function App({
           archived: node.archived,
           direction: graph.direction,
           scale: visual.scale,
+          effectiveLayoutScale: visual.effectiveLayoutScale,
+          effectiveVisualScale: visual.effectiveVisualScale,
+          layoutScale: visual.layoutScale,
+          visualScale: visual.visualScale,
+          branchLayoutScale: visual.branchLayoutScale,
+          branchVisualScale: visual.branchVisualScale,
+          layoutSize: visual.layoutSize,
+          visualSize: visual.visualSize,
           startAt: visual.startAt,
           locked: locked.has(node.id),
           collapsed: visual.collapsed,
@@ -3111,9 +3144,14 @@ export default function App({
         open={settingsOpen}
         settings={settings}
         keybindings={keybindings}
+        scaleSettings={file?.presentation.scaleSettings ?? DEFAULT_SCALE_SETTINGS}
         onClose={() => setSettingsOpen(false)}
         onChangeSettings={setSettings}
         onChangeKeybindings={setKeybindings}
+        onChangeScaleSettings={(nextScaleSettings) => {
+          if (!controller || readOnly || !file) return;
+          guard(() => controller.run(setScaleSettingsEntry(file, nextScaleSettings)));
+        }}
       />
 
       <ProjectsModal

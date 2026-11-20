@@ -43,6 +43,14 @@ export interface CardNodeData extends Record<string, unknown> {
   archived: boolean;
   direction: LayoutDirection;
   scale: number;
+  effectiveLayoutScale?: number;
+  effectiveVisualScale?: number;
+  layoutScale?: number;
+  visualScale?: number;
+  branchLayoutScale?: number;
+  branchVisualScale?: number;
+  layoutSize?: { width: number; height: number };
+  visualSize?: { width: number; height: number };
   startAt: string | null;
   locked: boolean;
   collapsed: boolean;
@@ -66,7 +74,11 @@ export interface CardNodeData extends Record<string, unknown> {
   onFinishEdit?: (id: string) => void;
   onCancelEdit?: () => void;
   onResizeBox?: (id: string, width: number, height: number) => void;
-  onResizeScale?: (id: string, scale: number, kind: 'node' | 'branch') => void;
+  onResizeScale?: (
+    id: string,
+    scale: number,
+    kind: 'node' | 'branch' | 'node-visual' | 'branch-visual',
+  ) => void;
 }
 
 export type CardNode = Node<CardNodeData, 'card'>;
@@ -254,21 +266,30 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
 
   // 缩小时自动补偿标题字号：无论是节点自身 scale < 1 还是画布缩小（zoom < 0.75），标题都保持清晰可读。
   const zoomBoost = zoom < 0.75 ? Math.min(2.6, 0.75 / Math.max(0.18, zoom)) : 1;
-  const baseTitlePx = Math.max(13, 14 * Math.min(1.25, Math.max(0.95, data.scale)));
+  const effLayout = data.effectiveLayoutScale ?? data.scale ?? 1;
+  const effVisual = data.effectiveVisualScale ?? 1;
+  const baseTitlePx = Math.max(13, 14 * Math.min(1.25, Math.max(0.95, effLayout)));
   const titleFontSize = `${Math.round(baseTitlePx * zoomBoost * 10) / 10}px`;
   const hasNote = data.lod === 'full' && Boolean(data.note?.trim());
   const note = hasNote && (selected || zoom >= 0.42) ? data.note : undefined;
-  const verticalPadding = note ? Math.max(5, 6 * data.scale) : Math.max(7, 10 * data.scale);
+  const verticalPadding = note ? Math.max(5, 6 * effLayout) : Math.max(7, 10 * effLayout);
 
   const cardStyle = {
     '--wst-card-accent': accent,
-    fontSize: data.isEditing ? '13px' : `${data.lod === 'summary' ? 0.9 : data.scale}em`,
+    fontSize: data.isEditing ? '13px' : `${data.lod === 'summary' ? 0.9 : effLayout}em`,
     padding: data.isEditing
       ? '10px 12px'
       : data.lod === 'summary'
         ? '6px 10px'
-        : `${verticalPadding}px ${Math.max(9, 12 * data.scale)}px`,
+        : `${verticalPadding}px ${Math.max(9, 12 * effLayout)}px`,
   } as CSSProperties;
+
+  if (!data.isEditing && data.layoutSize && effVisual !== 1) {
+    cardStyle.width = `${data.layoutSize.width}px`;
+    cardStyle.height = `${data.layoutSize.height}px`;
+    cardStyle.transform = `scale(${effVisual})`;
+    cardStyle.transformOrigin = '0 0';
+  }
 
   const primaryPosition = horizontal ? Position.Right : Position.Bottom;
 
@@ -291,7 +312,7 @@ export default function CanvasNode({ id, data, selected }: NodeProps<CardNode>) 
             : effectiveResize.mode === 'branch'
               ? 16
               : effectiveResize.mode === 'box' && hasNote
-                ? markdownPreviewMinHeight(data.scale)
+                ? markdownPreviewMinHeight(effLayout)
                 : 36
         }
         maxHeight={data.isEditing ? 1000 : 380}

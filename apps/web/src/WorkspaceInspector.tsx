@@ -23,9 +23,11 @@ import {
   removeEdgeEntry,
   renameNodeEntry,
   setBranchScaleEntry,
+  setBranchVisualScaleEntry,
   setCollapsedEntry,
   setNodeNoteEntry,
   setNodeScaleEntry,
+  setNodeVisualScaleEntry,
   setNodeSizeEntry,
   setNodeTagsEntry,
   setStartAtEntry,
@@ -45,7 +47,7 @@ const tabs = [
 ] as const;
 
 type Guard = (action: () => void | Promise<void>) => void;
-export type ScaleKind = 'node' | 'branch';
+export type ScaleKind = 'node' | 'branch' | 'node-visual' | 'branch-visual';
 type NodePanelProps = {
   file: BranchFile;
   node: Node;
@@ -506,7 +508,7 @@ function ScaleField({
   const input = useRef<HTMLInputElement>(null);
   const pending = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const minimum = kind === 'node' ? 0.35 : 0.1;
+  const minimum = kind === 'node' || kind === 'node-visual' ? 0.35 : 0.1;
   useEffect(() => {
     if (pending.current === null) setDraft(value);
   }, [value]);
@@ -554,7 +556,14 @@ function ScaleField({
   return (
     <label className="wst-field wst-scale-field">
       <span>
-        {kind === 'node' ? '单节点缩放' : '分支整体缩放'} <output>{draft.toFixed(2)}×</output>
+        {kind === 'node'
+          ? '单节点排版缩放'
+          : kind === 'branch'
+            ? '分支排版缩放'
+            : kind === 'node-visual'
+              ? '单节点几何缩放'
+              : '分支几何缩放'}{' '}
+        <output>{draft.toFixed(2)}×</output>
       </span>
       <input
         ref={input}
@@ -635,7 +644,7 @@ function NodeLayout({
       </section>
       <section className="wst-inspector-section">
         <div className="wst-section-heading">
-          <h3>几何尺寸</h3>
+          <h3>排版缩放 (Layout Scale)</h3>
         </div>
         <ScaleField
           kind="node"
@@ -648,6 +657,23 @@ function NodeLayout({
           value={presentation.branchScales[node.id] ?? 1}
           onPreview={(value) => onScalePreview(node.id, 'branch', value)}
           onApply={(value) => onScaleApply(node.id, 'branch', value)}
+        />
+      </section>
+      <section className="wst-inspector-section">
+        <div className="wst-section-heading">
+          <h3>等比几何缩放 (Visual Scale)</h3>
+        </div>
+        <ScaleField
+          kind="node-visual"
+          value={presentation.nodeVisualScales?.[node.id] ?? 1}
+          onPreview={(value) => onScalePreview(node.id, 'node-visual', value)}
+          onApply={(value) => onScaleApply(node.id, 'node-visual', value)}
+        />
+        <ScaleField
+          kind="branch-visual"
+          value={presentation.branchVisualScales?.[node.id] ?? 1}
+          onPreview={(value) => onScalePreview(node.id, 'branch-visual', value)}
+          onApply={(value) => onScaleApply(node.id, 'branch-visual', value)}
         />
         <button
           type="button"
@@ -665,6 +691,16 @@ function NodeLayout({
               if (presentation.branchScales[node.id] !== undefined) {
                 await controller.run(
                   setBranchScaleEntry(controller.getSnapshot().file, node.id, 1),
+                );
+              }
+              if (presentation.nodeVisualScales?.[node.id] !== undefined) {
+                await controller.run(
+                  setNodeVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
+                );
+              }
+              if (presentation.branchVisualScales?.[node.id] !== undefined) {
+                await controller.run(
+                  setBranchVisualScaleEntry(controller.getSnapshot().file, node.id, 1),
                 );
               }
             })

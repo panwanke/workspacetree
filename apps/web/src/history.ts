@@ -7,7 +7,7 @@
  *
  * 本模块为纯逻辑，不 import React / DOM，可在 Node 下独立测试。
  */
-import { computeSemanticHash } from '@workspacetree/core';
+import { computeSemanticHash, createChildScale } from '@workspacetree/core';
 import {
   DEFAULT_LAYOUT_OPTIONS,
   LOD_MIN_HEIGHT,
@@ -15,20 +15,22 @@ import {
   resolveLayoutDirection,
 } from '@workspacetree/layout';
 import { readMarkdownBlocks, selectNodeNote } from '@workspacetree/markdown';
-import type {
-  ActorKind,
-  AssetRecord,
-  BranchFile,
-  Command,
-  DomainState,
-  Edge,
-  EdgeStyle,
-  HierarchyEdgeRole,
-  LayoutDirection,
-  Node,
-  SavedPresentation,
-  StateClass,
-  Task,
+import {
+  DEFAULT_SCALE_SETTINGS,
+  type ActorKind,
+  type AssetRecord,
+  type BranchFile,
+  type Command,
+  type DomainState,
+  type Edge,
+  type EdgeStyle,
+  type HierarchyEdgeRole,
+  type LayoutDirection,
+  type Node,
+  type SavedPresentation,
+  type ScaleSettings,
+  type StateClass,
+  type Task,
 } from '@workspacetree/schema';
 
 export interface Point {
@@ -192,9 +194,21 @@ export function createNodeEntry(
   }
   if (parentId !== null) {
     if (presentation) {
-      const scale = presentation.nodeScales?.[parentId];
-      if (scale !== undefined && scale !== 1) {
-        presentationCmds.push(cmd('presentation.setNodeScale', { nodeId: id, scale }));
+      const parentLayout = presentation.nodeScales?.[parentId] ?? 1.0;
+      const parentVisual = presentation.nodeVisualScales?.[parentId] ?? 1.0;
+      const childScale = createChildScale(
+        { layoutScale: parentLayout, visualScale: parentVisual },
+        presentation.scaleSettings,
+      );
+      if (childScale.layoutScale !== 1) {
+        presentationCmds.push(
+          cmd('presentation.setNodeScale', { nodeId: id, scale: childScale.layoutScale }),
+        );
+      }
+      if (childScale.visualScale !== 1) {
+        presentationCmds.push(
+          cmd('presentation.setNodeVisualScale', { nodeId: id, scale: childScale.visualScale }),
+        );
       }
     }
     const parentBaseWidth =
@@ -582,6 +596,58 @@ export function setBranchScaleEntry(file: BranchFile, nodeId: string, scale: num
     '设置分支缩放',
     'presentation',
     [cmd('presentation.setScale', { nodeId, scale })],
+    inverse,
+  );
+}
+
+export function setBranchVisualScaleEntry(
+  file: BranchFile,
+  nodeId: string,
+  scale: number,
+): HistoryEntry {
+  const before = file.presentation.branchVisualScales?.[nodeId];
+  const inverse =
+    before === undefined
+      ? [cmd('presentation.setVisualScale', { nodeId, scale: 1.0 })]
+      : [cmd('presentation.setVisualScale', { nodeId, scale: before })];
+  return entry(
+    '设置分支几何缩放',
+    'presentation',
+    [cmd('presentation.setVisualScale', { nodeId, scale })],
+    inverse,
+  );
+}
+
+export function setNodeVisualScaleEntry(
+  file: BranchFile,
+  nodeId: string,
+  scale: number,
+): HistoryEntry {
+  const before = file.presentation.nodeVisualScales?.[nodeId];
+  const inverse =
+    before === undefined
+      ? [cmd('presentation.setNodeVisualScale', { nodeId, scale: 1.0 })]
+      : [cmd('presentation.setNodeVisualScale', { nodeId, scale: before })];
+  return entry(
+    '设置节点几何缩放',
+    'presentation',
+    [cmd('presentation.setNodeVisualScale', { nodeId, scale })],
+    inverse,
+  );
+}
+
+export function setScaleSettingsEntry(
+  file: BranchFile,
+  settings: ScaleSettings,
+): HistoryEntry {
+  const before = file.presentation.scaleSettings;
+  const inverse = [
+    cmd('presentation.setScaleSettings', { settings: before ?? DEFAULT_SCALE_SETTINGS }),
+  ];
+  return entry(
+    '更新缩放设置',
+    'presentation',
+    [cmd('presentation.setScaleSettings', { settings })],
     inverse,
   );
 }

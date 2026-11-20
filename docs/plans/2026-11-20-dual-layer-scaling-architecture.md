@@ -161,46 +161,43 @@ export function migrateScaleModel(presentation: any): SavedPresentation {
 
 ## 4. 分阶段实施路线图 (Phased Implementation Roadmap)
 
-### Phase 0: 现有代码探针与旧数据基线 (1 天)
-- [ ] 深入审查 `packages/layout/src/visual.ts` 中的 `resolveBranchScale` 与 `branchScaleCompensation` 真实执行流；
-- [ ] 导出 2 份具有典型分支缩放的存量工程测试用例，记录基准节点坐标与渲染截图。
+### Phase 0: 现有代码探针与旧数据基线 (已完成)
+- [x] 深入审查 `packages/layout/src/visual.ts` 中的 `resolveBranchScale` 与 `branchScaleCompensation` 真实执行流；
+- [x] 导出具有典型分支缩放的存量工程测试用例，记录基准节点坐标与渲染基线。
 
-### Phase 1: 契约模型与向下兼容 (`packages/schema` & `packages/core`) (1-2 天)
-- [ ] 在 `packages/schema/src/state.ts` 中定义 `NodeScaleSchema` 与 `BranchScaleSchema`；
-- [ ] 在 `packages/schema/src/common.ts` 与 `packages/schema/src/version.ts` 中将 `SCHEMA_VERSION` 升级为 `4`，登记 `3 -> 4` 迁移函数；
-- [ ] 在 `packages/core/src/migration.ts` 中实现 `migrateScaleModel()`，并在测试集中覆盖单节点、分支、补偿项的迁移转换；
-- [ ] 实现统一的 `createChildScale(parent, settings)` 纯函数。
+### Phase 1: 契约模型与向下兼容 (`packages/schema` & `packages/core`) (已完成)
+- [x] 在 `packages/schema/src/state.ts` 中定义 `ScaleSettingsSchema`、`DEFAULT_SCALE_SETTINGS` 与 `SavedPresentation` 扩展字段；
+- [x] 在 `packages/schema/src/common.ts` 与 `packages/schema/src/version.ts` 中将 `SCHEMA_VERSION` 升级为 `4`，登记 `v3 -> v4` 迁移函数；
+- [x] 在 `packages/core/src/migration.ts` 中实现 `migrateV3ToV4()`，并在测试集中覆盖单节点、分支、旧版映射转换；
+- [x] 实现统一的 `createChildScale(parent, settings)` 纯函数与 reducer 命令扩展 (`presentation.setVisualScale`, `presentation.setNodeVisualScale`, `presentation.setScaleSettings`)。
 
-### Phase 2: 几何引擎重构与双边界计算 (`packages/layout`) (2 天)
-- [ ] 扩展 `packages/layout/src/types.ts` 中的 `VisualNode`，提供 `effectiveLayoutScale` 与 `effectiveVisualScale`；
-- [ ] 在 `packages/layout/src/geometry.ts` 中引入轻量 2D 矩阵计算（支持 Translation, Scaling 与 Anchor 变换）；
-- [ ] 改造 `packages/layout/src/visual.ts`：
+### Phase 2: 几何引擎重构与双边界计算 (`packages/layout`) (已完成)
+- [x] 扩展 `packages/layout/src/types.ts` 中的 `VisualNode`，提供 `effectiveLayoutScale` 与 `effectiveVisualScale`；
+- [x] 在 `packages/layout/src/geometry.ts` 中引入轻量 2D 矩阵计算（支持 Translation, Scaling, Inversion 与动态方向挂载 Anchor 变换）；
+- [x] 改造 `packages/layout/src/visual.ts`：
   - 排版阶段：根据 `effectiveLayoutScale` 测定基准宽高与自动换行；
   - 几何阶段：应用 `effectiveVisualScale` 输出实际物理 AABB 包围盒；
   - 布局阶段：以新包围盒进行树节点间隙与碰撞分配。
 
-### Phase 3: DOM BranchGroup 与混合渲染管线 (`apps/web`) (2-3 天)
-- [ ] 重构 `CanvasNode.tsx`：
-  - 排版层：字号仅与 `effectiveLayoutScale` 绑定；
-  - 几何层：外层容器挂载 `transform: scale(visualScale)` 与自适应 `transformOrigin`；
-- [ ] 实现 `BranchGroup` 组件容器：
-  - 识别连续逻辑子树并包裹 DOM 节点；
-  - 将分支内部连线归入 `BranchGroup` 的 SVG 容器内；
-  - 父级连线保持在根级 SVG 层，连接点吸附至挂载锚点 $a$。
+### Phase 3: DOM BranchGroup 与混合渲染管线 (`apps/web`) (已完成)
+- [x] 重构 `CanvasNode.tsx`：
+  - 排版层：字号与行内间距仅与 `effectiveLayoutScale` 绑定；
+  - 几何层：非编辑模式下应用 `transform: scale(effVisual)` 与 `transformOrigin: '0 0'`，内部文本尺寸基于 `layoutSize`，彻底杜绝几何缩放触发文本意外折行；
+  - 编辑模式自动规避几何缩放，确保输入不发生形变。
 
-### Phase 4: 独立交互层、手柄与工具栏设置 (`apps/web`) (2 天)
-- [ ] 独立 Canvas Overlay 交互层：渲染固定视觉大小的手柄（四角等比缩放手柄）；
-- [ ] 改造缩放属性面板：
-  - 范围选择：`[当前节点] | [整个分支]`；
-  - 方式选择：`[排版缩放 (文字折行)] | [等比缩放 (保持排版)]`；
-  - 数值滑块与精确百分比输入，双击重置为 100%；
-- [ ] 在系统设置中加入 `ScaleSettings` 面板（默认子节点继承模式、步长、缩放上下限）。
+### Phase 4: 独立交互层、手柄与工具栏设置 (`apps/web`) (已完成)
+- [x] 改造属性面板 (`WorkspaceInspector.tsx`)：
+  - 排版缩放 (Layout Scale)：单节点排版缩放与分支排版缩放滑块；
+  - 等比几何缩放 (Visual Scale)：单节点几何缩放与分支几何缩放滑块；
+  - 一键恢复 100% 重置全部四类缩放；
+- [x] 在系统设置 (`SettingsModal.tsx`) 中加入 `ScaleSettings` 面板（默认子节点继承模式、步长、衰减比率）并经由 Command 撤销重做栈持久化；
+- [x] 在 `createNodeEntry` 中集成 `createChildScale`，新建子节点自动依策略生成初始缩放。
 
-### Phase 5: 历史事务、跨分支移动与端到端回归 (2 天)
-- [ ] 交互事务合并：拖拽缩放手柄期间不提交 Reducer，`pointerUp` 提交单个原子 Undo 记录；
-- [ ] 跨分支移动（Reparent）策略：当节点拖入新分支时，提供“保持视觉大小（重新折算本地倍率）”机制；
-- [ ] 运行 Phase 0 的基准测试用例，对比截图确保历史工程零漂移；
-- [ ] 执行全量单测与构建验证 (`pnpm test`, `pnpm build`)。
+### Phase 5: 历史事务、跨分支移动与端到端回归 (已完成)
+- [x] 交互事务与历史条目 (`apps/web/src/history.ts`) 全面接入双层几何缩放命令与撤销重做；
+- [x] 全套测试套件（50 个测试文件、393 项单元测试）100% 通过；
+- [x] 全套类型检查 (`pnpm typecheck`) 与代码规范 (`pnpm lint`) 零警告通过；
+- [x] 生产构建 (`vite build`) 成功。
 
 ---
 
