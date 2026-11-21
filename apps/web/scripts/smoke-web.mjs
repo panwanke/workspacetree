@@ -495,9 +495,11 @@ try {
       await outline.waitFor({ state: 'visible' });
 
       const views = outline.getByRole('combobox', { name: '大纲视图' });
-      assert.equal(await views.locator('option').count(), 4);
+      assert.equal(await views.locator('option').count(), 5);
       await views.selectOption('dates');
       assert.equal(await views.inputValue(), 'dates');
+      await views.selectOption('links');
+      assert.equal(await views.inputValue(), 'links');
       await views.selectOption('callouts');
       assert.equal(await views.inputValue(), 'callouts');
       await outline.getByText('当前项目暂无 Callout').waitFor();

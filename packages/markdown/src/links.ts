@@ -187,7 +187,7 @@ export function extractAllLinks(markdown: string): MarkdownLinkMeta[] {
   const seen = new Set<string>();
 
   // 1. 标准 Markdown 链接 [text](url)，负向零宽断言排除图片 ![alt](src)
-  const standardLinkRegex = /(?<!\!)\[([^\]]+)\]\(([^)]+)\)/g;
+  const standardLinkRegex = /(?<![!])\[([^\]]+)\]\(([^)]+)\)/g;
   let match: RegExpExecArray | null;
 
   while ((match = standardLinkRegex.exec(markdown)) !== null) {
