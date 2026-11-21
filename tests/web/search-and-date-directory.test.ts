@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoBranchFile } from '../../apps/web/src/demo.js';
-import { extractAllImages } from '@workspacetree/markdown';
+import { extractAllImages, extractAllLinks } from '@workspacetree/markdown';
 import { collectProjectTodos } from '../../apps/web/src/project-todos.js';
 import { getNodeNote } from '../../apps/web/src/history.js';
 
@@ -68,5 +68,28 @@ describe('search & date directory multi-view extraction', () => {
 
     expect(allTodos.length).toBeGreaterThan(0);
     expect(allTodos.some((t) => t.status === 'open' || t.status === 'done')).toBe(true);
+  });
+
+  it('大纲目录能正确提取全项目内嵌链接与双链引用并支持分类', () => {
+    const file = createDemoBranchFile();
+    const domain = file.domain;
+    const extractedLinks: Array<{ nodeId: string; text: string; url: string; type: string }> = [];
+
+    for (const node of domain.nodes) {
+      const note = getNodeNote(domain, node.id);
+      if (!note) continue;
+      const links = extractAllLinks(note);
+      for (const link of links) {
+        extractedLinks.push({
+          nodeId: node.id,
+          text: link.text,
+          url: link.url,
+          type: link.type,
+        });
+      }
+    }
+
+    expect(extractedLinks.length).toBeGreaterThanOrEqual(1);
+    expect(extractedLinks.some((l) => l.type === 'url')).toBe(true);
   });
 });

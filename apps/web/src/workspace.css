@@ -1018,6 +1018,142 @@ button.wst-date-todo-title {
   color: #8c9b94;
 }
 
+/* 引用与文件大纲视图面板 */
+.wst-date-link-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wst-date-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wst-date-link-item {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  transition: all 0.15s ease;
+}
+
+.wst-date-link-item:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wst-date-link-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.wst-date-link-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.wst-date-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: rgba(140, 160, 150, 0.12);
+  color: var(--muted);
+}
+
+.wst-date-link-icon.is-url {
+  color: #2b7de9;
+  background: rgba(43, 125, 233, 0.1);
+}
+
+.wst-date-link-icon.is-md {
+  color: #0b9b68;
+  background: rgba(11, 155, 104, 0.1);
+}
+
+.wst-date-link-icon.is-folder {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+}
+
+.wst-date-link-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.wst-date-link-action:hover .wst-date-link-text {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.wst-date-link-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-date-link-url {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+  padding-left: 24px;
+}
+
+.wst-date-link-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  padding-left: 24px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.wst-date-link-node-name {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wst-date-link-node-name:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+
+.wst-date-link-date {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 .wst-canvas .react-flow__background {
   color: #c3d3cc;
 }

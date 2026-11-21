@@ -7,25 +7,39 @@ import {
   remarkCallouts,
   remarkImageDimensionsPlugin,
   remarkTaskCheckboxes,
+  remarkWikilinks,
   TASK_STATUS_CONFIG,
   type MarkdownTaskStatus,
 } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { MarkdownImage } from './images/MarkdownImage.js';
 import { PeleDiagram } from './markdown/PeleDiagram.js';
+import { EmbeddedLink } from './markdown/embedded-links.js';
 import './markdown/markdown.css';
 
 export function safeUrlTransform(url: string): string {
-  if (url.startsWith('asset:') || url.startsWith('data:image/') || url.startsWith('blob:')) {
-    return url;
+  const trimmed = url.trim();
+  if (/^(javascript|vbscript|data:(?!image\/)):/i.test(trimmed)) {
+    return '';
   }
-  return defaultUrlTransform(url);
+  if (
+    trimmed.startsWith('asset:') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('file:') ||
+    trimmed.startsWith('vscode:') ||
+    trimmed.startsWith('obsidian:') ||
+    /^[a-zA-Z]:[\\/]/.test(trimmed)
+  ) {
+    return trimmed;
+  }
+  return defaultUrlTransform(trimmed);
 }
 
 export function renderInlineMarkdown(text: string): ReactNode[] {
   const parts: ReactNode[] = [];
   const pattern =
-    /(!\[[^\]]*\]\([^)]+\)|\{color:[^}]+\}[\s\S]*?\{\/color\}|==[^=]+==|\*\*[^*]+\*\*|`[^`]+`)/g;
+    /(!\[[^\]]*\]\([^)]+\)|\[\[[^\]]+\]\]|\[[^\]]+\]\([^)]+\)|\{color:[^}]+\}[\s\S]*?\{\/color\}|==[^=]+==|\*\*[^*]+\*\*|`[^`]+`)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -45,6 +59,28 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
             alt={imgMatch[1] || '插图'}
             loading="lazy"
           />,
+        );
+      }
+    } else if (token.startsWith('[[')) {
+      const wikiMatch = /^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/.exec(token);
+      if (wikiMatch) {
+        const target = wikiMatch[1]!.trim();
+        const label = wikiMatch[2]?.trim() || target;
+        parts.push(
+          <EmbeddedLink key={key++} href={target}>
+            {label}
+          </EmbeddedLink>,
+        );
+      }
+    } else if (token.startsWith('[')) {
+      const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
+      if (linkMatch) {
+        const label = linkMatch[1]!;
+        const url = linkMatch[2]!;
+        parts.push(
+          <EmbeddedLink key={key++} href={url}>
+            {renderInlineMarkdown(label)}
+          </EmbeddedLink>,
         );
       }
     } else if (token.startsWith('{color:')) {
@@ -173,11 +209,19 @@ export function MarkdownPreview({
           urlTransform={safeUrlTransform}
           remarkPlugins={[
             remarkGfm,
+            remarkWikilinks,
             remarkTaskCheckboxes,
             remarkImageDimensionsPlugin,
             [remarkCallouts, { onlyCallouts }],
           ]}
           components={{
+            a({ href, children, title }) {
+              return (
+                <EmbeddedLink href={href} title={title}>
+                  {children}
+                </EmbeddedLink>
+              );
+            },
             p({ children, node, ...props }) {
               const hasBlockChild = node?.children?.some(
                 (child: any) =>

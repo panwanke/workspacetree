@@ -1,16 +1,25 @@
 import type { DomainState, Node } from '@workspacetree/schema';
-import { countMarkdownCallouts, decodeTaskTitle, extractAllImages } from '@workspacetree/markdown';
+import {
+  countMarkdownCallouts,
+  decodeTaskTitle,
+  extractAllImages,
+  extractAllLinks,
+  getLinkIconName,
+  type LinkType,
+} from '@workspacetree/markdown';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { getNodeNote } from './history';
 import { MarkdownPreview } from './MarkdownPreview';
 import { TODO_STATUS } from './markdown-todos';
 import { collectProjectTodos, type ProjectTodo } from './project-todos';
+import { openEmbeddedLink } from './markdown/embedded-links';
 import { WorkspaceIcon } from './WorkspaceIcon';
 
 const directoryViews = [
   ['dates', '时间'],
   ['images', '图片'],
   ['todos', 'TODO'],
+  ['links', '引用'],
   ['callouts', 'Callout'],
 ] as const;
 
@@ -36,6 +45,16 @@ interface ImageGalleryItem {
   alt: string;
 }
 
+export interface ProjectReferenceItem {
+  id: string;
+  nodeId: string;
+  nodeTitle: string;
+  nodeDate: string | null;
+  text: string;
+  url: string;
+  type: LinkType;
+}
+
 export default function DateDirectory({
   nodes,
   domain,
@@ -55,6 +74,7 @@ export default function DateDirectory({
   });
 
   const [todoFilter, setTodoFilter] = useState<'all' | ProjectTodo['status']>('all');
+  const [linkFilter, setLinkFilter] = useState<'all' | LinkType>('all');
 
   const [width, setWidth] = useState<number>(() => {
     try {
@@ -150,6 +170,42 @@ export default function DateDirectory({
     return groups.flatMap((group) => group.items);
   }, [domain]);
 
+  // 4. 内嵌文件与链接引用数据（跨全部节点扫描 Markdown 链接与双链）
+  const allLinks: ProjectReferenceItem[] = useMemo(() => {
+    if (!domain) return [];
+    const list: ProjectReferenceItem[] = [];
+    const seen = new Set<string>();
+
+    for (const node of domain.nodes) {
+      const note = getNodeNote(domain, node.id);
+      if (!note) continue;
+      const metas = extractAllLinks(note);
+
+      metas.forEach((meta, idx) => {
+        const key = `${node.id}_${meta.url}_${meta.text}_${idx}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push({
+            id: key,
+            nodeId: node.id,
+            nodeTitle: node.title || '未命名节点',
+            nodeDate: node.startAt ?? null,
+            text: meta.text,
+            url: meta.url,
+            type: meta.type,
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [domain]);
+
+  const filteredLinks = useMemo(() => {
+    if (linkFilter === 'all') return allLinks;
+    return allLinks.filter((item) => item.type === linkFilter);
+  }, [allLinks, linkFilter]);
+
   const calloutNotes = useMemo(() => {
     if (!domain || !open || viewMode !== 'callouts') return [];
     return nodes.flatMap((node) => {
@@ -244,7 +300,13 @@ export default function DateDirectory({
             >
               {directoryViews.map(([id, label]) => {
                 const count =
-                  id === 'images' ? images.length : id === 'todos' ? allTodos.length : 0;
+                  id === 'images'
+                    ? images.length
+                    : id === 'todos'
+                      ? allTodos.length
+                      : id === 'links'
+                        ? allLinks.length
+                        : 0;
                 return (
                   <option key={id} value={id}>
                     {label}
@@ -427,6 +489,114 @@ export default function DateDirectory({
                           {todo.completedAt && (
                             <time className="wst-date-todo-date" dateTime={todo.completedAt}>
                               完成 {todo.completedAt}
+                            </time>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 4. 文件与链接引用视图 */}
+          {viewMode === 'links' && (
+            <div className="wst-date-link-panel">
+              {/* 引用类型筛选器 */}
+              <div className="wst-date-todo-filters">
+                <button
+                  type="button"
+                  className={`wst-date-filter-pill${linkFilter === 'all' ? ' is-active' : ''}`}
+                  onClick={() => setLinkFilter('all')}
+                >
+                  全部 ({allLinks.length})
+                </button>
+                <button
+                  type="button"
+                  className={`wst-date-filter-pill${linkFilter === 'url' ? ' is-active' : ''}`}
+                  aria-pressed={linkFilter === 'url'}
+                  onClick={() => setLinkFilter('url')}
+                >
+                  🌐 网页 ({allLinks.filter((l) => l.type === 'url').length})
+                </button>
+                <button
+                  type="button"
+                  className={`wst-date-filter-pill${linkFilter === 'md' ? ' is-active' : ''}`}
+                  aria-pressed={linkFilter === 'md'}
+                  onClick={() => setLinkFilter('md')}
+                >
+                  📄 文档 ({allLinks.filter((l) => l.type === 'md').length})
+                </button>
+                <button
+                  type="button"
+                  className={`wst-date-filter-pill${linkFilter === 'folder' ? ' is-active' : ''}`}
+                  aria-pressed={linkFilter === 'folder'}
+                  onClick={() => setLinkFilter('folder')}
+                >
+                  📁 目录 ({allLinks.filter((l) => l.type === 'folder').length})
+                </button>
+                <button
+                  type="button"
+                  className={`wst-date-filter-pill${linkFilter === 'generic' ? ' is-active' : ''}`}
+                  aria-pressed={linkFilter === 'generic'}
+                  onClick={() => setLinkFilter('generic')}
+                >
+                  🔗 其他 ({allLinks.filter((l) => l.type === 'generic').length})
+                </button>
+              </div>
+
+              {/* 引用清单 */}
+              <div className="wst-date-link-list">
+                {filteredLinks.length === 0 ? (
+                  <div className="wst-date-empty">
+                    <p>暂无符合筛选条件的引用</p>
+                    <span className="wst-date-empty-tip">
+                      在卡片笔记中使用 [名称](路径) 或 [[双链]]
+                    </span>
+                  </div>
+                ) : (
+                  filteredLinks.map((item) => {
+                    const isSelected = item.nodeId === selectedId;
+                    const iconName = getLinkIconName(item.type);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`wst-date-link-item${isSelected ? ' is-selected' : ''}`}
+                      >
+                        <div className="wst-date-link-header">
+                          <span className={`wst-date-link-icon is-${item.type}`}>
+                            <WorkspaceIcon name={iconName} size={14} />
+                          </span>
+                          <button
+                            type="button"
+                            className="wst-date-link-action"
+                            title={`点击打开/复制: ${item.url}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openEmbeddedLink(item.url, item.type);
+                            }}
+                          >
+                            <span className="wst-date-link-text">{item.text}</span>
+                          </button>
+                        </div>
+
+                        <div className="wst-date-link-url" title={item.url}>
+                          {item.url}
+                        </div>
+
+                        <div className="wst-date-link-sub">
+                          <button
+                            type="button"
+                            className="wst-date-link-node-name"
+                            title={`定位节点：${item.nodeTitle}`}
+                            onClick={() => jump(item.nodeId)}
+                          >
+                            {item.nodeTitle}
+                          </button>
+                          {item.nodeDate && (
+                            <time className="wst-date-link-date" dateTime={item.nodeDate}>
+                              {item.nodeDate}
                             </time>
                           )}
                         </div>

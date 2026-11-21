@@ -17,17 +17,23 @@ import {
 import { syntaxTree } from '@codemirror/language';
 import {
   IMAGE_TAG_REGEX,
+  classifyLink,
   formatImageTag,
+  getLinkActionLabel,
+  getLinkIconName,
   parseCalloutHeader,
   parseImageMeta,
   TASK_STATUS_CONFIG,
   type MarkdownTaskStatus,
   type MarkdownImageMeta,
+  type LinkType,
 } from '@workspacetree/markdown';
 import type { AssetRecord } from '@workspacetree/schema';
 import { render } from 'pele';
+import { renderIconSvgHtml } from '../WorkspaceIcon.js';
 import { assetBlobUrls } from '../images/image-assets.js';
 import { editorTasks, toggleTaskAtLine } from './commands';
+import { openEmbeddedLink } from './embedded-links.js';
 
 export const setSourceModeEffect = StateEffect.define<boolean>();
 
@@ -312,6 +318,78 @@ export class PeleWidget extends WidgetType {
 }
 
 /**
+ * 实时预览内嵌链接 Widget
+ */
+export class LiveLinkWidget extends WidgetType {
+  constructor(
+    public readonly label: string,
+    public readonly href: string,
+    public readonly linkType: LinkType,
+    public readonly from: number,
+    public readonly to: number,
+  ) {
+    super();
+  }
+
+  eq(other: LiveLinkWidget): boolean {
+    return (
+      this.label === other.label &&
+      this.href === other.href &&
+      this.linkType === other.linkType &&
+      this.from === other.from &&
+      this.to === other.to
+    );
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const wrap = document.createElement('span');
+    wrap.className = `wst-live-link is-${this.linkType} nodrag nopan`;
+    wrap.contentEditable = 'false';
+    wrap.title = getLinkActionLabel(this.linkType, this.href) + ' (点击文本编辑，点击按钮打开)';
+
+    // 图标
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'wst-link-icon';
+    iconSpan.innerHTML = renderIconSvgHtml(getLinkIconName(this.linkType), 13);
+    wrap.appendChild(iconSpan);
+
+    // 链接文字
+    const textSpan = document.createElement('span');
+    textSpan.className = 'wst-link-text';
+    textSpan.textContent = this.label;
+    wrap.appendChild(textSpan);
+
+    // 快捷打开小按钮
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.tabIndex = -1;
+    openBtn.className = 'wst-link-quick-btn';
+    openBtn.title = '打开链接';
+    openBtn.innerHTML = renderIconSvgHtml('externalLink', 11);
+    openBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openEmbeddedLink(this.href, this.linkType);
+    });
+    wrap.appendChild(openBtn);
+
+    // 点击文字聚焦展开 Markdown 源码以便编辑
+    textSpan.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      view.dispatch({ selection: { anchor: this.from } });
+      view.focus();
+    });
+
+    return wrap;
+  }
+
+  ignoreEvent(event: Event): boolean {
+    return event.type !== 'click';
+  }
+}
+
+/**
  * 判断指定区间 [from, to] 是否与当前选区发生重叠（光标在内则不隐藏源码，方便编辑）
  */
 function selectionOverlaps(state: EditorState, from: number, to: number): boolean {
@@ -502,6 +580,28 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
         if (name === 'InlineCode') {
           if (!selectionOverlaps(state, from, to)) {
             items.push({ from, to, deco: Decoration.mark({ class: 'wst-live-code' }) });
+          }
+        }
+
+        // 内嵌链接
+        if (name === 'Link') {
+          if (!selectionOverlaps(state, from, to)) {
+            const raw = state.sliceDoc(from, to);
+            const match = /^\[([^\]]*)\]\(([^)]*)\)$/.exec(raw);
+            if (match) {
+              const label = match[1] || match[2] || '链接';
+              const href = match[2] || '';
+              const linkType = classifyLink(href);
+              items.push({
+                from,
+                to,
+                deco: Decoration.replace({
+                  widget: new LiveLinkWidget(label, href, linkType, from, to),
+                  inclusive: false,
+                }),
+              });
+              replacedRanges.push({ from, to });
+            }
           }
         }
       },

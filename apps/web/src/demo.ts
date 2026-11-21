@@ -214,6 +214,20 @@ const DEMO_NOTES: Record<string, string> = {
     '- [x] 自动转义 XML 特殊字符，高亮主干描边增强',
   ].join('\n'),
 
+  n_eco_bridge: [
+    '### **知识库与内嵌链接快速跳转**',
+    '> [!TIP]',
+    '> 支持自动识别 3 类链接并在前缀呈现专属图标，在线点击均可真实直达：',
+    '',
+    '- 外部主页：[WorkspaceTree 官方仓库](https://github.com/panwanke/workspacetree)',
+    '- 线上文档：[研发规范文档](https://github.com/panwanke/workspacetree/blob/master/docs/rules/principles.md)',
+    '- 线上目录：[packages 源码目录](https://github.com/panwanke/workspacetree/tree/master/packages/)',
+    '- 双链语法测试：[[https://github.com/panwanke/workspacetree/blob/master/README_zh.md|中文开发指南]]',
+    '',
+    '> [!NOTE]',
+    '> **本地工程语法支持说明**：在本地离线或私有工程中，同样支持 `[本地文档](docs/rules.md)` 或 `[工程目录](file:///D:/my-project/)`，点击可自动复制绝对路径并联动本地开发工具。',
+  ].join('\n'),
+
   n_mile_alpha: [
     '### **v1.0 Alpha 原型验证**',
     '> [!NOTE]',

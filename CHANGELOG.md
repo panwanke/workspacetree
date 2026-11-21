@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-21
+
+- **内嵌多类型链接与专属图标系统（Embedded Links & Icons）**：
+  - 支持网页链接（🌐 Globe）、Markdown 文档（📄 File-text）、本地与工程目录（📁 Folder）及其他外部协议（🔗 External-link）的智能分类与高亮渲染；
+  - 集成 Obsidian Wikilinks `[[目标|显示文字]]` 双向链接解析，打通知识库与思维树拓扑；
+  - 链接右侧提供轻量快捷复制按钮与悬浮操作提示（Tooltip），并在复制时展示全局独立 Toast 反馈。
+- **本地开发环境系统原生默认工具桥接（Native System Open Plugin）**：
+  - 新增 Vite 中间件 `openInSystemPlugin`（`/__open_in_system`），在本地运行环境下点击本地路径直接通过操作系统底层 `start`（Windows）/ `open`（macOS）/ `xdg-open`（Linux）唤起用户系统默认关联程序（如默认 Markdown 编辑器、PowerPoint、文件资源管理器等）；
+  - 智能关联项目注册表（`project-heads.json`），自动将相对文档与图件路径对齐解析至物理硬盘真实路径；
+  - 针对 GitHub Pages 等纯静态部署环境实现无侵入安全降级，自动回退为剪贴板路径复制与轻量气泡提醒。
+- **大纲栏（DateDirectory）全项目引用视图与多维筛选**：
+  - 侧边大纲栏新增「引用」视图模式，与「时间」、「图片」、「TODO」、「Callout」并列，实时显示项目全部引用计数；
+  - 支持按「全部 / 🌐 网页 / 📄 文档 / 📁 目录 / 🔗 其他」五档标签胶囊进行实时聚合筛选；
+  - 引用条目直观呈现专属图标、目标路径与所属母节点，支持一键在系统默认程序中打开/复制，并支持点击母节点标签平滑跳转画布。
+
 ## 2026-11-20
 
 - **双层缩放架构（Dual-Layer Scaling Architecture）**：

@@ -154,10 +154,25 @@
   font-weight: 700;
   line-height: 1.3;
 }
-.wst-live-h1 { font-size: 1.35em; color: var(--text-main, #0f172a); margin-top: 4px; }
-.wst-live-h2 { font-size: 1.2em; color: var(--text-main, #0f172a); }
-.wst-live-h3 { font-size: 1.1em; color: var(--text-main, #1e293b); }
-.wst-live-h4, .wst-live-h5, .wst-live-h6 { font-size: 1em; color: var(--text-muted, #475569); }
+.wst-live-h1 {
+  font-size: 1.35em;
+  color: var(--text-main, #0f172a);
+  margin-top: 4px;
+}
+.wst-live-h2 {
+  font-size: 1.2em;
+  color: var(--text-main, #0f172a);
+}
+.wst-live-h3 {
+  font-size: 1.1em;
+  color: var(--text-main, #1e293b);
+}
+.wst-live-h4,
+.wst-live-h5,
+.wst-live-h6 {
+  font-size: 1em;
+  color: var(--text-muted, #475569);
+}
 
 /* 行内样式 */
 .wst-live-strong {
@@ -186,7 +201,7 @@
   user-select: none;
 }
 
-.wst-live-checkbox input[type="checkbox"] {
+.wst-live-checkbox input[type='checkbox'] {
   cursor: pointer;
   margin: 0;
   width: 14px;
@@ -249,13 +264,33 @@
   margin-bottom: 4px;
 }
 
-.wst-callout.is-note { border-left-color: #6366f1; }
-.wst-callout.is-info { border-left-color: #0284c7; background: rgba(2, 132, 199, 0.06); }
-.wst-callout.is-tip { border-left-color: #059669; background: rgba(5, 150, 105, 0.06); }
-.wst-callout.is-warning { border-left-color: #d97706; background: rgba(217, 119, 6, 0.06); }
-.wst-callout.is-question { border-left-color: #7c3aed; background: rgba(124, 58, 237, 0.06); }
-.wst-callout.is-success { border-left-color: #16a34a; background: rgba(22, 163, 74, 0.06); }
-.wst-callout.is-example { border-left-color: #4b5563; background: rgba(75, 85, 99, 0.06); }
+.wst-callout.is-note {
+  border-left-color: #6366f1;
+}
+.wst-callout.is-info {
+  border-left-color: #0284c7;
+  background: rgba(2, 132, 199, 0.06);
+}
+.wst-callout.is-tip {
+  border-left-color: #059669;
+  background: rgba(5, 150, 105, 0.06);
+}
+.wst-callout.is-warning {
+  border-left-color: #d97706;
+  background: rgba(217, 119, 6, 0.06);
+}
+.wst-callout.is-question {
+  border-left-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.06);
+}
+.wst-callout.is-success {
+  border-left-color: #16a34a;
+  background: rgba(22, 163, 74, 0.06);
+}
+.wst-callout.is-example {
+  border-left-color: #4b5563;
+  background: rgba(75, 85, 99, 0.06);
+}
 
 /* 图片样式与缺失提示 */
 .wst-md-img {
@@ -458,7 +493,9 @@
   border-radius: 6px;
   cursor: pointer;
   overflow-x: auto;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .wst-pele-live-container:hover {
@@ -481,3 +518,185 @@
   background: #fef2f2;
 }
 
+/* ==========================================================================
+   内嵌链接（网页 / MD 文档 / 文件夹）与快捷操作样式
+   ========================================================================== */
+
+.wst-embedded-link,
+.wst-live-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  line-height: 1.4;
+  text-decoration: none;
+  vertical-align: baseline;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  user-select: text;
+  box-sizing: border-box;
+}
+
+/* 网页链接 (url): 科技感沉稳蓝紫 */
+.wst-embedded-link.is-url,
+.wst-live-link.is-url {
+  color: var(--accent, #4f46e5);
+  background: rgba(79, 70, 229, 0.08);
+  border: 1px solid rgba(79, 70, 229, 0.22);
+}
+.wst-embedded-link.is-url:hover,
+.wst-live-link.is-url:hover {
+  background: rgba(79, 70, 229, 0.16);
+  border-color: rgba(79, 70, 229, 0.45);
+  text-decoration: none;
+}
+
+/* Markdown 文档 (md): 典雅翡翠绿 */
+.wst-embedded-link.is-md,
+.wst-live-link.is-md {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.08);
+  border: 1px solid rgba(5, 150, 105, 0.22);
+}
+.wst-embedded-link.is-md:hover,
+.wst-live-link.is-md:hover {
+  background: rgba(5, 150, 105, 0.16);
+  border-color: rgba(5, 150, 105, 0.45);
+  text-decoration: none;
+}
+
+/* 文件夹 (folder): 温暖琥珀金 */
+.wst-embedded-link.is-folder,
+.wst-live-link.is-folder {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.24);
+}
+.wst-embedded-link.is-folder:hover,
+.wst-live-link.is-folder:hover {
+  background: rgba(217, 119, 6, 0.16);
+  border-color: rgba(217, 119, 6, 0.45);
+  text-decoration: none;
+}
+
+/* 通用链接 (generic): 沉静灰蓝 */
+.wst-embedded-link.is-generic,
+.wst-live-link.is-generic {
+  color: var(--text-muted, #64748b);
+  background: rgba(100, 116, 139, 0.08);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+}
+.wst-embedded-link.is-generic:hover,
+.wst-live-link.is-generic:hover {
+  background: rgba(100, 116, 139, 0.16);
+  border-color: rgba(100, 116, 139, 0.4);
+  text-decoration: none;
+}
+
+/* 图标容器与对齐 */
+.wst-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.wst-link-icon svg {
+  display: block;
+}
+
+.wst-link-text {
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 260px;
+}
+
+/* 复制与快速打开小按钮 */
+.wst-link-copy-btn,
+.wst-link-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 1px 2px;
+  margin-left: 2px;
+  border-radius: 3px;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wst-link-copy-btn:hover,
+.wst-link-quick-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.wst-link-copy-btn.is-copied {
+  color: #16a34a;
+  opacity: 1;
+}
+
+/* Toast 浮动提示 */
+.wst-toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.wst-toast {
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  animation: wst-toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-width: 80vw;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.wst-toast.is-leaving {
+  animation: wst-toast-out 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes wst-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes wst-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
